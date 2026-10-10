@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { addRep, clock, COUNTDOWN_MS, countdownLeft, createGame, endGame, FAILURE, failLeft, failWindow, formatClock, points, repPoints, tick, winner, type GameState, type PlayerLive } from '../game'
+import { addRep, clock, COUNTDOWN_MS, countdownLeft, createGame, endGame, FAILURE, failLeft, failWindow, formatClock, fmtPoints, points, repPoints, score, streakMultiplier, streakTier, tick, winner, type GameState, type PlayerLive } from '../game'
 import type { RepResult } from '../judge'
 
 const rep = (counted = true, perfect = counted): RepResult => ({
@@ -183,6 +183,19 @@ describe('stop and winner', () => {
     g = addRep(g, 0, rep(), 4000)
     g = addRep(g, 0, rep(true, false), 5000)
     expect(points(g.players[0])).toBe(3)
+  })
+
+  it('streak: 5 perfect in a row unlock 1.2x, +0.1x every 5 more, capped at 1.5x', () => {
+    expect([0, 4, 5, 9, 10, 15, 20, 40].map(streakMultiplier)).toEqual([1, 1, 1.2, 1.2, 1.3, 1.4, 1.5, 1.5])
+    const P = { counted: true, perfect: true }
+    const G = { counted: true, perfect: false }
+    expect(score(Array(6).fill(P)).points).toBe(12.2) // 5 × 2 + 2.2
+    expect(score(Array(11).fill(P)).points).toBe(10 + 5 * 2.2 + 2.3)
+    const broken = score([...Array(7).fill(P), G, P])
+    expect(broken).toEqual({ points: 10 + 2 * 2.2 + 1 + 2, streak: 1, multiplier: 1, bestStreak: 7 })
+    expect(score(Array(30).fill(P)).multiplier).toBe(1.5)
+    expect([0, 4, 5, 10, 15, 20, 99].map(streakTier)).toEqual([0, 0, 1, 2, 3, 4, 4])
+    expect([12, 12.2, 2.2 + 4.4, 0].map(fmtPoints)).toEqual(['12', '12.2', '6.6', '0'])
   })
 
   it('winner: most points, then most perfect; ties are null', () => {

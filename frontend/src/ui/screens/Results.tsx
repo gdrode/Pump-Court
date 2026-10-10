@@ -1,4 +1,4 @@
-import { FINISH_TEXT } from "@tracker/game";
+import { FINISH_TEXT, fmtPoints } from "@tracker/game";
 import type { RoundResult } from "../../api/types";
 import { MODE_LABELS, REFEREE_LABELS, REFEREES } from "../../config/modes";
 import { useScorePosts, type ScorePost } from "../../logic/scorePost";
@@ -57,7 +57,7 @@ export function Results({ result, nextPlayer, onNext, onDiscard }: Props) {
         {r.finish && <p className="results__finish">{FINISH_TEXT[r.finish]}</p>}
         <p className={`results__post is-${post.status}`}>{postText(post, r.player)}</p>
         <div className="results__score">
-          <span>{r.points}</span>
+          <span>{fmtPoints(r.points)}</span>
           <small>points</small>
         </div>
         <div className="results__stats">
@@ -76,6 +76,10 @@ export function Results({ result, nextPlayer, onNext, onDiscard }: Props) {
           <div>
             <b>{r.rank ? `#${r.rank}` : "–"}</b>
             <span>rank</span>
+          </div>
+          <div>
+            <b>{r.bestStreak ?? 0}</b>
+            <span>best streak</span>
           </div>
         </div>
         <div className="results__noreps">

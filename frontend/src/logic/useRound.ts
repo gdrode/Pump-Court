@@ -123,12 +123,15 @@ export function useRound(opts: RoundOptions) {
     /** The tracker's push-up position check (for the get-ready checklist). */
     posture: tracker.live.posture,
     countdownSeconds,
-    /** The score: 1 per 2-light rep, 2 per perfect rep. */
+    /** The score: 1 per 2-light rep, 2 per perfect rep, 2.2–2.5 on a streak. */
     points: session?.points ?? 0,
     /** Valid push-ups (2–3 white lights). */
     reps: session?.reps ?? 0,
     attempts: session?.attempts ?? 0,
     perfect: session?.perfect ?? 0,
+    /** Perfect reps in a row, and the multiplier for the next perfect rep. */
+    streak: session?.streak ?? 0,
+    multiplier: session?.multiplier ?? 1,
     /** ms since the clock started. */
     elapsedMs: session?.elapsedMs ?? 0,
     /** Time left in ms (Sprint, Marathon, Duel), else null. */

@@ -7,6 +7,7 @@ import {
   failLeft,
   goodReps,
   points,
+  score,
   tick,
   type GameState,
   type Mode as GameMode,
@@ -138,6 +139,7 @@ export function useDuelMatch(opts: DuelOptions) {
       reps: goodReps(p),
       attempts: p.results.length,
       perfect: p.results.filter((r) => r.perfect).length,
+      bestStreak: score(p.results).bestStreak,
       noReps: {
         depth: p.results.filter((r) => !r.lights.depth).length,
         torso: p.results.filter((r) => !r.lights.torso).length,
@@ -159,9 +161,13 @@ export function useDuelMatch(opts: DuelOptions) {
   const players = [0, 1].map((i) => {
     const p = game.players[i];
     const tracker = i === 0 ? t1 : t2;
+    const sc = score(p.results);
     return {
       name: opts.players[i],
-      points: points(p),
+      points: sc.points,
+      /** Perfect reps in a row, and the multiplier for the next perfect rep. */
+      streak: sc.streak,
+      multiplier: sc.multiplier,
       reps: goodReps(p),
       perfect: p.results.filter((r) => r.perfect).length,
       attempts: p.results.length,

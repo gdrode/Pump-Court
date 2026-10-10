@@ -1,3 +1,4 @@
+import { fmtPoints } from "@tracker/game";
 import { useEffect, useState } from "react";
 import { BOARDS, MODE_LABELS } from "../../config/modes";
 import { eventTabs, sameTab, useEvents, type BoardRef } from "../../logic/useEvents";
@@ -145,7 +146,7 @@ export function Leaderboard({ initial, highlight, onBack }: Props) {
       )}
       {confirm && selected && (
         <p className="error">
-          Press Delete again to remove {selected.name}'s {selected.points} points ({MODE_LABELS[selected.mode]}).
+          Press Delete again to remove {selected.name}'s {fmtPoints(selected.points)} points ({MODE_LABELS[selected.mode]}).
         </p>
       )}
       {board.message && <p className="message">{board.message}</p>}

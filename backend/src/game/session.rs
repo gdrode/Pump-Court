@@ -87,12 +87,26 @@ pub struct NoRepCounts {
     pub lockout: u32,
 }
 
-/// Points for one rep: 2 white lights = 1, 3 white lights (perfect) = 2, else 0.
-pub fn rep_points(counted: bool, perfect: bool) -> u32 {
+/// Perfect reps in a row that unlock the next streak tier.
+pub const STREAK_EVERY: u32 = 5;
+
+/// The multiplier for the next perfect rep after `run` perfect reps in a row,
+/// in tenths: 10 (1x) under 5, then 12 (1.2x), +1 every 5 more, up to 15 (1.5x).
+/// Same rules as `streakMultiplier` in pumpCourt/src/game.ts.
+pub fn streak_tenths(run: u32) -> u32 {
+    match run / STREAK_EVERY {
+        0 => 10,
+        tiers => (11 + tiers).min(15),
+    }
+}
+
+/// Points for one rep, in tenths: perfect = 1 + multiplier (2, or 2.2–2.5 on a
+/// streak), 2 white lights = 1, else 0.
+pub fn rep_points_tenths(counted: bool, perfect: bool, run: u32) -> u32 {
     if perfect {
-        2
+        10 + streak_tenths(run)
     } else {
-        u32::from(counted)
+        10 * u32::from(counted)
     }
 }
 
@@ -103,12 +117,15 @@ pub fn rep_points(counted: bool, perfect: bool) -> u32 {
 pub struct RoundResult {
     pub mode: RoundMode,
     pub player: String,
-    /// The score: 1 per 2-light rep, 2 per 3-light rep (see [`rep_points`]).
-    pub points: u32,
+    /// The score, to one decimal: 1 per 2-light rep, 2 per 3-light rep, more
+    /// on a streak (see [`rep_points_tenths`]).
+    pub points: f64,
     /// Valid push-ups (2 or 3 white lights).
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,
+    /// Longest run of perfect reps.
+    pub best_streak: u32,
     pub no_reps: NoRepCounts,
     pub duration_ms: i64,
     /// Why the round ended.
@@ -134,11 +151,15 @@ pub struct SessionSnapshot {
     /// While running: time left before the player fails (stuck in a rep, or no
     /// push-up in time).
     pub fail_remaining_ms: Option<i64>,
-    /// The score so far (see [`rep_points`]).
-    pub points: u32,
+    /// The score so far (see [`rep_points_tenths`]).
+    pub points: f64,
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,
+    /// Perfect reps in a row right now.
+    pub streak: u32,
+    /// Multiplier for the next perfect rep (1 = no streak bonus).
+    pub multiplier: f64,
     pub last_rep: Option<RepVerdict>,
 }
 
@@ -152,7 +173,11 @@ pub struct Session {
     /// When the current phase began.
     phase_start: i64,
     now: i64,
+    /// The score in tenths of a point.
     points: u32,
+    /// Perfect reps in a row.
+    streak: u32,
+    best_streak: u32,
     reps: u32,
     attempts: u32,
     perfect: u32,
@@ -183,6 +208,8 @@ impl Session {
             phase_start: 0,
             now: 0,
             points: 0,
+            streak: 0,
+            best_streak: 0,
             reps: 0,
             attempts: 0,
             perfect: 0,
@@ -254,7 +281,9 @@ impl Session {
         if rep.perfect {
             self.perfect += 1;
         }
-        self.points += rep_points(rep.counted, rep.perfect);
+        self.points += rep_points_tenths(rep.counted, rep.perfect, self.streak);
+        self.streak = if rep.perfect { self.streak + 1 } else { 0 };
+        self.best_streak = self.best_streak.max(self.streak);
         self.no_reps.depth += u32::from(!rep.lights.depth);
         self.no_reps.torso += u32::from(!rep.lights.torso);
         self.no_reps.lockout += u32::from(!rep.lights.lockout);
@@ -287,10 +316,11 @@ impl Session {
                 Some(RoundResult {
                     mode,
                     player: self.player.clone().unwrap_or_default(),
-                    points: self.points,
+                    points: f64::from(self.points) / 10.0,
                     reps: self.reps,
                     attempts: self.attempts,
                     perfect: self.perfect,
+                    best_streak: self.best_streak,
                     no_reps: self.no_reps.clone(),
                     duration_ms,
                     finish,
@@ -342,10 +372,12 @@ impl Session {
             elapsed_ms: elapsed,
             remaining_ms: self.mode.filter(|_| running).and_then(|m| m.duration_ms()).map(|d| (d - elapsed).max(0)),
             fail_remaining_ms: if running { self.fail_remaining(elapsed) } else { None },
-            points: self.points,
+            points: f64::from(self.points) / 10.0,
             reps: self.reps,
             attempts: self.attempts,
             perfect: self.perfect,
+            streak: self.streak,
+            multiplier: f64::from(streak_tenths(self.streak)) / 10.0,
             last_rep: self.last_rep.clone(),
         }
     }
@@ -393,11 +425,37 @@ mod tests {
         keep_going(&mut s, t0 + 6_000, t0 + 30_000, 3_000);
         let r = s.tick(t0 + 30_100).expect("time up");
         assert_eq!((r.reps, r.attempts, r.perfect), (10, 11, 9));
-        assert_eq!(r.points, 19, "9 perfect × 2 + 1 two-light rep × 1");
+        // 1 perfect (2), 1 two-light (1), a no-rep, then 8 perfect in a row: 5 × 2 + 3 × 2.2.
+        assert_eq!(r.points, 19.6);
+        assert_eq!(r.best_streak, 8);
         assert_eq!((r.no_reps.depth, r.no_reps.torso, r.no_reps.lockout), (2, 1, 0));
         assert_eq!((r.duration_ms, r.finish), (30_000, FinishReason::Time));
         assert!(s.tick(t0 + 31_000).is_none(), "the result comes once");
         assert!(s.report_rep(rep(true, true, true), t0 + 31_000).is_none(), "no reps after the buzzer");
+    }
+
+    #[test]
+    fn perfect_streaks_raise_the_multiplier_up_to_1_5x_and_break_on_a_lesser_rep() {
+        assert_eq!([0, 4, 5, 9, 10, 15, 20, 50].map(streak_tenths), [10, 10, 12, 12, 13, 14, 15, 15]);
+        let mut s = Session::new();
+        let t0 = running(&mut s, RoundMode::Max);
+        let mut t = t0;
+        let mut perfect = |s: &mut Session, n: u32| {
+            for _ in 0..n {
+                t += 500;
+                s.report_rep(rep(true, true, true), t);
+            }
+            t
+        };
+        perfect(&mut s, 5);
+        assert_eq!((s.snapshot().points, s.snapshot().multiplier), (10.0, 1.2));
+        perfect(&mut s, 1);
+        assert_eq!(s.snapshot().points, 12.2, "the 6th perfect rep scores 2.2");
+        let t = perfect(&mut s, 14);
+        assert_eq!((s.snapshot().streak, s.snapshot().multiplier), (20, 1.5));
+        s.report_rep(rep(false, true, true), t + 500);
+        let snap = s.snapshot();
+        assert_eq!((snap.streak, snap.multiplier), (0, 1.0), "2 lights break the streak");
     }
 
     #[test]

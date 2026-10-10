@@ -174,11 +174,64 @@ export function clock(g: GameState, now: number) {
 
 export const goodReps = (p: PlayerState) => p.results.filter((r) => r.counted).length
 
-/** Points for one rep: 3 white lights (perfect) = 2, 2 white lights = 1, else 0. */
-export const repPoints = (r: { counted: boolean; perfect: boolean }) => (r.perfect ? 2 : r.counted ? 1 : 0)
+/**
+ * Perfect-rep streak. 5 perfect reps in a row unlock a multiplier on every
+ * perfect rep after them: 1.2x, then +0.1x for every 5 more in a row, up to
+ * 1.5x. A perfect rep scores 1 + multiplier (2, then 2.2, 2.3, 2.4, 2.5).
+ * Any rep that isn't perfect (2 lights, or a no-rep) ends the streak.
+ * Same rules as backend/src/game/session.rs (`streak_multiplier`).
+ */
+export const STREAK = { every: 5, start: 1.2, step: 0.1, cap: 1.5 } as const
 
-/** The score: 1 point per 2-light rep, 2 per 3-light (perfect) rep. */
-export const points = (p: PlayerState) => p.results.reduce((n, r) => n + repPoints(r), 0)
+/** The multiplier for the next perfect rep after `run` perfect reps in a row. */
+export function streakMultiplier(run: number): number {
+  const tiers = Math.floor(run / STREAK.every)
+  if (tiers === 0) return 1
+  return Math.min(STREAK.cap, Math.round((STREAK.start + STREAK.step * (tiers - 1)) * 10) / 10)
+}
+
+/** Streak tier after `run` perfect reps in a row: 0 (none), 1 (1.2x) … 4 (1.5x, the cap). */
+export function streakTier(run: number): number {
+  const top = Math.round((STREAK.cap - STREAK.start) / STREAK.step) + 1
+  return Math.min(top, Math.floor(run / STREAK.every))
+}
+
+/** A score for people: one decimal only when needed (12, 12.2). */
+export function fmtPoints(n: number): string {
+  const t = Math.round(n * 10) / 10
+  return Number.isInteger(t) ? String(t) : t.toFixed(1)
+}
+
+/** Points for one rep: perfect = 1 + multiplier, 2 white lights = 1, else 0. */
+export const repPoints = (r: { counted: boolean; perfect: boolean }, multiplier = 1) =>
+  r.perfect ? 1 + multiplier : r.counted ? 1 : 0
+
+export interface Score {
+  /** The score, to one decimal. */
+  points: number
+  /** Perfect reps in a row right now. */
+  streak: number
+  /** Multiplier for the next perfect rep (1 = no streak bonus). */
+  multiplier: number
+  /** Longest run of perfect reps. */
+  bestStreak: number
+}
+
+/** Adds up a player's reps with the streak rules. Counted in tenths, so 2.2 + 2.2 is exactly 4.4. */
+export function score(results: readonly { counted: boolean; perfect: boolean }[]): Score {
+  let tenths = 0
+  let run = 0
+  let bestStreak = 0
+  for (const r of results) {
+    tenths += Math.round(repPoints(r, streakMultiplier(run)) * 10)
+    run = r.perfect ? run + 1 : 0
+    bestStreak = Math.max(bestStreak, run)
+  }
+  return { points: tenths / 10, streak: run, multiplier: streakMultiplier(run), bestStreak }
+}
+
+/** The score: 1 point per 2-light rep, 2 per perfect rep (more on a streak). */
+export const points = (p: PlayerState) => score(p.results).points
 
 /** Index of the winner in a 2-player round, or null for a tie / 1 player. Most points wins; a tie on points goes to more perfect reps. */
 export function winner(g: GameState): number | null {

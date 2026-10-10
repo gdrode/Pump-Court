@@ -54,7 +54,7 @@ pub struct TeamRow {
     pub rank: u32,
     pub team: String,
     /// Sum of the members' best rounds (points) in the board's mode.
-    pub points: u32,
+    pub points: f64,
     pub members: u32,
 }
 
@@ -350,7 +350,7 @@ mod tests {
         let db = Leaderboard::temporary();
         let ev = db.save_event(draft("Fest")).unwrap().id;
         let post = |name: &str, mode, reps, role: Option<&str>, team: Option<&str>| {
-            db.save_tagged_run(name, mode, reps, reps, Some(ev), role, team).unwrap()
+            db.save_tagged_run(name, mode, f64::from(reps), reps, Some(ev), role, team).unwrap()
         };
         post("Ana", RoundMode::Sprint, 20, Some("Alpha"), Some("Red"));
         post("Ana", RoundMode::Sprint, 25, Some("Alpha"), Some("red")); // her best counts once
@@ -361,13 +361,13 @@ mod tests {
 
         let everyone = db.event_top(ev, RoundMode::Sprint, None, 10).unwrap();
         let names: Vec<_> = everyone.iter().map(|r| (r.name.as_str(), r.points)).collect();
-        assert_eq!(names, [("Cy", 30), ("Ana", 25), ("Ben", 18)]);
+        assert_eq!(names, [("Cy", 30.0), ("Ana", 25.0), ("Ben", 18.0)]);
         let beta = db.event_top(ev, RoundMode::Sprint, Some("BETA"), 10).unwrap();
         assert_eq!(beta.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["Cy", "Ben"]);
 
         let teams = db.team_top(ev, RoundMode::Sprint, 10).unwrap();
         let got: Vec<_> = teams.iter().map(|t| (t.team.as_str(), t.points, t.members, t.rank)).collect();
-        assert_eq!(got, [("Red", 43, 2, 1), ("Blue", 30, 1, 2)]);
+        assert_eq!(got, [("Red", 43.0, 2, 1), ("Blue", 30.0, 1, 2)]);
         assert_eq!(db.event_teams(ev).unwrap(), ["Blue", "Red"]);
         assert_eq!(db.top(Some(RoundMode::Sprint), 1).unwrap()[0].name, "Eve", "event rounds stay on the global boards too");
 

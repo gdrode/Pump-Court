@@ -1,4 +1,4 @@
-import { repPoints } from "@tracker/game";
+import { repPoints, streakMultiplier } from "@tracker/game";
 import { REFEREES } from "../config/modes";
 import type { RepVerdict } from "../api/types";
 import type { DragonAction } from "./components/Dragon";
@@ -18,6 +18,8 @@ interface Input {
   lastRepAt: number | null;
   /** Points so far. */
   points: number;
+  /** Perfect reps in a row (the last rep scored with the multiplier before it). */
+  streak: number;
   attempts: number;
   /** Score to beat, if any. */
   best: { points: number } | null;
@@ -30,13 +32,13 @@ interface Input {
  * What the dragon does and says during a round. Shared by the round screen
  * and the crowd screen so both show the same reaction.
  */
-export function hostReaction({ lastRep, lastRepAt, points, attempts, best, urgent, elapsedMs }: Input): HostState {
+export function hostReaction({ lastRep, lastRepAt, points, streak, attempts, best, urgent, elapsedMs }: Input): HostState {
   const sinceLast = lastRepAt === null ? Infinity : performance.now() - lastRepAt;
   const fresh = lastRep !== null && sinceLast < 1300;
   const red = lastRep ? REFEREES.find((l) => !lastRep.lights[l]) : undefined;
   const ahead = best !== null && points > best.points;
   // This rep took the score past the best.
-  const justBeat = ahead && !!lastRep?.counted && points - repPoints(lastRep) <= best.points;
+  const justBeat = ahead && !!lastRep?.counted && points - repPoints(lastRep, streakMultiplier(Math.max(0, streak - 1))) <= best.points;
   const seed = elapsedMs / 3000;
   const beat = attempts;
 

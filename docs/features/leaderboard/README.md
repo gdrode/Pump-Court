@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-Scores are kept in a small **SQLite** database on the game laptop, through `rusqlite`. One row per finished round: who, which mode, the **points** (the score: 2 per perfect rep, 1 per 2-light rep), how many valid push-ups, and, for a solo round at an event, the event, role and team. Nothing else about the player or the round is stored.
+Scores are kept in a small **SQLite** database on the game laptop, through `rusqlite`. One row per finished round: who, which mode, the **points** (the score, to one decimal: 2 per perfect rep, 2.2–2.5 on a perfect streak, 1 per 2-light rep), how many valid push-ups, and, for a solo round at an event, the event, role and team. Nothing else about the player or the round is stored.
 
 - **Events** (`backend/src/events.rs`): per-event boards per mode (Everyone and per role) and team leaderboards (members' bests added up). See [Events](events.md).
 
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE INDEX IF NOT EXISTS runs_by_mode ON runs(mode, reps DESC);
 ```
 
-`add_points` adds `points INTEGER` (and the index `runs_by_points ON runs(mode, points DESC)`); rows from before points get `points = reps`. Boards rank by `points`. `LeaderboardRow` is sent as `{ rank, runId, name, mode, points, reps }`.
+`add_points` adds `points REAL` (older databases have it as INTEGER, which still keeps decimals in SQLite) (and the index `runs_by_points ON runs(mode, points DESC)`); rows from before points get `points = reps`. Boards rank by `points`. `LeaderboardRow` is sent as `{ rank, runId, name, mode, points, reps }`.
 
 `events::init` adds `event_id`, `role` and `team` columns to `runs` (empty unless the round was played at an event), plus the `events` and `settings` tables. See [Events §4](events.md#4-storage).
 

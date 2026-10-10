@@ -51,12 +51,14 @@ export type FinishReason = "time" | "stopped" | "stuck" | "left" | "ended";
 export interface RoundResult {
   mode: RoundMode;
   player: string;
-  /** The score: 1 per 2-light rep, 2 per 3-light (perfect) rep. */
+  /** The score, to one decimal: 1 per 2-light rep, 2 per perfect rep, 2.2–2.5 on a streak. */
   points: number;
   /** Valid push-ups (2–3 white lights). */
   reps: number;
   attempts: number;
   perfect: number;
+  /** Longest run of perfect reps. */
+  bestStreak: number;
   noReps: NoRepCounts;
   durationMs: number;
   finish: FinishReason;
@@ -79,6 +81,7 @@ export interface FinishedRound {
   reps: number;
   attempts: number;
   perfect: number;
+  bestStreak?: number;
   noReps: NoRepCounts;
   durationMs: number;
   finish: FinishReason;
@@ -141,11 +144,15 @@ export interface SessionSnapshot {
   remainingMs: number | null;
   /** While running: time left before the player fails (stuck in a rep, or no push-up in time). */
   failRemainingMs: number | null;
-  /** The score so far: 1 per 2-light rep, 2 per perfect rep. */
+  /** The score so far, to one decimal (see `score` in pumpCourt/src/game.ts). */
   points: number;
   reps: number;
   attempts: number;
   perfect: number;
+  /** Perfect reps in a row right now. */
+  streak: number;
+  /** Multiplier for the next perfect rep: 1, 1.2, 1.3, 1.4 or 1.5. */
+  multiplier: number;
   lastRep: RepVerdict | null;
 }
 

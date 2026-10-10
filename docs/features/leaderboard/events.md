@@ -93,7 +93,7 @@ CREATE INDEX runs_by_event ON runs(event_id, mode, points DESC);
 | `delete_event(eventId)` | Its runs are untagged, not deleted. |
 | `set_active_event(eventId \| null)` | |
 | `get_event_board(eventId, mode, role \| null, limit)` | `LeaderboardRow[]` |
-| `get_team_board(eventId, mode, limit)` | `TeamRow[]` (`rank, team, reps, members`) |
+| `get_team_board(eventId, mode, limit)` | `TeamRow[]` (`rank, team, points, members`; points to one decimal) |
 | `get_event_teams(eventId)` | Team names used at the event |
 
 `save_event`, `delete_event` and `set_active_event` emit **`event-changed`**, so the operator and crowd windows update at once (`useEvents` listens).

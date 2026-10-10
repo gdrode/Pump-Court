@@ -61,6 +61,8 @@ export function useCrowd() {
           phase: s.phase,
           countdownSeconds: s.phase === "countdown" ? Math.max(1, Math.ceil((s.countdownMs ?? 0) / 1000)) : null,
           points: s.points,
+          streak: s.streak ?? 0,
+          multiplier: s.multiplier ?? 1,
           attempts: s.attempts,
           elapsedMs: s.elapsedMs,
           lastRep: s.lastRep,

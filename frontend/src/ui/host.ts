@@ -1,3 +1,4 @@
+import { fmtPoints } from "@tracker/game";
 import type { Light } from "@tracker/judge";
 
 /** Everything the dragon says, in one place so anyone can rewrite the jokes. */
@@ -56,10 +57,10 @@ export const host = {
     if (rank === 1) return "A new record! Everyone look at this!";
     if (rank !== null && rank <= 3) return `Top three! You're #${rank} on the board.`;
     if (points === 0) return "Zero points. The referees are strict!";
-    return pick(["Solid round!", "Not bad at all!", "The referees approve!"], points);
+    return pick(["Solid round!", "Not bad at all!", "The referees approve!"], Math.floor(points));
   },
   idle: (leader: string | null, points: number | null) =>
-    leader ? `Can anyone beat ${leader}'s ${points} points?` : "Step up and be the first on the board!",
+    leader ? `Can anyone beat ${leader}'s ${fmtPoints(points ?? 0)} points?` : "Step up and be the first on the board!",
   posted: (name: string, points: number, rank: number | null) =>
-    `${name} just scored ${points} points${rank ? `, that's #${rank}` : ""}!`,
+    `${name} just scored ${fmtPoints(points)} points${rank ? `, that's #${rank}` : ""}!`,
 };

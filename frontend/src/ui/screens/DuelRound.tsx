@@ -1,4 +1,4 @@
-import { FINISH_TEXT } from "@tracker/game";
+import { FINISH_TEXT, fmtPoints } from "@tracker/game";
 import { POSTURE_MESSAGE } from "@tracker/posture";
 import { useState } from "react";
 import type { RoundMode, RoundResult } from "../../api/types";
@@ -10,6 +10,8 @@ import { CameraPicker } from "../components/CameraPicker";
 import { CameraView } from "../components/CameraView";
 import { KeyHints } from "../components/KeyHints";
 import { Lights } from "../components/Lights";
+import { StreakFx } from "../components/StreakFx";
+import { StreakBadge } from "../components/StreakBadge";
 import { play } from "../sounds";
 
 interface Props {
@@ -137,17 +139,19 @@ function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; 
           P{index + 1} · {p.name}
         </span>
         {banner && <div className={`duel-side__banner sketch ${kind}`}>{banner}</div>}
+        <StreakFx streak={p.streak} active={duel.phase === "running" && !p.finished} contained />
       </div>
 
       <div className="duel-side__panel">
         <div className="score score--you sketch">
           <span className="score__label">{p.name}</span>
           <span className="score__num" key={p.points}>
-            {p.points}
+            {fmtPoints(p.points)}
           </span>
           <span className="score__sub">
             points · {p.reps} push-ups · {p.perfect} perfect
           </span>
+          <StreakBadge streak={p.streak} multiplier={p.multiplier} />
         </div>
         <Lights rep={p.lastRep} flashKey={p.attempts} showFaults={false} />
 

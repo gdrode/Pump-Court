@@ -13,15 +13,33 @@ The score is **points**:
 
 | Rep | Points |
 | :--- | :--- |
-| 3 white lights (perfect) | **2** |
+| 3 white lights (perfect) | **2**, or **1 + streak multiplier** on a streak (2.2 – 2.5) |
 | 2 white lights | **1** |
 | 0–1 white lights (no-rep) | 0 |
 
-So `points = valid push-ups + perfect push-ups`.
-- **Rust**: `rep_points` in `backend/src/game/session.rs`; the session counts it as reps come in. `save_round` works it out from `reps` + `perfect` if the frontend doesn't send it.
-- **TypeScript**: `repPoints` / `points` in `pumpCourt/src/game.ts`, used for the side-by-side Duel.
+### Perfect streak
 
-The board stores `points` and `reps` (valid push-ups) and ranks by **points**. Attempts and no-reps show on the Results screen only.
+Perfect reps in a row build a multiplier for the **next** perfect reps:
+
+| Perfect reps in a row | Multiplier | Each perfect rep after that | On screen |
+| :--- | :--- | :--- | :--- |
+| 0–4 | 1x | 2 | — |
+| 5–9 | **1.2x** | 2.2 | STREAK UNLOCKED |
+| 10–14 | **1.3x** | 2.3 | DESTRUCTIVE STREAK |
+| 15–19 | **1.4x** | 2.4 | CHAOTIC STREAK |
+| 20+ | **1.5x** (cap) | 2.5 | BRUTAL STREAK |
+
+- The 5 reps that unlock a tier score at the old rate; the 6th perfect rep is the first 2.2.
+- **Any rep that isn't perfect ends the streak** (a 2-light rep scores its 1 point, then back to 1x). If a multiplier was on, the screen says "lol...".
+- Points are kept to **one decimal**. Code works in tenths, so sums stay exact.
+
+Example: 7 perfect, one 2-light, 1 perfect = 5 × 2 + 2 × 2.2 + 1 + 2 = **17.4**.
+
+- **Rust**: `streak_tenths` / `rep_points_tenths` in `backend/src/game/session.rs`; the session counts it as reps come in and sends `points`, `streak` and `multiplier` in every `tick`, and `bestStreak` in the result. `save_round` uses `reps + perfect` (no streak bonus) only if the frontend doesn't send `points`.
+- **TypeScript**: `STREAK`, `streakMultiplier`, `streakTier`, `repPoints`, `score` and `points` in `pumpCourt/src/game.ts`, used for the side-by-side Duel. Same rules; tests in both.
+- **Showing a score**: always `fmtPoints` (`12`, `12.2`).
+
+The board stores `points` (REAL) and `reps` (valid push-ups) and ranks by **points**. Attempts and no-reps show on the Results screen only.
 
 **Rounds saved before points existed** get `points = reps` when the database opens (`add_points`), because their perfect count was never stored.
 

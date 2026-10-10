@@ -69,10 +69,12 @@ pub struct SessionSnapshot {
     pub elapsed_ms: i64,                 // only counts while Running
     pub remaining_ms: Option<i64>,       // while Running; None for Max (no time limit)
     pub fail_remaining_ms: Option<i64>,  // while Running: time left before the player fails
-    pub points: u32,                     // the score: 2 per perfect rep, 1 per 2-light rep
+    pub points: f64,                     // the score, one decimal: 2 per perfect rep (2.2–2.5 on a streak), 1 per 2-light rep
     pub reps: u32,                       // valid push-ups
     pub attempts: u32,
     pub perfect: u32,
+    pub streak: u32,                     // perfect reps in a row
+    pub multiplier: f64,                 // for the next perfect rep: 1, 1.2 … 1.5
     pub last_rep: Option<RepVerdict>,
 }
 ```
@@ -95,10 +97,11 @@ pub struct RepVerdict {
 pub struct RoundResult {
     pub mode: RoundMode,
     pub player: String,
-    pub points: u32,           // the score (rep_points)
+    pub points: f64,           // the score (rep_points_tenths / 10)
     pub reps: u32,             // valid push-ups
     pub attempts: u32,
     pub perfect: u32,
+    pub best_streak: u32,      // longest run of perfect reps
     pub no_reps: NoRepCounts,  // red lights per light: { depth, torso, lockout }
     pub duration_ms: i64,
     pub finish: FinishReason,  // time | stopped | stuck | left | ended

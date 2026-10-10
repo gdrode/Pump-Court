@@ -9,7 +9,7 @@
 
 ## 1. The four modes
 
-The score in every mode is **points**: 2 per perfect rep (3 white lights), 1 per 2-light rep. See [Scoring & Ranking](../leaderboard/scoring-and-ranking.md#1-the-score).
+The score in every mode is **points**: 2 per perfect rep (3 white lights), 1 per 2-light rep. 5 perfect reps in a row start a streak: each perfect rep after that scores 2.2, up to 2.5 (1.5x). Any other rep ends it. See [Scoring & Ranking](../leaderboard/scoring-and-ranking.md#1-the-score).
 
 | Key | Mode (`RoundMode`) | Clock | Ends when | Board |
 | :--- | :--- | :--- | :--- | :--- |

@@ -10,7 +10,7 @@
 Pump-Court is a Tauri 2 desktop app. The work is split in two:
 
 * **The app window (TypeScript)** sees the player. It opens the camera, runs MediaPipe pose tracking, checks the push-up position, and judges each rep with three lights. This code is the teammate's tracker in `pumpCourt/src`, imported by the frontend as `@tracker/*`.
-* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, failure: out of position, stuck, stopped), counts points (2 per perfect rep, 1 per 2-light rep) and valid push-ups, saves posted results to SQLite, and serves phone cameras.
+* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, failure: out of position, stuck, stopped), counts points (2 per perfect rep, 2.2–2.5 on a perfect streak, 1 per 2-light rep) and valid push-ups, saves posted results to SQLite, and serves phone cameras.
 
 ```text
 ┌──────────────────────────── CAMERAS ─────────────────────────────┐
@@ -97,9 +97,9 @@ Rust structs and their TypeScript mirrors in `frontend/src/api/types.ts` must ma
 
 | Event | When | Payload | Description |
 | :--- | :--- | :--- | :--- |
-| `tick` | about 10 times a second while a round is active, and after every engine command | `SessionSnapshot` | phase, mode, player, `inPosition`, `countdownMs`, `elapsedMs`, `remainingMs`, `failRemainingMs`, `reps`, `attempts`, `perfect`, `lastRep` |
+| `tick` | about 10 times a second while a round is active, and after every engine command | `SessionSnapshot` | phase, mode, player, `inPosition`, `countdownMs`, `elapsedMs`, `remainingMs`, `failRemainingMs`, `points`, `reps`, `attempts`, `perfect`, `streak`, `multiplier`, `lastRep` |
 | `rep` | each rep reported while the clock runs | `RepVerdict` | `attempt`, `counted`, `perfect`, `lights {depth, torso, lockout}`, `faults[]` |
-| `round-finished` | once, at the end of a round (not saved: `runId`, `rank` null) | `RoundResult` | `mode`, `player`, `reps`, `attempts`, `perfect`, `noReps {depth, torso, lockout}`, `durationMs`, `runId`, `rank` |
+| `round-finished` | once, at the end of a round (not saved: `runId`, `rank` null) | `RoundResult` | `mode`, `player`, `points`, `reps`, `attempts`, `perfect`, `bestStreak`, `noReps {depth, torso, lockout}`, `durationMs`, `runId`, `rank` |
 | `round-posted` | when a score is posted (operator or phone) | `RoundResult` | as `round-finished`, with `runId` and `rank` |
 
 ### 3.2 Tauri commands (React ➔ Rust)

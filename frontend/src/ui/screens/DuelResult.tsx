@@ -1,3 +1,4 @@
+import { fmtPoints } from "@tracker/game";
 import type { RoundResult } from "../../api/types";
 import { duelOutcome } from "../../logic/results";
 import { useScorePosts, type ScorePost } from "../../logic/scorePost";
@@ -41,7 +42,7 @@ export function DuelResult({ results, onRematch, onDone }: Props) {
           >
             <span className="standing__place">{ORDINAL[i]}</span>
             <span className="standing__name">{r.player}</span>
-            <span className="standing__reps">{r.points}</span>
+            <span className="standing__reps">{fmtPoints(r.points)}</span>
             <span className="standing__acc">
               {r.reps} push-ups · {r.perfect} perfect
             </span>

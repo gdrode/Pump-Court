@@ -1,7 +1,10 @@
+import { fmtPoints } from "@tracker/game";
 import { useCrowd } from "../../logic/useCrowd";
 import { Dragon } from "../components/Dragon";
 import { LeaderboardTable, TeamTable } from "../components/LeaderboardTable";
 import { Lights } from "../components/Lights";
+import { StreakFx } from "../components/StreakFx";
+import { StreakBadge } from "../components/StreakBadge";
 import { host } from "../host";
 import { hostReaction } from "../hostMood";
 import { Logo } from "../components/Logo";
@@ -23,6 +26,7 @@ export function Crowd() {
       lastRep: r.lastRep,
       lastRepAt: r.lastRepAt,
       points: r.points,
+      streak: r.streak,
       attempts: r.attempts,
       best: r.best,
       urgent,
@@ -30,6 +34,7 @@ export function Crowd() {
     });
     return (
       <div className="crowd crowd--live">
+        <StreakFx streak={r.streak} active={running} />
         <div className="crowd__head">
           <span className="eyebrow">{r.modeLabel} · now on the mat</span>
           <h1>{r.player}</h1>
@@ -37,14 +42,15 @@ export function Crowd() {
         {running ? (
           <>
             <div className="crowd__count" key={r.points}>
-              {r.points}
+              {fmtPoints(r.points)}
             </div>
+            <StreakBadge streak={r.streak} multiplier={r.multiplier} big />
             {secondsLeft !== null && <div className={`crowd__clock ${urgent ? "is-urgent" : ""}`}>{secondsLeft}s</div>}
             {r.best && (
               <div className={`crowd__best ${r.points > r.best.points ? "is-beaten" : ""}`}>
                 {r.points > r.best.points
-                  ? `Passed ${r.best.name}'s ${r.best.points} points!`
-                  : `All-time best: ${r.best.name} ${r.best.points} points`}
+                  ? `Passed ${r.best.name}'s ${fmtPoints(r.best.points)} points!`
+                  : `All-time best: ${r.best.name} ${fmtPoints(r.best.points)} points`}
               </div>
             )}
             <div className="crowd__live-row">

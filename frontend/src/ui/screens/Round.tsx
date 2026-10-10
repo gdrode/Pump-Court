@@ -1,3 +1,4 @@
+import { fmtPoints } from "@tracker/game";
 import { POSTURE_MESSAGE, type Posture, type PostureState } from "@tracker/posture";
 import { useEffect, useRef, useState } from "react";
 import type { EventTags, RoundMode, RoundResult } from "../../api/types";
@@ -10,6 +11,8 @@ import { CameraView } from "../components/CameraView";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
 import { Lights } from "../components/Lights";
+import { StreakFx } from "../components/StreakFx";
+import { StreakBadge } from "../components/StreakBadge";
 import { host } from "../host";
 import { hostReaction } from "../hostMood";
 import { play } from "../sounds";
@@ -96,6 +99,7 @@ export function Round({ mode, player, turn, target, tags, onFinished, onAbort }:
     lastRep: round.lastRep,
     lastRepAt: round.lastRepAt,
     points: round.points,
+    streak: round.streak,
     attempts: round.attempts,
     best,
     urgent: urgent && secondsLeft !== null,
@@ -107,6 +111,7 @@ export function Round({ mode, player, turn, target, tags, onFinished, onAbort }:
       <div className="camera">
         <CameraView rotatable={round.phase !== "running"} />
       </div>
+      <StreakFx streak={round.streak} active={running} />
 
       {(round.countdownSeconds !== null || showGo) && (
         <div className="countdown" aria-live="assertive">
@@ -130,16 +135,17 @@ export function Round({ mode, player, turn, target, tags, onFinished, onAbort }:
             <div className={`score score--you sketch ${ahead ? "is-ahead" : ""}`}>
               <span className="score__label">{ahead ? "New best!" : player}</span>
               <span className="score__num" key={round.points}>
-                {round.points}
+                {fmtPoints(round.points)}
               </span>
               <span className="score__sub">
                 points · {round.reps} push-ups
               </span>
+              <StreakBadge streak={round.streak} multiplier={round.multiplier} />
             </div>
             {best && (
               <div className="score score--best sketch">
                 <span className="score__label">{best.label}</span>
-                <span className="score__num">{best.points}</span>
+                <span className="score__num">{fmtPoints(best.points)}</span>
                 <span className="score__sub">{best.name}</span>
               </div>
             )}

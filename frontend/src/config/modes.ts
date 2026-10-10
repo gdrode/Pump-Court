@@ -103,6 +103,13 @@ export const EVENT_NAME_MAX = 24;
 export const CROWD_POSTED_MS = 8000;
 /** Rows on the crowd screen's all-time board. */
 export const CROWD_ROWS = 10;
+/** Words on screen when a streak tier is reached (index = tier, 1.2x … 1.5x). */
+export const STREAK_WORDS = ["", "STREAK UNLOCKED", "DESTRUCTIVE STREAK", "CHAOTIC STREAK", "BRUTAL STREAK"];
+/** Shown when a streak with a multiplier breaks. */
+export const STREAK_BREAK_WORDS = "lol...";
+/** How long the streak words stay up. */
+export const STREAK_WORDS_MS = 1_800;
+
 /**
  * During an event, the home screen and the crowd screen show each of its
  * boards (every mode × Everyone and each role, then the team boards) for this long.

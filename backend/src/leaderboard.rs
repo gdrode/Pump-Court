@@ -46,7 +46,8 @@ pub struct LeaderboardRow {
     /// "sprint", "minute", "max" or "duel".
     pub mode: String,
     /// The score the board ranks by.
-    pub points: u32,
+    /// To one decimal (streaks give 2.2–2.5 per perfect rep).
+    pub points: f64,
     /// Valid push-ups.
     pub reps: u32,
 }
@@ -64,7 +65,7 @@ struct BackupRun {
     id: i64,
     name: String,
     mode: String,
-    points: u32,
+    points: f64,
     reps: u32,
     event_id: Option<i64>,
     role: Option<String>,
@@ -146,7 +147,7 @@ fn add_points(conn: &Connection) -> rusqlite::Result<()> {
         .iter()
         .any(|c| c == "points");
     if !has {
-        conn.execute_batch("ALTER TABLE runs ADD COLUMN points INTEGER;")?;
+        conn.execute_batch("ALTER TABLE runs ADD COLUMN points REAL;")?;
     }
     conn.execute_batch(
         "UPDATE runs SET points = reps WHERE points IS NULL;
@@ -177,7 +178,7 @@ impl Leaderboard {
 
     /// Saves a round scored only by its points (counted as that many push-ups too). Returns the run id.
     pub fn save_run(&self, name: &str, mode: RoundMode, points: u32) -> rusqlite::Result<i64> {
-        self.save_tagged_run(name, mode, points, points, None, None, None)
+        self.save_tagged_run(name, mode, f64::from(points), points, None, None, None)
     }
 
     /// Saves a finished round played at an event, with the player's role and team.
@@ -185,7 +186,7 @@ impl Leaderboard {
         &self,
         name: &str,
         mode: RoundMode,
-        points: u32,
+        points: f64,
         reps: u32,
         event_id: Option<i64>,
         role: Option<&str>,
@@ -283,10 +284,13 @@ pub struct FinishedRound {
     pub player: String,
     /// The score; if missing, worked out from `reps` and `perfect` (see `rep_points`).
     #[serde(default)]
-    pub points: Option<u32>,
+    pub points: Option<f64>,
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,
+    /// Longest run of perfect reps.
+    #[serde(default)]
+    pub best_streak: u32,
     pub no_reps: NoRepCounts,
     pub duration_ms: i64,
     /// Why this player's round ended.
@@ -306,8 +310,8 @@ pub struct FinishedRound {
 /// and the player's rank on that mode's board.
 pub fn save_finished(db: &Leaderboard, round: FinishedRound) -> Result<RoundResult, String> {
     let player = validate_name(&round.player)?;
-    // 2 points per perfect rep, 1 per other valid rep: reps + perfect.
-    let points = round.points.unwrap_or(round.reps + round.perfect.min(round.reps));
+    // 2 points per perfect rep, 1 per other valid rep: reps + perfect (no streak bonus).
+    let points = round.points.unwrap_or(f64::from(round.reps + round.perfect.min(round.reps)));
     let (role, team) = match round.event_id {
         Some(ev) => db.check_tags(ev, round.role.as_deref(), round.team.as_deref())?,
         None => (None, None),
@@ -323,6 +327,7 @@ pub fn save_finished(db: &Leaderboard, round: FinishedRound) -> Result<RoundResu
         reps: round.reps,
         attempts: round.attempts,
         perfect: round.perfect,
+        best_streak: round.best_streak,
         no_reps: round.no_reps,
         duration_ms: round.duration_ms.max(0),
         finish: round.finish,
@@ -402,11 +407,11 @@ mod tests {
     #[test]
     fn boards_rank_by_points_not_push_ups() {
         let db = Leaderboard::temporary();
-        db.save_tagged_run("Ana", RoundMode::Sprint, 20, 20, None, None, None).unwrap(); // 20 two-light reps
-        db.save_tagged_run("Ben", RoundMode::Sprint, 24, 12, None, None, None).unwrap(); // 12 perfect reps
+        db.save_tagged_run("Ana", RoundMode::Sprint, 20.0, 20, None, None, None).unwrap(); // 20 two-light reps
+        db.save_tagged_run("Ben", RoundMode::Sprint, 24.2, 12, None, None, None).unwrap(); // 12 perfect reps
         let top = db.top(Some(RoundMode::Sprint), 10).unwrap();
         let got: Vec<_> = top.iter().map(|r| (r.name.as_str(), r.points, r.reps)).collect();
-        assert_eq!(got, [("Ben", 24, 12), ("Ana", 20, 20)]);
+        assert_eq!(got, [("Ben", 24.2, 12), ("Ana", 20.0, 20)]);
     }
 
     #[test]
@@ -414,7 +419,7 @@ mod tests {
         let db = Leaderboard::temporary();
         db.conn.execute("INSERT INTO runs (name, mode, reps) VALUES ('Old', 'sprint', 17)", []).unwrap();
         add_points(&db.conn).unwrap();
-        assert_eq!(db.top(None, 10).unwrap()[0].points, 17);
+        assert_eq!(db.top(None, 10).unwrap()[0].points, 17.0);
     }
 
     #[test]
@@ -436,6 +441,7 @@ mod tests {
             player: name.into(),
             points: None,
             reps,
+            best_streak: 1,
             attempts: reps + 2,
             perfect: 1,
             no_reps: NoRepCounts { depth: 2, torso: 0, lockout: 1 },
@@ -449,7 +455,7 @@ mod tests {
         let b = save_finished(&db, round("Ben", 25)).unwrap();
         assert!(a.run_id.is_some() && b.run_id.is_some());
         assert_eq!((b.rank, b.reps, b.attempts), (Some(1), 25, 27));
-        assert_eq!(b.points, 26, "25 valid push-ups, 1 of them perfect");
+        assert_eq!(b.points, 26.0, "25 valid push-ups, 1 of them perfect");
         assert_eq!(db.rank_of(Some(RoundMode::Minute), "Ana").unwrap(), Some(2));
         assert!(save_finished(&db, round("", 5)).is_err(), "names are checked like any round");
     }
