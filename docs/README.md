@@ -17,6 +17,7 @@ docs/
 ├── README.md                            # 📍 You are here: Master Portal & Navigation Index
 ├── ARCHITECTURE.md                      # System Architecture & End-to-End Data Flow
 ├── AGENTS.md                            # AI Agent Operating Manual & Maintenance Protocol
+├── CHANGELOG.md                         # Plain-words log of each work session
 └── features/
     ├── pose-tracking/                   # Feature 1: Vision Pipeline & Pose Ingestion
     │   ├── README.md                    # Core concepts, coordinate spaces & PoseSource trait

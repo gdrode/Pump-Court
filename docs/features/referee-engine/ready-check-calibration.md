@@ -63,3 +63,34 @@ pub fn new(cfg: JudgeConfig, calibrated_lockout: Option<f32>) -> Self {
 
 - **Fairness Guarantee**: An athlete can never calibrate the rulebook *stricter* than default, nor can they calibrate it looser than `140.0°`.
 - Once the plank hold completes, a 3-second audible countdown (`3, 2, 1, GO`) begins, and the round transitions to `Running`.
+
+---
+
+## Browser app (`pumpCourt/`): posture gate
+
+> **Module**: `pumpCourt/src/posture.ts` (tests: `pumpCourt/src/__tests__/posture.test.ts`)
+
+**Why it exists:** a player sitting upright, not moving, was counted as doing
+push-ups. Elbow points jitter, and the judge only looked at the elbow. Now no
+rep can start until the player is really in the push-up position.
+
+**Rule, in plain words:**
+- Trunk (shoulder → hip) close to flat: tilt under `maxTrunkTilt` = **40°**. Sitting or standing ≈ 90°.
+- Whole body (shoulder → ankle) close to flat: under `maxBodyTilt` = **35°**.
+- Near wrist visible (`minWristVisibility` = **0.5**), below the shoulder, and not more than one arm length in front of it.
+- Arms nearly straight (`readyDepth` = **0.7** arm lengths) and held still for `settleMs` = **500 ms**.
+
+**Floor line:** when the player settles, the hands' height becomes the floor.
+From then on, depth = how high the shoulders are above that fixed line, in arm
+lengths (≈ 1 at the top, ≈ 0 chest on floor). Steadier than the raw wrist point.
+
+**Losing it:** hands drift more than `handDrift` (**8 %** of frame height), or
+the position is lost for more than `graceMs` (**600 ms**) → not ready. A rep in
+progress is dropped if it stays not-ready.
+
+**States** (`PostureState`, shown to the player as `POSTURE_MESSAGE`):
+`no-player` → `no-hands` → `not-down` → `hands-off-floor` → `settle` → `ready`.
+
+**Extra phantom-rep guard** (`pumpCourt/src/judge.ts`, `SEGMENT`): the shoulders
+must really drop `minDepthDrop` = **0.25** arm lengths towards the floor. A
+glitching elbow alone no longer makes a rep.

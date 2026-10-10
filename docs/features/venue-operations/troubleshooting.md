@@ -29,3 +29,13 @@ If the venue Wi-Fi collapses entirely during an event:
 2. Under **Camera Source**, switch from *Phone Camera* to **Laptop Webcam** or a plugged-in USB webcam.
 3. Place the laptop directly on a chair beside the mat.
 4. Competitive judging resumes immediately without network dependencies.
+
+---
+
+## 3. Browser app (`pumpCourt/`): phone QR code opens nothing
+
+1. Phone and laptop on the **same** network (hotspot is most reliable). Guest Wi-Fi often blocks device-to-device traffic.
+2. In **+ Add camera → Phone over Wi-Fi**, watch the dialog: if it never says a phone visited, the phone can't reach the laptop.
+3. Pick another address in the list, or the **by name** (`.local`) one, and rescan.
+4. Accept the "connection not private" warning once on the phone.
+5. Sitting/standing counts no reps by design: the player must get into a flat plank with hands on the floor and hold still ~0.5 s.

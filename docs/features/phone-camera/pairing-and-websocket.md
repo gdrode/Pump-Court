@@ -53,3 +53,34 @@ The streaming protocol operates over `wss://<laptop-ip>:47800/ws?code=<token>`.
 1. **Payload Limit**: Frames larger than `MAX_FRAME_BYTES` (2 MB) are immediately dropped with an error log to protect memory. A 960×540 JPEG frame is typically only 40–80 KB.
 2. **Dimension Extraction**: Rather than parsing the full JPEG into uncompressed RGBA pixel buffers in the networking layer, dimensions (`width`, `height`) are read rapidly from the JPEG SOF header.
 3. **Connection Succession**: Only one phone may stream at any moment. If Phone B connects with the valid code while Phone A is actively streaming, Phone A receives `{"type":"replaced"}` and Phone B takes over without requiring a desktop app restart.
+
+---
+
+## Browser app (`pumpCourt/`): WebRTC relay with HTTP fallback
+
+> **Module**: `pumpCourt/server/phoneSignal.ts` (Vite plugin), `pumpCourt/src/phone/`, `pumpCourt/src/phoneLink.ts`, `pumpCourt/src/AddCameraDialog.tsx`
+
+**Problem fixed:** scanning the QR code "led to nothing" on phones on the same
+hotspot / Wi-Fi. iPhone Safari often refuses a WebSocket to a self-signed
+certificate even after the warning is accepted.
+
+**How it works now:**
+- The video goes **phone → laptop directly** (WebRTC). The relay only passes
+  the connection offers back and forth.
+- Laptop page talks to the relay over **WebSocket** `/signal`.
+- Phone page uses **plain HTTPS requests** instead:
+
+| Request | Does |
+|---|---|
+| `POST /signal-http/join` | Join a room (room id: 4–32 letters/digits). Returns a peer `id`. |
+| `GET /signal-http/poll?id=` | Long-poll: held up to **20 s** for messages. |
+| `POST /signal-http/send` | Relay a message to the other side. |
+| `POST /signal-http/leave` | Leave. Sent on `pagehide`, so the laptop knows at once when the tab closes. |
+
+- A phone that stops polling for **15 s** is dropped. Unknown `id` → **410 gone**.
+- `GET /api/lan` lists the laptop's network addresses (best first) plus its
+  **Bonjour name** (`<name>.local`). The QR dialog lets the operator pick one.
+  The by-name address helps iPhones / Macs when the number is wrong.
+- **Diagnostics:** when a phone opens `/phone.html?room=…`, the laptop gets a
+  `phone-visit` message (with the phone's IP), *before* Start is tapped. So the
+  dialog shows whether the phone reached the laptop at all.

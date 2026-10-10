@@ -67,3 +67,29 @@ $$\theta_{\text{smoothed}}^{(t)} = \alpha \cdot \theta_{\text{raw}}^{(t)} + (1 -
 
 - Default `smoothing_alpha`: **`0.6`**.
 - An $\alpha$ of $0.6$ provides immediate responsiveness during rapid 2-rep-per-second sprints while dampening sensor jitter without clipping the minimum depth spike.
+
+---
+
+## Browser app (`pumpCourt/`): abdominal point and the Torso light
+
+> **Module**: `pumpCourt/src/pose.ts`, `pumpCourt/src/judge.ts`
+
+**Why:** the trunk bends at the hips and belly, not at one hip point. Hip
+flexion (piking) and belly sag / crunching were slipping through.
+
+- MediaPipe has no spine points, so an **abdominal point** is placed on the
+  shoulder → hip line, `ABDOMEN_FRACTION` = **0.6** of the way down (over the belly).
+- `abdomen` = angle shoulder → abdomen → knee. 180° = trunk in line with thighs.
+  **This now drives the Torso light** (judge input `hip`).
+- `bodyOffset` = how far the abdominal point sits off the straight shoulder → ankle
+  line, as a fraction of that line. **+ = sagging**, **− = piked**. Only picks the
+  fault wording.
+- `knee` angle also fails Torso when the legs bend (catches knee push-ups).
+- Also new per frame: `trunkTilt`, `bodyTilt`, `wrist`, `armLength`, `shoulderX`
+  (used by the posture gate, see [Ready Check](ready-check-calibration.md)).
+
+| Difficulty | Torso (abdomen) ≥ | Knee ≥ | Lockout elbow ≥ | Depth ≤ (arm lengths) |
+|---|---|---|---|---|
+| Easy | 145° | 140° | 145° | 0.55 |
+| Normal | 155° | 150° | 155° | 0.42 |
+| Hard | 165° | 160° | 165° | 0.30 |
