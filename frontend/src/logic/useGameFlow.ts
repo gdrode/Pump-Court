@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 import { backend } from "../api/backend";
-import type { RoundMode, RoundResult } from "../api/types";
+import type { EventTags, RoundResult } from "../api/types";
 import type { MenuModeInfo } from "../config/modes";
+import type { BoardRef } from "./useEvents";
 
 /** One menu choice being played: one turn, or two for a Duel. */
 export interface Plan {
@@ -9,6 +10,13 @@ export interface Plan {
   players: string[];
   /** Duel played side by side on two cameras at once (else the players take turns on one). */
   together?: boolean;
+  /** Solo at the active event: the player's role and team, and the board to show once posted. */
+  event?: SoloAtEvent;
+}
+
+export interface SoloAtEvent {
+  tags: EventTags;
+  board: BoardRef;
 }
 
 /** Which screen the operator window shows, and the data it needs. */
@@ -22,8 +30,9 @@ export type FlowState =
   /** Duel side by side: both players at once, one camera each. `attempt` remounts it on a rematch. */
   | { screen: "duelRound"; plan: Plan; attempt: number }
   | { screen: "duelResult"; plan: Plan; results: RoundResult[] }
-  /** `mode: null` = the all-time board. */
-  | { screen: "leaderboard"; mode: RoundMode | null; highlight?: string }
+  | { screen: "leaderboard"; board: BoardRef; highlight?: string }
+  /** Create, edit and pick events. */
+  | { screen: "events" }
   | { screen: "settings" };
 
 /**
@@ -50,18 +59,23 @@ export function useGameFlow() {
     state,
 
     home,
-    leaderboard: (mode: RoundMode | null = null, highlight?: string) => setState({ screen: "leaderboard", mode, highlight }),
+    leaderboard: (board: BoardRef = { kind: "global", mode: null }, highlight?: string) =>
+      setState({ screen: "leaderboard", board, highlight }),
+    events: () => setState({ screen: "events" }),
     settings: () => setState({ screen: "settings" }),
     openCrowd: () => void backend.openCrowdWindow(),
 
     /** Home → name entry. */
     pickMode: (mode: MenuModeInfo) => setState({ screen: "names", mode }),
-    /** Name entry → first round. `players` are already validated names. A Duel starts side by side. */
-    start: (players: string[]) =>
+    /**
+     * Name entry → first round. `players` are already validated names. A Duel
+     * starts side by side. `event`: a solo round at the active event.
+     */
+    start: (players: string[], event?: SoloAtEvent) =>
       setState((s) => {
         if (s.screen !== "names") return s;
         if (players.length > 1) return { screen: "duelRound", plan: { mode: s.mode, players, together: true }, attempt: 0 };
-        return { screen: "round", plan: { mode: s.mode, players }, results: [], attempt: 0 };
+        return { screen: "round", plan: { mode: s.mode, players, event }, results: [], attempt: 0 };
       }),
     /** Side-by-side Duel finished → who won (and posting the two scores). */
     finishDuel: (results: RoundResult[]) =>
@@ -77,7 +91,7 @@ export function useGameFlow() {
 
     /**
      * Results → next Duel turn, the Duel result, or (solo) the leaderboard if
-     * the score was posted, else home.
+     * the score was posted (the event's board for a round at an event), else home.
      */
     next: (posted: boolean) => {
       if (state.screen !== "results") return;
@@ -85,7 +99,8 @@ export function useGameFlow() {
       const latest = results[results.length - 1];
       if (results.length < plan.players.length) return round(plan, results);
       if (plan.players.length > 1) return setState({ screen: "duelResult", plan, results });
-      if (posted) setState({ screen: "leaderboard", mode: latest.mode, highlight: latest.player });
+      const board: BoardRef = plan.event?.board ?? { kind: "global", mode: latest.mode };
+      if (posted) setState({ screen: "leaderboard", board, highlight: latest.player });
       else home();
     },
     /** Results → the score was thrown away: solo goes home, a Duel redoes the turn. */

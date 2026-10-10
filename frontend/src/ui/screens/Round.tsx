@@ -1,6 +1,6 @@
 import { POSTURE_MESSAGE, type Posture, type PostureState } from "@tracker/posture";
 import { useEffect, useRef, useState } from "react";
-import type { RoundMode, RoundResult } from "../../api/types";
+import type { EventTags, RoundMode, RoundResult } from "../../api/types";
 import { MODE_LABELS, formatElapsed } from "../../config/modes";
 import { useKeys } from "../../logic/useKeys";
 import { useRound } from "../../logic/useRound";
@@ -31,6 +31,8 @@ interface Props {
   turn?: { index: number; total: number };
   /** Duel: the first player's score. Otherwise this mode's record is shown. */
   target?: Target | null;
+  /** A solo round at the active event: posted with the player's role and team. */
+  tags?: EventTags;
   onFinished: (result: RoundResult) => void;
   /** Leave to the menu (cancels the round). */
   onAbort: () => void;
@@ -41,7 +43,7 @@ interface Props {
  * side panel on the right. The clock and score come from the backend; the
  * tracker and referee run in this window (see useRound).
  */
-export function Round({ mode, player, turn, target, onFinished, onAbort }: Props) {
+export function Round({ mode, player, turn, target, tags, onFinished, onAbort }: Props) {
   const [showGo, setShowGo] = useState(false);
   const lastBeep = useRef<number | null>(null);
   const record = useBoardRecord(target === undefined ? mode : null);
@@ -49,6 +51,7 @@ export function Round({ mode, player, turn, target, onFinished, onAbort }: Props
   const round = useRound({
     mode,
     player,
+    tags,
     onRep: (rep) => {
       if (rep.counted) play("chime");
       else {

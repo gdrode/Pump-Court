@@ -1,22 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
 import { backend, errorText } from "../api/backend";
-import type { LeaderboardRow, RoundMode } from "../api/types";
+import type { LeaderboardRow, TeamRow } from "../api/types";
+import { fetchBoard, type BoardRef } from "./useEvents";
 
-/** Operator leaderboard: tabs (all time or one mode), moderation and backups. */
-export function useLeaderboard(initial: RoundMode | null = null, limit = 50) {
-  const [mode, setMode] = useState<RoundMode | null>(initial);
+/** Operator leaderboard: one board at a time (global, event or team), moderation and backups. */
+export function useLeaderboard(initial: BoardRef = { kind: "global", mode: null }, limit = 50) {
+  const [board, setBoard] = useState<BoardRef>(initial);
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
+  const [teams, setTeams] = useState<TeamRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    backend.getLeaderboard(mode, limit).then(setRows).catch((e) => setMessage(errorText(e)));
-  }, [mode, limit]);
+    fetchBoard(board, limit)
+      .then((r) => {
+        setRows(r.players);
+        setTeams(r.teams);
+      })
+      .catch((e) => setMessage(errorText(e)));
+  }, [board, limit]);
   useEffect(reload, [reload]);
 
   return {
-    mode,
-    setMode,
+    board,
+    setBoard,
+    /** Player rows (global and event boards). */
     rows,
+    /** Team rows (team boards). */
+    teams,
     message,
     reload,
     /** Delete one run (the UI should confirm first). */

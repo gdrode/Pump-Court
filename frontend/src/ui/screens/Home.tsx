@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { GAME_MODES, HOME_KEYS, menuMode, PLAY_STYLES, type MenuModeInfo, type PlayStyle } from "../../config/modes";
 import { useFixedCamera } from "../../logic/fixedCamera";
+import { useActiveEvent } from "../../logic/useEvents";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
@@ -10,6 +11,8 @@ interface Props {
   /** How many times the menu has been opened; picks the dragon's line. */
   visit: number;
   onPick: (mode: MenuModeInfo) => void;
+  /** The events screen (create, edit, pick the active event). */
+  onEvents: () => void;
   onLeaderboard: () => void;
   onSettings: () => void;
   onCrowd: () => void;
@@ -20,9 +23,9 @@ interface Props {
  * game mode below it (the modes light up once a play style is picked).
  * Keys: ← / → pick the play style, 1–3 the mode, so the player can stay on the mat.
  */
-export function Home({ visit, onPick, onLeaderboard, onSettings, onCrowd }: Props) {
+export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCrowd }: Props) {
   const [style, setStyle] = useState<PlayStyle | null>(null);
-  const [eventNote, setEventNote] = useState(false);
+  const event = useActiveEvent();
   const [fixed, setFixed] = useFixedCamera();
   const toggleFixed = () => setFixed(!fixed);
 
@@ -35,14 +38,14 @@ export function Home({ visit, onPick, onLeaderboard, onSettings, onCrowd }: Prop
     ...Object.fromEntries(GAME_MODES.map((m, i) => [m.key, () => pickMode(i)])),
     [HOME_KEYS.single]: () => setStyle("single"),
     [HOME_KEYS.duel]: () => setStyle("duel"),
-    [HOME_KEYS.event]: () => setEventNote(true),
+    [HOME_KEYS.event]: onEvents,
     [HOME_KEYS.fixedCamera]: toggleFixed,
     [HOME_KEYS.leaderboard]: onLeaderboard,
     [HOME_KEYS.settings]: onSettings,
     [HOME_KEYS.crowd]: onCrowd,
   });
 
-  const says = eventNote ? host.eventSoon : host.home(visit);
+  const says = host.home(visit);
 
   return (
     <div className="home">
@@ -87,9 +90,11 @@ export function Home({ visit, onPick, onLeaderboard, onSettings, onCrowd }: Prop
           ))}
         </div>
 
-        <button className="create-event sketch" onClick={() => setEventNote(true)}>
-          <span className="create-event__label">+ Create event</span>
-          <span className="create-event__blurb">{eventNote ? "Coming soon" : "Run a leaderboard for the event you're hosting"}</span>
+        <button className={`create-event sketch ${event ? "is-on" : ""}`} onClick={onEvents}>
+          <span className="create-event__label">{event ? `Event: ${event.name}` : "+ Create event"}</span>
+          <span className="create-event__blurb">
+            {event ? "Solo scores count for this event. Change or make events" : "Run a leaderboard for the event you're hosting"}
+          </span>
         </button>
       </div>
 
@@ -98,7 +103,7 @@ export function Home({ visit, onPick, onLeaderboard, onSettings, onCrowd }: Prop
           hints={[
             ["← →", "singleplayer / duel"],
             [`1–${GAME_MODES.length}`, "pick a mode"],
-            ["E", "create event"],
+            ["E", "events", onEvents],
             ["L", "leaderboard", onLeaderboard],
             ["S", "camera", onSettings],
             ["W", "crowd screen", onCrowd],

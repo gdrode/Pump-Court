@@ -1,7 +1,7 @@
 import { RepJudge, type RepResult } from "@tracker/judge";
 import { useEffect, useRef, useState } from "react";
 import { backend, events } from "../api/backend";
-import type { RepVerdict, RoundMode, RoundResult } from "../api/types";
+import type { EventTags, RepVerdict, RoundMode, RoundResult } from "../api/types";
 import { REFEREE_RULES } from "../config/modes";
 import { useBackendEvent, useSession } from "./events";
 import { startScorePost } from "./scorePost";
@@ -10,6 +10,8 @@ import { useTracker, useTrackerFrames } from "./tracker/TrackerProvider";
 export interface RoundOptions {
   mode: RoundMode;
   player: string;
+  /** A solo round at the active event: posted with the player's role and team. */
+  tags?: EventTags;
   /** The round ended. Not saved yet: see logic/scorePost.ts (started here). */
   onFinished: (result: RoundResult) => void;
   /** Hooks for sound or animation; all optional. */
@@ -94,8 +96,10 @@ export function useRound(opts: RoundOptions) {
     done.current = true;
     // A phone camera is let go now (the next player pairs their own) and shows this player
     // their stats; with Fixed camera on, the camera stays and the score is posted at once.
-    startScorePost(r, tracker.releasePhone);
-    optsRef.current.onFinished(r);
+    const { tags } = optsRef.current;
+    const result = tags ? { ...r, ...tags } : r;
+    startScorePost(result, tracker.releasePhone);
+    optsRef.current.onFinished(result);
   });
 
   const countdownSeconds = phase === "countdown" ? Math.max(1, Math.ceil((session?.countdownMs ?? 0) / 1000)) : null;

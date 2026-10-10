@@ -1,7 +1,8 @@
 //! Scores on disk, in a small SQLite database on the game laptop.
 //!
 //! One table, one row per finished round: who, which mode, how many valid
-//! push-ups. Survives refreshes and crashes, needs no internet, and writes a
+//! push-ups, and (for a round at an event) the event, role and team; see
+//! `events.rs`. Survives refreshes and crashes, needs no internet, and writes a
 //! JSON backup file every hour (see the engine).
 
 use crate::game::{FinishReason, NoRepCounts, RoundMode, RoundResult};
@@ -55,10 +56,13 @@ struct BackupRun {
     name: String,
     mode: String,
     reps: u32,
+    event_id: Option<i64>,
+    role: Option<String>,
+    team: Option<String>,
 }
 
 pub struct Leaderboard {
-    conn: Connection,
+    pub(crate) conn: Connection,
     backup_dir: PathBuf,
 }
 
@@ -68,12 +72,18 @@ fn now_ms() -> i64 {
 
 /// Trims and checks a player name. Returns the cleaned name or why it's rejected.
 pub fn validate_name(raw: &str) -> Result<String, String> {
+    validate_label(raw, MAX_NAME_LEN)
+}
+
+/// Same rules as names, for any text shown on the crowd screen (event names,
+/// roles, teams) with its own length limit.
+pub fn validate_label(raw: &str, max_len: usize) -> Result<String, String> {
     let name = raw.split_whitespace().collect::<Vec<_>>().join(" ");
     if name.is_empty() {
         return Err("Enter a name".into());
     }
-    if name.chars().count() > MAX_NAME_LEN {
-        return Err(format!("Names are {MAX_NAME_LEN} characters at most"));
+    if name.chars().count() > max_len {
+        return Err(format!("Names are {max_len} characters at most"));
     }
     let plain = normalise(&name);
     if BLOCKLIST.iter().any(|bad| plain.contains(bad)) {
@@ -126,6 +136,7 @@ impl Leaderboard {
         migrate(&conn)?;
         conn.execute_batch(CREATE_RUNS)?;
         conn.execute_batch("CREATE INDEX IF NOT EXISTS runs_by_mode ON runs(mode, reps DESC);")?;
+        crate::events::init(&conn)?;
         Ok(Self { conn, backup_dir: dir.join("backups") })
     }
 
@@ -138,7 +149,23 @@ impl Leaderboard {
 
     /// Saves a finished round. Returns the new run id.
     pub fn save_run(&self, name: &str, mode: RoundMode, reps: u32) -> rusqlite::Result<i64> {
-        self.conn.execute("INSERT INTO runs (name, mode, reps) VALUES (?1, ?2, ?3)", params![name, mode.as_str(), reps])?;
+        self.save_tagged_run(name, mode, reps, None, None, None)
+    }
+
+    /// Saves a finished round played at an event, with the player's role and team.
+    pub fn save_tagged_run(
+        &self,
+        name: &str,
+        mode: RoundMode,
+        reps: u32,
+        event_id: Option<i64>,
+        role: Option<&str>,
+        team: Option<&str>,
+    ) -> rusqlite::Result<i64> {
+        self.conn.execute(
+            "INSERT INTO runs (name, mode, reps, event_id, role, team) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![name, mode.as_str(), reps, event_id, role, team],
+        )?;
         Ok(self.conn.last_insert_rowid())
     }
 
@@ -192,9 +219,22 @@ impl Leaderboard {
 
     /// Writes every round to a timestamped JSON file. Returns its path.
     pub fn export_backup(&self) -> Result<PathBuf, String> {
-        let mut stmt = self.conn.prepare("SELECT id, name, mode, reps FROM runs ORDER BY id").map_err(|e| e.to_string())?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, mode, reps, event_id, role, team FROM runs ORDER BY id")
+            .map_err(|e| e.to_string())?;
         let runs = stmt
-            .query_map([], |row| Ok(BackupRun { id: row.get(0)?, name: row.get(1)?, mode: row.get(2)?, reps: row.get(3)? }))
+            .query_map([], |row| {
+                Ok(BackupRun {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    mode: row.get(2)?,
+                    reps: row.get(3)?,
+                    event_id: row.get(4)?,
+                    role: row.get(5)?,
+                    team: row.get(6)?,
+                })
+            })
             .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
             .map_err(|e| e.to_string())?;
         std::fs::create_dir_all(&self.backup_dir).map_err(|e| e.to_string())?;
@@ -220,13 +260,28 @@ pub struct FinishedRound {
     pub duration_ms: i64,
     /// Why this player's round ended.
     pub finish: FinishReason,
+    /// The event the round was played at (its boards get the score too).
+    #[serde(default)]
+    pub event_id: Option<i64>,
+    /// The player's role at the event (one of its roles).
+    #[serde(default)]
+    pub role: Option<String>,
+    /// The player's team at the event (any name).
+    #[serde(default)]
+    pub team: Option<String>,
 }
 
 /// Checks the name, posts the score and returns the full result with its id
 /// and the player's rank on that mode's board.
 pub fn save_finished(db: &Leaderboard, round: FinishedRound) -> Result<RoundResult, String> {
     let player = validate_name(&round.player)?;
-    let id = db.save_run(&player, round.mode, round.reps).map_err(|e| e.to_string())?;
+    let (role, team) = match round.event_id {
+        Some(ev) => db.check_tags(ev, round.role.as_deref(), round.team.as_deref())?,
+        None => (None, None),
+    };
+    let id = db
+        .save_tagged_run(&player, round.mode, round.reps, round.event_id, role.as_deref(), team.as_deref())
+        .map_err(|e| e.to_string())?;
     let rank = db.rank_of(Some(round.mode), &player).ok().flatten();
     Ok(RoundResult {
         mode: round.mode,
@@ -333,6 +388,9 @@ mod tests {
             no_reps: NoRepCounts { depth: 2, torso: 0, lockout: 1 },
             duration_ms: 60_000,
             finish: FinishReason::Time,
+            event_id: None,
+            role: None,
+            team: None,
         };
         let a = save_finished(&db, round("Ana", 20)).unwrap();
         let b = save_finished(&db, round("Ben", 25)).unwrap();

@@ -36,7 +36,7 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 │                                           → finished                              │
 │                                  emits "tick" (~10 Hz while a round is active),   │
 │                                        "rep", "round-finished", "round-posted"    │
-│                                  saves RoundResult ─▶ SQLite runs(name,mode,reps) │
+│                                  saves RoundResult ─▶ SQLite runs + events        │
 └──────────────────────────────────────┬─────────────────────────────────────────────┘
                                        │ events go to every window
                      ┌─────────────────┴──────────────────┐
@@ -75,7 +75,8 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 
 ### 2.4 Persistence (`backend/src/leaderboard.rs`)
 - **SQLite** via `rusqlite` with the `bundled` feature, file `pump-court.sqlite3` in the app data folder.
-- **One table**: `runs(id, name, mode, reps)`. Only name, mode and valid push-ups are stored.
+- **One table of rounds**: `runs(id, name, mode, reps, event_id, role, team)`. Only name, mode, valid push-ups and (at an event) the event, role and team are stored.
+- **Events** (`backend/src/events.rs`): `events` table; per-event boards per mode (Everyone and per role) and team leaderboards (members' bests added up). See [Events](features/leaderboard/events.md).
 - **Boards**: each player's best run, per mode or across all modes (all time).
 - **Names**: 12 characters at most, blocklist checked (`validate_name`).
 - See [Leaderboard](features/leaderboard/README.md).

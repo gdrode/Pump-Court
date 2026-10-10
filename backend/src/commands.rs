@@ -5,6 +5,7 @@
 //! maps to snake_case here automatically.
 
 use crate::engine::EngineCommand;
+use crate::events::{EventDraft, EventInfo, TeamRow};
 use crate::game::{RepReport, RoundMode, RoundResult};
 use crate::leaderboard::{self, Leaderboard, LeaderboardRow};
 use crate::phone::net::{self, LanInfo};
@@ -99,6 +100,69 @@ pub fn delete_run(state: State<AppState>, run_id: i64) -> CmdResult<()> {
 #[tauri::command]
 pub fn export_backup(state: State<AppState>) -> CmdResult<String> {
     state.db.lock().unwrap().export_backup().map(|p| p.display().to_string())
+}
+
+// --- Events ------------------------------------------------------------------------
+
+/// Every event, newest first.
+#[tauri::command]
+pub fn list_events(state: State<AppState>) -> CmdResult<Vec<EventInfo>> {
+    state.db.lock().unwrap().events().map_err(|e| e.to_string())
+}
+
+/// The event new solo rounds go to, if any.
+#[tauri::command]
+pub fn get_active_event(state: State<AppState>) -> CmdResult<Option<EventInfo>> {
+    state.db.lock().unwrap().active_event().map_err(|e| e.to_string())
+}
+
+/// Creates (`id: null`, and makes it the active event) or changes an event.
+/// Tells every window ("event-changed").
+#[tauri::command]
+pub fn save_event(app: AppHandle, state: State<AppState>, event: EventDraft) -> CmdResult<EventInfo> {
+    let saved = state.db.lock().unwrap().save_event(event)?;
+    let _ = app.emit("event-changed", ());
+    Ok(saved)
+}
+
+/// Deletes an event; its rounds stay on the global boards.
+#[tauri::command]
+pub fn delete_event(app: AppHandle, state: State<AppState>, event_id: i64) -> CmdResult<()> {
+    state.db.lock().unwrap().delete_event(event_id).map_err(|e| e.to_string())?;
+    let _ = app.emit("event-changed", ());
+    Ok(())
+}
+
+/// Picks the event new rounds go to (`null` = no event).
+#[tauri::command]
+pub fn set_active_event(app: AppHandle, state: State<AppState>, event_id: Option<i64>) -> CmdResult<()> {
+    state.db.lock().unwrap().set_active_event(event_id).map_err(|e| e.to_string())?;
+    let _ = app.emit("event-changed", ());
+    Ok(())
+}
+
+/// An event board: each player's best round in `mode`; `role: null` = everyone at the event.
+#[tauri::command]
+pub fn get_event_board(
+    state: State<AppState>,
+    event_id: i64,
+    mode: RoundMode,
+    role: Option<String>,
+    limit: u32,
+) -> CmdResult<Vec<LeaderboardRow>> {
+    state.db.lock().unwrap().event_top(event_id, mode, role.as_deref(), limit).map_err(|e| e.to_string())
+}
+
+/// A team leaderboard: each team's members' bests in `mode`, added up.
+#[tauri::command]
+pub fn get_team_board(state: State<AppState>, event_id: i64, mode: RoundMode, limit: u32) -> CmdResult<Vec<TeamRow>> {
+    state.db.lock().unwrap().team_top(event_id, mode, limit).map_err(|e| e.to_string())
+}
+
+/// Team names already used at an event.
+#[tauri::command]
+pub fn get_event_teams(state: State<AppState>, event_id: i64) -> CmdResult<Vec<String>> {
+    state.db.lock().unwrap().event_teams(event_id).map_err(|e| e.to_string())
 }
 
 /// Opens the crowd-facing screen as a second window (drag it to the

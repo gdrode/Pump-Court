@@ -23,7 +23,7 @@ laptop or phone camera ─▶ app window (TypeScript, pumpCourt/src)
                              ▼
                            engine thread (Rust): round clock + score
                              ├─ "tick" / "rep" / "round-finished" / "round-posted" events ─▶ operator + crowd windows
-                             └─ SQLite leaderboard: runs(name, mode, reps)
+                             └─ SQLite leaderboard: runs(name, mode, reps) + events (role/team boards)
 ```
 
 The referee rules are fixed (`DIFFICULTY.normal` in `pumpCourt/src/judge.ts`). There is no mock athlete: you need a real camera.
@@ -107,7 +107,7 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles the a
 
 ## Using it
 
-Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Marathon or Max, **E** create event (coming soon), **L** leaderboard, **S** camera, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Marathon or Max, **E** events (pick the active event, or create one with per-mode, per-role and team leaderboards), **L** leaderboard, **S** camera, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. **Enter** / **Esc** move through screens.
 
 The crowd screen shows the all-time leaderboard (each player's best round in any mode: name, mode, push-ups) between rounds, and the live count and lights during a round.
 

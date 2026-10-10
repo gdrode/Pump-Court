@@ -5,6 +5,8 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type {
+  EventDraft,
+  EventInfo,
   FinishedRound,
   LanInfo,
   LeaderboardRow,
@@ -16,6 +18,7 @@ import type {
   RoundResult,
   SessionSnapshot,
   SignalData,
+  TeamRow,
   TunnelStatus,
 } from "./types";
 
@@ -41,6 +44,20 @@ export const backend = {
   deleteRun: (runId: number) => invoke<void>("delete_run", { runId }),
   exportBackup: () => invoke<string>("export_backup"),
   openCrowdWindow: () => invoke<void>("open_crowd_window"),
+
+  /** Events (backend/src/events.rs). Changes emit "event-changed". */
+  listEvents: () => invoke<EventInfo[]>("list_events"),
+  getActiveEvent: () => invoke<EventInfo | null>("get_active_event"),
+  /** Creates (`id: null`; it becomes the active event) or changes an event. */
+  saveEvent: (event: EventDraft) => invoke<EventInfo>("save_event", { event }),
+  deleteEvent: (eventId: number) => invoke<void>("delete_event", { eventId }),
+  setActiveEvent: (eventId: number | null) => invoke<void>("set_active_event", { eventId }),
+  /** Each player's best round at the event in `mode`; `role: null` = everyone. */
+  getEventBoard: (eventId: number, mode: RoundMode, role: string | null, limit = 20) =>
+    invoke<LeaderboardRow[]>("get_event_board", { eventId, mode, role, limit }),
+  /** Teams ranked by their members' bests in `mode`, added up. */
+  getTeamBoard: (eventId: number, mode: RoundMode, limit = 20) => invoke<TeamRow[]>("get_team_board", { eventId, mode, limit }),
+  getEventTeams: (eventId: number) => invoke<string[]>("get_event_teams", { eventId }),
 
   /**
    * Opens a phone pairing room. Returns its 8-letter code. Room messages
@@ -71,6 +88,8 @@ export const events = {
   onRoundFinished: (cb: (r: RoundResult) => void) => listen<RoundResult>("round-finished", (e) => cb(e.payload)),
   /** A score was posted to the leaderboard (`runId` and `rank` set). */
   onRoundPosted: (cb: (r: RoundResult) => void) => listen<RoundResult>("round-posted", (e) => cb(e.payload)),
+  /** An event was created, changed, deleted or made active. */
+  onEventChanged: (cb: (payload: null) => void) => listen<null>("event-changed", () => cb(null)),
 };
 
 /** True in the second, crowd-facing window (opened by `openCrowdWindow`). */

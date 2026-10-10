@@ -94,11 +94,17 @@ export const BOARDS: { mode: RoundMode | null; title: string }[] = [
 export const HOME_KEYS = { leaderboard: "l", settings: "s", crowd: "w", single: "ArrowLeft", duel: "ArrowRight", event: "e", fixedCamera: "f" } as const;
 
 export const NAME_MAX = 12;
+/** Same limits as backend/src/events.rs. */
+export const TEAM_MAX = 16;
+export const ROLE_MAX = 16;
+export const EVENT_NAME_MAX = 24;
 
 /** How long the crowd screen celebrates a newly posted score. */
 export const CROWD_POSTED_MS = 8000;
 /** Rows on the crowd screen's all-time board. */
 export const CROWD_ROWS = 10;
+/** During an event, the crowd screen shows each of its boards for this long. */
+export const CROWD_BOARD_MS = 10_000;
 
 /** m:ss, for untimed rounds. */
 export function formatElapsed(ms: number): string {

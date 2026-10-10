@@ -90,7 +90,12 @@ If the player walks out of view or stands up for 2 s during a round, their round
 | :--- | :--- | :--- |
 | **`←` / `→`** | Home | Singleplayer / Duel (the mode buttons light up once one is picked) |
 | **`1`–`3`** | Home | Sprint, Marathon, Max (for the picked play style) |
-| **`E`** | Home | Create event (placeholder: "coming soon") |
+| **`E`** | Home | Events: pick the active event, or create / edit one (see [Events](../leaderboard/events.md)) |
+| **`↑` / `↓`** | Events | Pick the active event (or No event) |
+| **`N`** | Events | New event |
+| **`↑` / `↓`** | Players (at an event) | Pick the player's role |
+| **`E`** | Leaderboard | Switch between the global boards and the active event's |
+| **`R`** | Leaderboard (event board) | Everyone → each role |
 | **`F`** | Home | Fixed camera on/off (small switch, bottom of the screen) |
 | **`L`** | Home | Leaderboard |
 | **`S`** | Home | Camera screen |

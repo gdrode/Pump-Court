@@ -62,6 +62,10 @@ export interface RoundResult {
   runId: number | null;
   /** Player's place on this mode's board. */
   rank: number | null;
+  /** Frontend only: the event, role and team the round is posted with (see `EventTags`). */
+  eventId?: number | null;
+  role?: string | null;
+  team?: string | null;
 }
 
 /** A finished round to post to the leaderboard (`save_round`). backend/src/leaderboard.rs `FinishedRound`. */
@@ -74,6 +78,50 @@ export interface FinishedRound {
   noReps: NoRepCounts;
   durationMs: number;
   finish: FinishReason;
+  /** Played at this event: its boards get the score too. */
+  eventId?: number | null;
+  /** One of the event's roles. */
+  role?: string | null;
+  /** Any team name (the event's team leaderboards). */
+  team?: string | null;
+}
+
+/** What a solo round at an event is posted with. */
+export interface EventTags {
+  eventId: number;
+  role: string | null;
+  team: string | null;
+}
+
+/** backend/src/events.rs `EventInfo`: an event and its boards. */
+export interface EventInfo {
+  id: number;
+  name: string;
+  /** Modes with individual boards: "Everyone" + one per role. Never "duel". */
+  modes: RoundMode[];
+  roles: string[];
+  /** Modes with a team leaderboard. */
+  teamModes: RoundMode[];
+  /** New solo rounds are tagged with this event. */
+  active: boolean;
+}
+
+/** backend/src/events.rs `EventDraft`: create (`id: null`) or change an event. */
+export interface EventDraft {
+  id: number | null;
+  name: string;
+  modes: RoundMode[];
+  roles: string[];
+  teamModes: RoundMode[];
+}
+
+/** backend/src/events.rs `TeamRow`: one team on a team leaderboard. */
+export interface TeamRow {
+  rank: number;
+  team: string;
+  /** Sum of the members' best rounds in the board's mode. */
+  reps: number;
+  members: number;
 }
 
 /** The round right now (`tick` event, about 10 times a second during a round). */

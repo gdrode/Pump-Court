@@ -1,6 +1,6 @@
 import { useCrowd } from "../../logic/useCrowd";
 import { Dragon } from "../components/Dragon";
-import { LeaderboardTable } from "../components/LeaderboardTable";
+import { LeaderboardTable, TeamTable } from "../components/LeaderboardTable";
 import { Lights } from "../components/Lights";
 import { host } from "../host";
 import { hostReaction } from "../hostMood";
@@ -9,7 +9,7 @@ import { TitleLights } from "./Home";
 /**
  * The aisle-facing second window. Live round → big count, lights and the
  * dragon. Otherwise → the all-time board: each player's best round in any
- * mode (name, mode, push-ups).
+ * mode (name, mode, push-ups); during an event, its boards in turn.
  */
 export function Crowd() {
   const crowd = useCrowd();
@@ -82,10 +82,27 @@ export function Crowd() {
       <div className="crowd__body">
         <Dragon action={posted ? "hype" : "curl"} size="lg" bubble="top" says={says} mood={posted ? "good" : undefined} />
         <div className="crowd__board">
-          <div className="crowd__tabs">
-            <span className="sketch is-on">Most push-ups · all time</span>
-          </div>
-          <LeaderboardTable rows={crowd.rows} big showMode highlight={posted?.player} />
+          {crowd.event && crowd.eventBoard ? (
+            <>
+              <div className="crowd__tabs">
+                <span className="sketch is-on">
+                  {crowd.event.name} · {crowd.eventBoard.title}
+                </span>
+              </div>
+              {crowd.eventBoard.team ? (
+                <TeamTable rows={crowd.eventBoard.teams} big />
+              ) : (
+                <LeaderboardTable rows={crowd.eventBoard.players} big highlight={posted?.player} />
+              )}
+            </>
+          ) : (
+            <>
+              <div className="crowd__tabs">
+                <span className="sketch is-on">Most push-ups · all time</span>
+              </div>
+              <LeaderboardTable rows={crowd.rows} big showMode highlight={posted?.player} />
+            </>
+          )}
           {crowd.playerCount > 0 && (
             <p className="crowd__count-note muted">
               {crowd.playerCount} {crowd.playerCount === 1 ? "person has" : "people have"} competed so far

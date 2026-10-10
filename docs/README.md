@@ -45,6 +45,7 @@ docs/
     │   └── browser-prototype-pairing.md # How the prototype's pairing was ported to Rust
     ├── leaderboard/                     # Feature 5: SQLite storage
     │   ├── README.md                    # runs table, migration, API
+    │   ├── events.md                    # Events: per-mode, per-role and team boards
     │   ├── scoring-and-ranking.md       # Best run per player, all-time board, ties
     │   ├── name-validation.md           # Length cap and blocklist
     │   └── backup-and-recovery.md       # Hourly JSON backups and recovery
@@ -99,5 +100,5 @@ docs/
 | **Round clock & score** | Rust (`std::thread`, `mpsc`) | `backend/src/engine.rs`, `backend/src/game/` | Get ready → countdown → running → finished; counts valid push-ups |
 | **Desktop shell** | Rust / Tauri 2 | `backend/src/lib.rs`, `commands.rs` | Windows, commands, camera permission on Linux |
 | **Phone cameras** | Rust (axum, rustls, rcgen) + TypeScript | `backend/src/phone/`, `frontend/src/logic/tracker/` | HTTPS on :47800, pairing rooms, WebRTC signalling, JPEG relay, Cloudflare tunnel |
-| **Leaderboard** | Rust / SQLite (`rusqlite`, bundled) | `backend/src/leaderboard.rs` | `runs(name, mode, reps)`, best run per player, hourly JSON backups |
+| **Leaderboard** | Rust / SQLite (`rusqlite`, bundled) | `backend/src/leaderboard.rs` | `runs(name, mode, reps, event/role/team)`, best run per player, event / role / team boards (`events.rs`), hourly JSON backups |
 | **Frontend** | TypeScript / React 18 / Vite 5 | `frontend/src/` | Operator window and crowd window |

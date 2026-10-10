@@ -81,8 +81,10 @@ The get-ready checklist on the round screen has one row per posture state, in or
 
 ## 3. Other Hooks
 
-- **`useNameEntry(mode, onStart)`**: one or two names, the active field, errors. `cleanName` keeps letters, digits, spaces and `. _ -`, and caps at 12 (`NAME_MAX`). Before starting it rejects empty or duplicate names, then checks each with `backend.checkName` (the backend has the final say).
-- **`useLeaderboard(initial)`**: tab (`mode`, null = all time), up to 50 rows, `remove(row)`, `exportBackup()`, a `message` line.
+- **`useNameEntry(mode, onStart, activeEvent)`**: one or two names, the active field, errors. Solo at the active event (if it ranks the mode): `roles` / `role` / `cycleRole` (required pick when there are roles), `team` (optional, only with a team board for the mode), and `onStart(players, { tags, board })`. `cleanName` keeps letters, digits, spaces and `. _ -`, and caps at 12 (`NAME_MAX`). Before starting it rejects empty or duplicate names, then checks each with `backend.checkName` (the backend has the final say).
+- **`useLeaderboard(initial)`**: one board (`BoardRef`: global mode or all time, an event's mode and role, or a team board), up to 50 player `rows` or team `teams`, `remove(row)`, `exportBackup()`, a `message` line.
+- **`useEvents()` / `useActiveEvent()`** (`logic/useEvents.ts`): every event and the active one; reloads on `event-changed`. Also `useEventManager()` (Events screen), `useEventTeams(eventId)`, `fetchBoard`, `eventTabs`, `allEventBoards`. **`useEventDraft(editing)`** (`logic/useEventDraft.ts`): the event form. See [Events](../leaderboard/events.md).
+- **`useRound`** takes optional `tags` (`EventTags`) and puts them on the finished `RoundResult`, so posting it sends `eventId`, `role` and `team`.
 - **`useBoardRecord(mode)`**: the top score on one mode's board, shown as "Record" during a solo round.
 - **`useCrowd()`**: the crowd window's data. See [Crowd Display Sync](crowd-display-sync.md).
 - **`results.ts`**: `rankResults` (push-ups, then perfect), `duelOutcome` (order, winner or tie, `decidedOnPerfect`), `scoreToBeat` (the Duel "To beat" box).

@@ -265,7 +265,7 @@ kbd {
 .modes.is-lit .mode--max { box-shadow: 0 0 0 4px var(--red-light), 0 0 16px 3px rgba(210, 69, 46, 0.45); }
 .mode--max:not(:disabled):hover, .mode--max:not(:disabled):focus-visible { background: var(--red-light); }
 
-/* Placeholder: events will create their own leaderboard. */
+/* Events button: dashed until an event is on, then it names the event. */
 .create-event {
   cursor: pointer; border: 0; background: transparent; padding: 0.7rem 1.2rem;
   display: flex; align-items: baseline; justify-content: center; gap: 0.8rem; flex-wrap: wrap;
@@ -274,6 +274,8 @@ kbd {
 .create-event:hover, .create-event:focus-visible { background: var(--cream); outline: none; }
 .create-event__label { font-size: 1.5rem; }
 .create-event__blurb { color: var(--ink-soft); font-size: 1.05rem; }
+.create-event.is-on { background: var(--purple-light); }
+.create-event.is-on::before { border-style: solid; border-color: var(--purple); }
 .home__foot { grid-column: 1 / -1; align-self: end; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .home__foot > .keys { margin: 0; }
 /* Fixed camera: a small on/off switch in the bottom corner. */
@@ -461,7 +463,7 @@ kbd {
 
 /* ---- leaderboard ------------------------------------------------------------ */
 
-.tabs { display: flex; gap: 0.8rem; }
+.tabs { display: flex; gap: 0.8rem; flex-wrap: wrap; }
 .tabs button { cursor: pointer; border: 0; background: var(--card); padding: 0.35rem 1rem; font-size: 1.35rem; display: inline-flex; gap: 0.5rem; align-items: center; color: var(--ink-soft); }
 .tabs button.is-on { background: var(--ink); color: var(--card); }
 .tabs button.is-on kbd { background: transparent; color: var(--card); border-color: var(--card); }
@@ -665,3 +667,46 @@ kbd {
 .camera-pick { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .camera-pick select { flex: 1; min-width: 0; font: inherit; font-size: 1.1rem; padding: 0.3rem 0.6rem; background: var(--card); border: 0; }
 .camera-pick button { font: inherit; font-size: 1.1rem; padding: 0.3rem 0.8rem; background: var(--card); border: 0; cursor: pointer; }
+
+/* ---- events (create, edit, pick; role and team at name entry) ------------- */
+
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.chip {
+  cursor: pointer; border: 0; background: var(--card); color: var(--ink-soft);
+  font: inherit; font-size: 1.25rem; padding: 0.25rem 0.95rem;
+  transition: background 120ms ease, color 120ms ease;
+}
+.chip:hover, .chip:focus-visible { background: var(--cream); color: var(--ink); outline: none; }
+.chip.is-on { background: var(--purple-light); color: var(--ink); }
+.chip.is-on::before { border-width: 3px; border-color: var(--purple); }
+.chip--tag { cursor: default; display: inline-flex; align-items: center; gap: 0.4rem; background: var(--purple-light); color: var(--ink); }
+.chip__x { border: 0; background: none; font: inherit; font-size: 1.3rem; line-height: 1; cursor: pointer; color: var(--ink-soft); padding: 0 0.1rem; }
+.chip__x:hover, .chip__x:focus-visible { color: var(--red); outline: none; }
+
+.event-pick { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.event-pick__label { font-size: 1.3rem; color: var(--ink-soft); min-width: 3.6rem; }
+.event-pick .name-input--sm, .event-pick .chips { flex: 1; }
+.name-input--sm { font-size: 1.6rem; text-align: left; padding: 0.15rem 0.8rem; }
+.name-input--sm:focus { box-shadow: 0 0 0 4px var(--purple-light); }
+
+.events { width: min(860px, 100%); max-height: calc(100vh - 3rem); overflow-y: auto; }
+.event-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+.event-list > li { display: flex; align-items: center; gap: 1rem; }
+.event-list__item .linkish { font-size: 1.15rem; }
+.linkish.is-bad { color: var(--red); }
+.event-row {
+  flex: 1; cursor: pointer; border: 0; background: var(--card); text-align: left;
+  display: flex; flex-direction: column; gap: 0.1rem; padding: 0.55rem 1.1rem; font: inherit;
+  transition: background 120ms ease;
+}
+.event-row:hover, .event-row:focus-visible { background: var(--cream); outline: none; }
+.event-row.is-on { background: var(--purple-light); }
+.event-row.is-on::before { border-width: 4px; border-color: var(--purple); }
+.event-row__name { font-size: 1.6rem; line-height: 1.1; }
+.event-row__blurb { color: var(--ink-soft); font-size: 1.05rem; }
+.event-section { display: flex; flex-direction: column; gap: 0.45rem; }
+.event-section h2 { margin: 0; font-size: 1.6rem; }
+.event-section p { margin: 0; }
+.event-form__role { flex: 0 1 14rem; }
+.event-form__select { font: inherit; font-size: 1.2rem; padding: 0.25rem 0.6rem; background: var(--card); border: 2px solid var(--ink); border-radius: var(--r); color: var(--ink); }
+.board-source { align-self: flex-start; }

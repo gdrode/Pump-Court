@@ -7,11 +7,13 @@
 //! * `game`        – modes and the round state machine (clock, count)
 //! * `engine`      – the background thread that runs the round clock
 //! * `leaderboard` – SQLite storage
+//! * `events`      – events: their boards, roles and team leaderboards
 //! * `phone`       – phone cameras: pairing rooms, HTTPS server, internet link
 //! * `commands`    – the functions the React frontend calls
 
 pub mod commands;
 pub mod engine;
+pub mod events;
 pub mod game;
 pub mod leaderboard;
 pub mod phone;
@@ -59,6 +61,14 @@ pub fn run() {
             commands::get_player_count,
             commands::delete_run,
             commands::export_backup,
+            commands::list_events,
+            commands::get_active_event,
+            commands::save_event,
+            commands::delete_event,
+            commands::set_active_event,
+            commands::get_event_board,
+            commands::get_team_board,
+            commands::get_event_teams,
             commands::open_crowd_window,
             commands::phone_open,
             commands::phone_signal,

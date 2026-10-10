@@ -9,6 +9,7 @@ import { useGameFlow } from "./logic/useGameFlow";
 import { Crowd } from "./ui/screens/Crowd";
 import { DuelResult } from "./ui/screens/DuelResult";
 import { DuelRound } from "./ui/screens/DuelRound";
+import { Events } from "./ui/screens/Events";
 import { Home } from "./ui/screens/Home";
 import { Leaderboard } from "./ui/screens/Leaderboard";
 import { Players } from "./ui/screens/Players";
@@ -37,7 +38,16 @@ function Operator() {
   let screen: React.ReactNode = null;
   switch (state.screen) {
     case "home":
-      screen = <Home visit={state.visit} onPick={flow.pickMode} onLeaderboard={() => flow.leaderboard()} onSettings={flow.settings} onCrowd={flow.openCrowd} />;
+      screen = (
+        <Home
+          visit={state.visit}
+          onPick={flow.pickMode}
+          onEvents={flow.events}
+          onLeaderboard={() => flow.leaderboard()}
+          onSettings={flow.settings}
+          onCrowd={flow.openCrowd}
+        />
+      );
       break;
     case "names":
       screen = <Players mode={state.mode} onStart={flow.start} onBack={flow.home} />;
@@ -53,6 +63,7 @@ function Operator() {
           player={plan.players[results.length]}
           turn={duel ? { index: results.length, total: plan.players.length } : undefined}
           target={duel ? (best ? { label: "To beat", ...best } : null) : undefined}
+          tags={duel ? undefined : plan.event?.tags}
           onFinished={flow.finishRound}
           onAbort={flow.home}
         />
@@ -89,7 +100,10 @@ function Operator() {
       screen = <DuelResult results={state.results} onRematch={flow.rematch} onDone={flow.home} />;
       break;
     case "leaderboard":
-      screen = <Leaderboard key={state.mode ?? "all"} initial={state.mode} highlight={state.highlight} onBack={flow.home} />;
+      screen = <Leaderboard key={JSON.stringify(state.board)} initial={state.board} highlight={state.highlight} onBack={flow.home} />;
+      break;
+    case "events":
+      screen = <Events onBack={flow.home} />;
       break;
     case "settings":
       screen = <Settings onBack={flow.home} />;

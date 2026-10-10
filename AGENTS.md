@@ -49,7 +49,7 @@ Camera / Phone ──▶ App window (TypeScript, pumpCourt/src via @tracker)
                      ├── Tauri IPC Events ("tick", "rep", "round-finished")
                      │     ├── Operator Window (label "main")
                      │     └── Crowd Window (label "crowd")
-                     └── SQLite Leaderboard: runs(name, mode, reps)
+                     └── SQLite Leaderboard: runs(name, mode, reps) + events (role/team boards)
 ```
 
 For complete system architecture and data contracts, see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).

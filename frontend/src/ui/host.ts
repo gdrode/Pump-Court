@@ -32,8 +32,8 @@ const HOME_LINES = [
 export const host = {
   /** Home screen: a different line each time the menu opens, in order. */
   home: (visit: number) => HOME_LINES[Math.abs(visit) % HOME_LINES.length],
-  /** Create event isn't built yet. */
-  eventSoon: "Events are coming soon! You'll be able to run your own leaderboard.",
+  /** Events screen: which event is on. */
+  event: (name: string | null) => (name ? `${name} is on! Every solo score counts.` : "No event on. Make one, or pick one!"),
   who: (duel: boolean) => (duel ? "A duel! Who are the two challengers?" : "What do I call you?"),
   nextUp: (name: string) => `${name}, you're up! Get on the mat.`,
   winner: (name: string | null) => (name ? `${name} wins! What a battle!` : "It's a tie! Rematch?"),
