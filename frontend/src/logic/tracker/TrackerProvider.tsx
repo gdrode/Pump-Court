@@ -8,6 +8,11 @@
 // the whole app. <CameraView> borrows them; detection runs only while at least
 // one view is showing.
 //
+// Two trackers can run at once, one per camera: slot 0 (player 1, always on)
+// and slot 1 (player 2 in a side-by-side Duel, on once a camera is picked).
+// Components read the tracker of the slot they sit in (<TrackerSlot>), so the
+// same camera view, Add camera dialog and pickers work for either player.
+//
 // Rotation (ported from pumpCourt/src/useLane.ts): a phone propped on its side
 // with rotation lock on sends a sideways picture, and the pose tracker needs
 // the player upright. The phone reports the turn it needs (`rotationHint`);
@@ -71,6 +76,8 @@ interface TrackerApi {
   /** Name for the next phone, e.g. "Phone 2". */
   nextPhoneLabel: string;
   cameraError: string | null;
+  /** Player 2's tracker has a camera picked (always true for player 1). */
+  hasCamera: boolean;
   /** "Loading tracking…" until the pose model is ready; an error if it failed. */
   modelStatus: { ready: boolean; error: string | null; delegate: string | null };
   /** Posture and pose rate, refreshed a few times a second (for display). */
@@ -91,23 +98,41 @@ interface TrackerApi {
   rotateAuto(): void;
 }
 
-const TrackerContext = createContext<TrackerApi | null>(null);
+/** One context per camera slot (player 1, player 2). */
+const TRACKERS = [createContext<TrackerApi | null>(null), createContext<TrackerApi | null>(null)];
+/** Which slot the components inside it use. Default: player 1. */
+const SlotContext = createContext<0 | 1>(0);
 
-export function useTracker(): TrackerApi {
-  const api = useContext(TrackerContext);
-  if (!api) throw new Error("useTracker needs <TrackerProvider>");
+/** Makes everything inside use player 2's (slot 1) or player 1's tracker. */
+export function TrackerSlot({ slot, children }: { slot: 0 | 1; children: ReactNode }) {
+  return <SlotContext.Provider value={slot}>{children}</SlotContext.Provider>;
+}
+
+/** The tracker for this part of the screen (see TrackerSlot), or a given slot. */
+export function useTracker(slot?: 0 | 1): TrackerApi {
+  const here = useContext(SlotContext);
+  const p1 = useContext(TRACKERS[0]);
+  const p2 = useContext(TRACKERS[1]);
+  const api = (slot ?? here) === 1 ? p2 : p1;
+  if (!api) throw new Error("useTracker needs <TrackerProvider> for that slot");
   return api;
 }
 
 /** Calls `cb` with each tracked frame while the component is mounted. */
-export function useTrackerFrames(cb: (f: TrackerFrame) => void) {
-  const { subscribe } = useTracker();
+export function useTrackerFrames(cb: (f: TrackerFrame) => void, slot?: 0 | 1) {
+  const { subscribe } = useTracker(slot);
   const latest = useRef(cb);
   latest.current = cb;
   useEffect(() => subscribe((f) => latest.current(f)), [subscribe]);
 }
 
-export function TrackerProvider({ children }: { children: ReactNode }) {
+/**
+ * Paired phones on the internet link, across both slots, so the link only
+ * closes when no player's phone uses it.
+ */
+const internetPhones = new Set<string>();
+
+export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; slot?: 0 | 1 }) {
   // The shared video and overlay. Created once, moved into whichever view shows them.
   const [video] = useState(() => {
     const v = document.createElement("video");
@@ -126,10 +151,14 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
 
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [phones, setPhones] = useState<PhoneCamera[]>([]);
+  // Player 1 starts on the saved camera. Player 2 has none until one is picked.
   const [current, setCurrent] = useState<string | null>(() => {
+    if (slot === 1) return null;
     const saved = loadSavedCameraId();
     return saved ? `device:${saved}` : null;
   });
+  /** Player 2's tracker only runs once it has a camera. */
+  const enabled = slot === 0 || current !== null;
   /** The device actually opened (the saved one may be gone, then any camera is used). */
   const [openedDevice, setOpenedDevice] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -154,16 +183,17 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
 
   // The pose model: GPU first, CPU if the GPU can't run it.
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     setModelError(null);
-    getLandmarker(MODEL, cpuOnly).then(
+    getLandmarker(MODEL, cpuOnly, slot).then(
       (m) => !cancelled && setModel(m),
       (err) => !cancelled && setModelError(`Pose tracking could not start: ${String(err)}`),
     );
     return () => {
       cancelled = true;
     };
-  }, [cpuOnly]);
+  }, [cpuOnly, enabled, slot]);
 
   // Open the chosen camera. Phones already carry a live stream; devices are opened here.
   const phone = current?.startsWith("phone:") ? phones.find((p) => `phone:${p.id}` === current) : undefined;
@@ -188,6 +218,8 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
     };
     if (current?.startsWith("phone:")) {
       show(phoneStream);
+    } else if (!enabled) {
+      show(null); // player 2 without a camera yet
     } else {
       const deviceId = current?.startsWith("device:") ? current.slice(7) : null;
       openCamera(deviceId)
@@ -198,7 +230,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
           show(stream);
           const id = stream.getVideoTracks()[0]?.getSettings().deviceId;
           if (id) {
-            saveCameraId(id);
+            if (slot === 0) saveCameraId(id);
             setOpenedDevice(`device:${id}`);
           }
           await refreshDevices(); // labels appear once the camera is allowed
@@ -219,7 +251,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       stopStream(owned);
     };
-  }, [current, phoneStream, video, refreshDevices]);
+  }, [current, phoneStream, video, refreshDevices, enabled, slot]);
 
   useEffect(() => {
     void refreshDevices();
@@ -386,9 +418,6 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
     [video, canvas, frame],
   );
 
-  /** Rooms of paired phones on the internet link, so it can close when the last one goes. */
-  const internetPhones = useRef(new Set<string>());
-
   const addPhone = useCallback<TrackerApi["addPhone"]>(({ label, stream, link, viaInternet }) => {
     const id = link.room;
     const update = (patch: Partial<PhoneCamera>) => setPhones((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -398,13 +427,13 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
       onOrientation: (r) => update({ rotationHint: r as Rotation }),
     });
     phoneCount.current += 1;
-    if (viaInternet) internetPhones.current.add(id);
+    if (viaInternet) internetPhones.add(id);
     setPhones((ps) => [...ps, { id, label, stream, link, status: "connected", detail: "", viaInternet, rotationHint: null }]);
     setCurrent(`phone:${id}`);
   }, []);
 
   const releaseTunnel = useCallback(() => {
-    if (internetPhones.current.size === 0) void backend.tunnelStop().catch(() => {});
+    if (internetPhones.size === 0) void backend.tunnelStop().catch(() => {});
   }, []);
 
   const removePhone = useCallback(
@@ -414,7 +443,7 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
         return ps.filter((p) => p.id !== id);
       });
       setCurrent((c) => (c === `phone:${id}` ? null : c));
-      if (internetPhones.current.delete(id)) releaseTunnel();
+      if (internetPhones.delete(id)) releaseTunnel();
     },
     [releaseTunnel],
   );
@@ -454,9 +483,10 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
     addPhone,
     removePhone,
     releaseTunnel,
-    nextPhoneLabel: `Phone ${phoneCount.current + 1}`,
+    nextPhoneLabel: slot === 1 ? `P2 phone ${phoneCount.current + 1}` : `Phone ${phoneCount.current + 1}`,
     cameraError: cameraError ?? (phone && phone.status !== "connected" ? `${phone.label}: ${phone.status}. ${phone.detail}` : null),
     modelStatus: { ready: !!model && !modelError, error: modelError, delegate: model?.delegate ?? null },
+    hasCamera: enabled,
     live,
     subscribe,
     resetPosture: useCallback(() => postureRef.current.reset(), []),
@@ -466,5 +496,6 @@ export function TrackerProvider({ children }: { children: ReactNode }) {
     rotate: () => setManual(((rotation + 90) % 360) as Rotation),
     rotateAuto: () => setManual(undefined),
   };
-  return <TrackerContext.Provider value={api}>{children}</TrackerContext.Provider>;
+  const Ctx = TRACKERS[slot];
+  return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

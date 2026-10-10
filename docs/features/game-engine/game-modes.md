@@ -1,7 +1,7 @@
 # Game Modes & Rules
 
 > **Module**: `backend/src/game/mode.rs` and `frontend/src/config/modes.ts`  
-> **Key Types**: `RoundMode`, `MenuModeInfo`, `MENU_MODES`, `BOARDS`  
+> **Key Types**: `RoundMode`, `MenuModeInfo`, `PLAY_STYLES`, `GAME_MODES`, `menuMode`, `BOARDS`  
 > **Related Documents**: [Game Engine Overview](README.md), [Leaderboard](../leaderboard/README.md)  
 > **Maintenance Status**: Active / Tournament Rules  
 
@@ -55,8 +55,10 @@ Every round starts with the ready check and a 3-second countdown (see [Game Engi
 
 - **Rust** (`backend/src/game/mode.rs`): the enum, its database name, its length, `MAX_IDLE_MS` and `MAX_CAP_MS`.
 - **Frontend** (`frontend/src/config/modes.ts`):
-  - `MENU_MODES`: key, title, blurb, number of players (1 or 2), optional note.
+  - `PLAY_STYLES`: the home screen's top bar, **Singleplayer** or **Duel**.
+  - `GAME_MODES`: Sprint / Minute / Max with key, title, solo blurb, duel blurb, optional note.
+  - `menuMode(style, mode)`: turns a pick into the `MenuModeInfo` that is played. Singleplayer = 1 player. Duel = 2 players taking turns: **Duel + Sprint** plays the backend's `duel` mode (30 s turns, its own Duel board); **Duel + Minute** and **Duel + Max** play two turns of that mode, saved to that mode's board. No backend change was needed: the frontend already runs a plan as one turn per player.
   - `MODE_LABELS`: names on boards and results.
   - `BOARDS`: leaderboard tabs — All time (`mode: null`), Sprint, Minute, Max, Duel.
 
-To add a mode: add the variant and its `as_str`/`duration_ms` in Rust, add it to `RoundMode` in `frontend/src/api/types.ts`, then add it to `MENU_MODES`, `MODE_LABELS` and `BOARDS`.
+To add a mode: add the variant and its `as_str`/`duration_ms` in Rust, add it to `RoundMode` in `frontend/src/api/types.ts`, then add it to `GAME_MODES` (and `menuMode` if Duel needs special handling), `MODE_LABELS` and `BOARDS`.

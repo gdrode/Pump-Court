@@ -21,25 +21,62 @@ export interface MenuModeInfo {
   key: string;
   title: string;
   blurb: string;
-  /** Duel is 2 players; the rest are solo. */
+  /** 2 for a Duel (two turns), 1 for Singleplayer. */
   players: 1 | 2;
   /** Small red note under the blurb. */
   note?: string;
 }
 
-export const MENU_MODES: MenuModeInfo[] = [
-  { id: "sprint", key: "1", title: "Sprint", blurb: "Most push-ups in 30 seconds", players: 1 },
-  { id: "minute", key: "2", title: "Minute", blurb: "Most push-ups in 60 seconds", players: 1 },
+/** Top bar of the home screen: who's playing. */
+export type PlayStyle = "single" | "duel";
+
+export const PLAY_STYLES: { id: PlayStyle; title: string; blurb: string }[] = [
+  { id: "single", title: "Singleplayer", blurb: "One player" },
+  { id: "duel", title: "Duel", blurb: "Two players take turns" },
+];
+
+/** The game modes under the top bar. Each works for Singleplayer and Duel. */
+export type GameModeId = "sprint" | "minute" | "max";
+
+export interface GameModeInfo {
+  id: GameModeId;
+  /** Key the operator presses on the home screen. */
+  key: string;
+  title: string;
+  blurb: string;
+  /** Blurb when picked for a Duel. */
+  duelBlurb: string;
+  note?: string;
+}
+
+export const GAME_MODES: GameModeInfo[] = [
+  { id: "sprint", key: "1", title: "Sprint", blurb: "Most push-ups in 30 seconds", duelBlurb: "30 seconds each. Most push-ups wins" },
+  { id: "minute", key: "2", title: "Minute", blurb: "Most push-ups in 60 seconds", duelBlurb: "60 seconds each. Most push-ups wins" },
   {
     id: "max",
     key: "3",
     title: "Max",
     blurb: "Untimed. Ends after 5 s without a valid push-up",
-    players: 1,
-    note: "only when nobody is queuing",
+    duelBlurb: "Untimed, one turn each. Most push-ups wins",
   },
-  { id: "duel", key: "4", title: "Duel", blurb: "2 players, 30 seconds each. Most push-ups wins", players: 2 },
 ];
+
+/**
+ * What gets played for a home-screen pick. A Duel is two turns of the mode.
+ * Duel + Sprint keeps the backend's "duel" mode (its own leaderboard); Duel +
+ * Minute or Max plays two turns of that mode, saved to that mode's board.
+ */
+export function menuMode(style: PlayStyle, mode: GameModeInfo): MenuModeInfo {
+  if (style === "single") return { id: mode.id, key: mode.key, title: mode.title, blurb: mode.blurb, players: 1, note: mode.note };
+  return {
+    id: mode.id === "sprint" ? "duel" : mode.id,
+    key: mode.key,
+    title: `Duel · ${mode.title}`,
+    blurb: mode.duelBlurb,
+    players: 2,
+    note: mode.note,
+  };
+}
 
 /** How each mode is named on boards and results. */
 export const MODE_LABELS: Record<RoundMode, string> = {
@@ -59,7 +96,7 @@ export const BOARDS: { mode: RoundMode | null; title: string }[] = [
 ];
 
 /** Global operator shortcuts on the home screen. */
-export const HOME_KEYS = { leaderboard: "l", settings: "s", crowd: "w" } as const;
+export const HOME_KEYS = { leaderboard: "l", settings: "s", crowd: "w", single: "ArrowLeft", duel: "ArrowRight", event: "e" } as const;
 
 export const NAME_MAX = 12;
 

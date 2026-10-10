@@ -54,6 +54,7 @@ pub fn run() {
             commands::cancel_round,
             commands::set_ready,
             commands::report_rep,
+            commands::save_round,
             commands::get_leaderboard,
             commands::get_player_count,
             commands::delete_run,

@@ -107,7 +107,7 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles the a
 
 ## Using it
 
-Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Minute or Max, **E** create event (coming soon), **L** leaderboard, **S** camera, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. **Enter** / **Esc** move through screens.
 
 The crowd screen shows the all-time leaderboard (each player's best round in any mode: name, mode, push-ups) between rounds, and the live count and lights during a round.
 

@@ -5,6 +5,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type {
+  FinishedRound,
   LanInfo,
   LeaderboardRow,
   PhoneRoomMessage,
@@ -26,6 +27,12 @@ export const backend = {
   setReady: (ready: boolean) => invoke<void>("set_ready", { ready }),
   /** The tracker judged a rep. Counted only while the clock runs. */
   reportRep: (rep: RepReport) => invoke<void>("report_rep", { rep }),
+  /**
+   * Saves a round the frontend played itself (a side-by-side Duel) to the
+   * leaderboard. Returns it with its database id and rank, and tells every
+   * window ("round-finished"), like a backend round.
+   */
+  saveRound: (round: FinishedRound) => invoke<RoundResult>("save_round", { round }),
 
   /** Each player's best round. `mode: null` = all modes (the all-time board). */
   getLeaderboard: (mode: RoundMode | null, limit = 20) => invoke<LeaderboardRow[]>("get_leaderboard", { mode, limit }),

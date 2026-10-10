@@ -65,7 +65,7 @@ The code has three layers:
 ### Screens
 | Screen | File | Shows |
 | :--- | :--- | :--- |
-| Home | `ui/screens/Home.tsx` | Title with three lights, dragon, the four mode cards (Sprint, Minute, Max, Duel) |
+| Home | `ui/screens/Home.tsx` | Title with three lights, dragon. Two steps: a top bar **Singleplayer / Duel**, then the mode cards **Sprint / Minute / Max** (dimmed until a play style is picked, then they light up). Under them a dashed **Create event** button: a placeholder for per-event leaderboards, shows "coming soon". |
 | Players | `ui/screens/Players.tsx` | Name entry: one name, or two for a Duel |
 | Round | `ui/screens/Round.tsx` | Camera on the left (with **⟳ Rotate** until the clock runs). Side panel: get-ready checklist, then the clock, score vs record (or "To beat" in a Duel), lights and dragon. 3-2-1 / GO overlay. |
 | Results | `ui/screens/Results.tsx` | Push-ups, attempts, perfect, rank, red lights per referee |

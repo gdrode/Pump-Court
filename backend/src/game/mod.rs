@@ -4,4 +4,4 @@ pub mod mode;
 pub mod session;
 
 pub use mode::RoundMode;
-pub use session::{RepReport, RoundResult, Session, SessionSnapshot};
+pub use session::{NoRepCounts, RepReport, RoundResult, Session, SessionSnapshot};

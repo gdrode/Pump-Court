@@ -12,6 +12,10 @@ const NO_REP_TIP: Record<Light, string> = {
 
 export const host = {
   home: "Welcome to Pump Court! Three referees, one mat. Two white lights and it counts.",
+  /** Home screen, after Singleplayer or Duel is picked. */
+  homeMode: (duel: boolean) => (duel ? "A duel! Pick the game you'll fight over." : "Flying solo? Pick a game mode."),
+  /** Create event isn't built yet. */
+  eventSoon: "Events are coming soon! You'll be able to run your own leaderboard.",
   who: (duel: boolean) => (duel ? "A duel! Who are the two challengers?" : "What do I call you?"),
   nextUp: (name: string) => `${name}, you're up! Get on the mat.`,
   winner: (name: string | null) => (name ? `${name} wins! What a battle!` : "It's a tie! Rematch?"),

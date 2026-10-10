@@ -8,6 +8,7 @@ import { TrackerProvider, useTracker } from "./logic/tracker/TrackerProvider";
 import { useGameFlow } from "./logic/useGameFlow";
 import { Crowd } from "./ui/screens/Crowd";
 import { DuelResult } from "./ui/screens/DuelResult";
+import { DuelRound } from "./ui/screens/DuelRound";
 import { Home } from "./ui/screens/Home";
 import { Leaderboard } from "./ui/screens/Leaderboard";
 import { Players } from "./ui/screens/Players";
@@ -19,8 +20,11 @@ export default function App() {
   // The second window ("crowd") loads the same app.
   if (isCrowdWindow()) return <Crowd />;
   return (
-    <TrackerProvider>
-      <Operator />
+    // Two trackers: player 1's camera (always on) and player 2's, for a side-by-side Duel.
+    <TrackerProvider slot={0}>
+      <TrackerProvider slot={1}>
+        <Operator />
+      </TrackerProvider>
     </TrackerProvider>
   );
 }
@@ -71,6 +75,18 @@ function Operator() {
       );
       break;
     }
+    case "duelRound":
+      screen = (
+        <DuelRound
+          key={state.attempt}
+          mode={state.plan.mode.id}
+          players={state.plan.players}
+          onFinished={flow.finishDuel}
+          onAbort={flow.home}
+          onTakeTurns={flow.takeTurns}
+        />
+      );
+      break;
     case "duelResult":
       screen = <DuelResult results={state.results} onRematch={flow.rematch} onDone={flow.home} />;
       break;
@@ -82,7 +98,7 @@ function Operator() {
       break;
   }
 
-  const cameraScreen = state.screen === "round" || state.screen === "settings";
+  const cameraScreen = state.screen === "round" || state.screen === "settings" || state.screen === "duelRound";
   return (
     <div className={`app ${cameraScreen ? "app--camera" : ""}`}>
       {cameraError && !cameraScreen && (

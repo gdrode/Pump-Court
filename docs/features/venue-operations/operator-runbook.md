@@ -78,7 +78,9 @@ If the player walks out of view during a round, nothing is voided: reps simply s
 
 | Key | Where | Action |
 | :--- | :--- | :--- |
-| **`1`–`4`** | Home | Sprint, Minute, Max, Duel |
+| **`←` / `→`** | Home | Singleplayer / Duel (the mode buttons light up once one is picked) |
+| **`1`–`3`** | Home | Sprint, Minute, Max (for the picked play style) |
+| **`E`** | Home | Create event (placeholder: "coming soon") |
 | **`L`** | Home | Leaderboard |
 | **`S`** | Home | Camera screen |
 | **`W`** | Home | Open (or bring forward) the crowd window |

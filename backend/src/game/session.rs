@@ -61,7 +61,7 @@ pub struct RepVerdict {
 }
 
 /// How many red lights each referee gave in a round.
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NoRepCounts {
     pub depth: u32,
     pub torso: u32,

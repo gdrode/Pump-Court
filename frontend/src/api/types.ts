@@ -57,6 +57,17 @@ export interface RoundResult {
   rank: number | null;
 }
 
+/** A round the frontend played and asks the backend to save (`save_round`). backend/src/commands.rs `FinishedRound`. */
+export interface FinishedRound {
+  mode: RoundMode;
+  player: string;
+  reps: number;
+  attempts: number;
+  perfect: number;
+  noReps: NoRepCounts;
+  durationMs: number;
+}
+
 /** The round right now (`tick` event, about 10 times a second during a round). */
 export interface SessionSnapshot {
   phase: RoundPhase;

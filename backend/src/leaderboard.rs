@@ -4,9 +4,9 @@
 //! push-ups. Survives refreshes and crashes, needs no internet, and writes a
 //! JSON backup file every hour (see the engine).
 
-use crate::game::RoundMode;
+use crate::game::{NoRepCounts, RoundMode, RoundResult};
 use rusqlite::{params, Connection};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -205,6 +205,40 @@ impl Leaderboard {
     }
 }
 
+/// A round the frontend played itself and asks to save: a side-by-side Duel,
+/// where two players go at once on two cameras (the engine's single session
+/// runs one round at a time).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinishedRound {
+    pub mode: RoundMode,
+    pub player: String,
+    pub reps: u32,
+    pub attempts: u32,
+    pub perfect: u32,
+    pub no_reps: NoRepCounts,
+    pub duration_ms: i64,
+}
+
+/// Checks the name, posts the score and returns the full result with its id
+/// and the player's rank on that mode's board.
+pub fn save_finished(db: &Leaderboard, round: FinishedRound) -> Result<RoundResult, String> {
+    let player = validate_name(&round.player)?;
+    let id = db.save_run(&player, round.mode, round.reps).map_err(|e| e.to_string())?;
+    let rank = db.rank_of(Some(round.mode), &player).ok().flatten();
+    Ok(RoundResult {
+        mode: round.mode,
+        player,
+        reps: round.reps,
+        attempts: round.attempts,
+        perfect: round.perfect,
+        no_reps: round.no_reps,
+        duration_ms: round.duration_ms.max(0),
+        run_id: Some(id),
+        rank,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,5 +316,25 @@ mod tests {
         assert!(validate_name("F.u_c-k").is_err());
         assert!(validate_name("Dick Lee").is_err());
         assert!(validate_name("Rosa").is_ok());
+    }
+
+    #[test]
+    fn save_finished_posts_the_score_and_ranks_it() {
+        let db = Leaderboard::temporary();
+        let round = |name: &str, reps| FinishedRound {
+            mode: RoundMode::Minute,
+            player: name.into(),
+            reps,
+            attempts: reps + 2,
+            perfect: 1,
+            no_reps: NoRepCounts { depth: 2, torso: 0, lockout: 1 },
+            duration_ms: 60_000,
+        };
+        let a = save_finished(&db, round("Ana", 20)).unwrap();
+        let b = save_finished(&db, round("Ben", 25)).unwrap();
+        assert!(a.run_id.is_some() && b.run_id.is_some());
+        assert_eq!((b.rank, b.reps, b.attempts), (Some(1), 25, 27));
+        assert_eq!(db.rank_of(Some(RoundMode::Minute), "Ana").unwrap(), Some(2));
+        assert!(save_finished(&db, round("", 5)).is_err(), "names are checked like any round");
     }
 }

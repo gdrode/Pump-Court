@@ -5,7 +5,7 @@
 //! maps to snake_case here automatically.
 
 use crate::engine::EngineCommand;
-use crate::game::{RepReport, RoundMode};
+use crate::game::{RepReport, RoundMode, RoundResult};
 use crate::leaderboard::{self, Leaderboard, LeaderboardRow};
 use crate::phone::net::{self, LanInfo};
 use crate::phone::server::ServerStatus;
@@ -15,7 +15,7 @@ use serde_json::Value;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 /// Shared state handed to every command by Tauri.
 pub struct AppState {
@@ -65,6 +65,15 @@ pub fn set_ready(state: State<AppState>, ready: bool) -> CmdResult<()> {
 #[tauri::command]
 pub fn report_rep(state: State<AppState>, rep: RepReport) -> CmdResult<()> {
     state.send(EngineCommand::ReportRep(rep))
+}
+
+/// Saves a round the frontend played itself (a side-by-side Duel) and tells
+/// every window, like the engine does when one of its rounds ends.
+#[tauri::command]
+pub fn save_round(app: AppHandle, state: State<AppState>, round: leaderboard::FinishedRound) -> CmdResult<RoundResult> {
+    let result = leaderboard::save_finished(&state.db.lock().unwrap(), round)?;
+    let _ = app.emit("round-finished", result.clone());
+    Ok(result)
 }
 
 // --- Leaderboard ----------------------------------------------------------------
