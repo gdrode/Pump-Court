@@ -1,3 +1,19 @@
+# Rust / Tauri
+backend/target/
+backend/gen/schemas/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local-only browser preview (simulated backend); see frontend/preview/README.md
+frontend/preview/
 # Secrets
 .env
 .env.*

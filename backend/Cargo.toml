@@ -1,0 +1,21 @@
+[package]
+name = "pump-court"
+version = "0.1.0"
+description = "A push-up contest judged by software"
+edition = "2021"
+
+# The library holds all the app logic; src/main.rs is a tiny launcher.
+[lib]
+name = "pump_court_lib"
+path = "src/lib.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# "bundled" compiles SQLite into the app, so nothing has to be installed.
+rusqlite = { version = "0.32", features = ["bundled"] }
+base64 = "0.22"

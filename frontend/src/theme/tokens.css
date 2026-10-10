@@ -1,0 +1,41 @@
+/*
+ * Design tokens: every colour, font and key size in one place.
+ * A new look usually starts by changing only this file.
+ */
+:root {
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --bg: #0d0f14;
+  --panel: #171a22;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --border: #2a2f3b;
+  --border-strong: #4b5563;
+  --accent: #4ade80;
+  --accent-text: #052e16;
+  --bad: #f87171;
+  --bad-bg: #7f1d1d;
+  --hint: #fde68a;
+  --overlay: rgba(0, 0, 0, 0.55);
+  --video-bg: #111318;
+
+  /* Referee lights */
+  --light-idle: #1f2937;
+  --light-pass: #ffffff;
+  --light-fail: #ef4444;
+  --light-ring: #374151;
+  --light-size: 56px;
+  --light-size-big: 140px;
+
+  /* Skeleton drawn on the video (read by PoseView) */
+  --skeleton-bone: rgba(255, 255, 255, 0.9);
+  --skeleton-bone-lost: rgba(255, 90, 90, 0.9);
+  --skeleton-joint: #4ade80;
+  --skeleton-label: #facc15;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --size-count: 6rem;
+  --size-count-giant: 16rem;
+  --size-countdown: 12rem;
+}
