@@ -1,0 +1,13 @@
+# Rust / Tauri
+backend/target/
+backend/gen/schemas/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
