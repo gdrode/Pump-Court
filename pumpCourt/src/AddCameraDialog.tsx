@@ -14,14 +14,14 @@ interface Props {
   nextLabel: string
 }
 
-type Tab = 'wifi' | 'internet' | 'system' | 'bluetooth'
+type Tab = 'internet' | 'wifi' | 'system'
 
 export function AddCameraDialog({ onClose, onPhone, onRefreshDevices, nextLabel }: Props) {
-  const [tab, setTab] = useState<Tab>('wifi')
-  // The internet link starts only once its tab is first opened, then stays mounted like the Wi-Fi one.
-  const [internetOpened, setInternetOpened] = useState(false)
+  // Any network is the default: it works on every network. Wi-Fi pairing opens only if picked.
+  const [tab, setTab] = useState<Tab>('internet')
+  const [wifiOpened, setWifiOpened] = useState(false)
   const pick = (t: Tab) => {
-    if (t === 'internet') setInternetOpened(true)
+    if (t === 'wifi') setWifiOpened(true)
     setTab(t)
   }
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -37,22 +37,20 @@ export function AddCameraDialog({ onClose, onPhone, onRefreshDevices, nextLabel 
         <button className="small" onClick={onClose} aria-label="Close">✕</button>
       </header>
       <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'wifi'} onClick={() => pick('wifi')}>Phone over Wi-Fi</button>
-        <button role="tab" aria-selected={tab === 'internet'} onClick={() => pick('internet')}>Any network</button>
+        <button role="tab" aria-selected={tab === 'internet'} onClick={() => pick('internet')}>Phone · any network</button>
+        <button role="tab" aria-selected={tab === 'wifi'} onClick={() => pick('wifi')}>Phone · same Wi-Fi (offline)</button>
         <button role="tab" aria-selected={tab === 'system'} onClick={() => pick('system')}>USB / system camera</button>
-        <button role="tab" aria-selected={tab === 'bluetooth'} onClick={() => pick('bluetooth')}>Bluetooth</button>
       </div>
       {/* Kept mounted on other tabs, so the pairing code a phone may be scanning stays valid. */}
-      <div hidden={tab !== 'wifi'}>
-        <WifiPairing onPhone={onPhone} label={nextLabel} onTryInternet={() => pick('internet')} />
+      <div hidden={tab !== 'internet'}>
+        <InternetPairing onPhone={onPhone} label={nextLabel} />
       </div>
-      {internetOpened && (
-        <div hidden={tab !== 'internet'}>
-          <InternetPairing onPhone={onPhone} label={nextLabel} />
+      {wifiOpened && (
+        <div hidden={tab !== 'wifi'}>
+          <WifiPairing onPhone={onPhone} label={nextLabel} onTryInternet={() => pick('internet')} />
         </div>
       )}
       {tab === 'system' && <SystemCameras onRefresh={onRefreshDevices} onClose={onClose} />}
-      {tab === 'bluetooth' && <BluetoothNote />}
     </dialog>
   )
 }
@@ -178,7 +176,7 @@ function WifiPairing({ onPhone, label, onTryInternet }: { onPhone: Props['onPhon
               <li>Using an iPhone hotspot? Turn on <i>Maximize Compatibility</i>, join it from this laptop, wait for the address above to change to one starting with <b>172.20.10.</b>, then scan again.</li>
               {lan?.bonjour && host !== lan.bonjour && <li>Try the <b>by name</b> address in the list above; it doesn't depend on the number.</li>}
               <li>Turn off any VPN on the laptop and the phone.</li>
-              <li>Still nothing: <button className="linkish" onClick={onTryInternet}>use the Any network link</button>, which works on any phone and network, or the <i>USB / system camera</i> tab.</li>
+              <li>Still nothing: <button className="linkish" onClick={onTryInternet}>use the Phone · any network tab</button>, which works on any phone and network, or the <i>USB / system camera</i> tab.</li>
             </ul>
           </div>
         )}
@@ -262,7 +260,7 @@ function InternetPairing({ onPhone, label }: { onPhone: Props['onPhone']; label:
   return (
     <div className="dialog-body">
       <p>Works with <b>any phone on any network</b>, even mobile data. No certificate warning.</p>
-      <p className="hint">The phone's video passes through Cloudflare's tunnel, encrypted and not stored. Use <i>Phone over Wi-Fi</i> when you want everything to stay on this laptop.</p>
+      <p className="hint">The phone's video passes through Cloudflare's tunnel, encrypted and not stored. Use <i>Phone · same Wi-Fi</i> when you want everything to stay on this laptop.</p>
       {tunnel.status === 'starting' && <p className="hint">Starting the internet link… (about 5–10 seconds)</p>}
       {tunnel.status === 'missing' && (
         <p className="error">The internet link needs Cloudflare's free tool. In a terminal run <code>brew install cloudflared</code>, then reopen this tab.</p>
@@ -303,18 +301,6 @@ function SystemCameras({ onRefresh, onClose }: { onRefresh(): Promise<void>; onC
           {busy ? 'Refreshing…' : 'Refresh camera list'}
         </button>
       </div>
-    </div>
-  )
-}
-
-function BluetoothNote() {
-  return (
-    <div className="dialog-body">
-      <p>Bluetooth is too slow to carry live video (about 1–2 Mbit/s at best, and browsers can't receive a camera stream over it). Two ways to get the same result:</p>
-      <ul className="steps">
-        <li><b>iPhone + Mac:</b> Continuity Camera uses Bluetooth to find the phone, then sends the video over Wi-Fi. See <i>USB / system camera</i>.</li>
-        <li><b>Any phone:</b> use <i>Phone over Wi-Fi</i>. With no Wi-Fi around, turn on the phone's hotspot and join it from the laptop.</li>
-      </ul>
     </div>
   )
 }

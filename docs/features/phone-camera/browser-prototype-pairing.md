@@ -11,10 +11,13 @@
 
 | Tab in **+ Add camera** | Works when | Video path | Leaves the laptop? |
 | --- | --- | --- | --- |
-| **Phone over Wi-Fi** (default) | phone and laptop can reach each other on the local network (phone hotspot is most reliable) | WebRTC, phone → laptop directly | No |
-| **Any network** | always: any phone, any network, even mobile data | JPEG frames through a Cloudflare tunnel | Yes, encrypted, not stored |
+| **Phone · any network** (default) | always: any phone, any network, even mobile data | JPEG frames through a Cloudflare tunnel | Yes, encrypted, not stored |
+| **Phone · same Wi-Fi (offline)** | phone and laptop can reach each other on the local network (phone hotspot is most reliable) | WebRTC, phone → laptop directly | No |
+| **USB / system camera** | webcams, Continuity Camera, webcam apps | the OS camera | No |
 
-Venue and school Wi-Fi usually blocks devices from talking to each other: the phone's page then loads forever. That is the case **Any network** exists for. The Wi-Fi tab's troubleshooting box links to it.
+The Bluetooth tab was removed on 2026-10-10: Bluetooth cannot carry live video. In co-op, each player's **+ Add camera** assigns the paired phone to that player.
+
+Venue and school Wi-Fi usually blocks devices from talking to each other: the phone's page then loads forever. That is why **Phone · any network** is the default. The Wi-Fi tab's troubleshooting box links back to it.
 
 ## 1. How it works (Phone over Wi-Fi)
 

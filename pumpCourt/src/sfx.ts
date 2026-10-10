@@ -66,3 +66,9 @@ export function buzzer() {
     osc.stop(t + 0.6)
   }
 }
+
+/** Countdown beep: a short tick for 3-2-1, a longer, higher one for GO. */
+export function beep(go = false) {
+  if (!ctx) return
+  tone(go ? 1760 : 880, 'sine', ctx.currentTime, go ? 0.5 : 0.15, 0.3, ctx.destination)
+}

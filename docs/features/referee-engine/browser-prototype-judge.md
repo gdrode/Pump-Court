@@ -29,7 +29,7 @@ No rep is judged unless the player is in the push-up position. This fixes reps b
 
 When ready, the planted hands' height becomes the **floor line**. Shoulder height is then measured from it: `height = (floorY − shoulderY) / armLength` (≈ 1 at the top, ≈ 0.2–0.35 chest near floor).
 
-The judging panel shows the state: *Get down into the push-up position*, *Put the hands on the floor*, *Hold still at the top…*, *Ready. Go!*
+Each player's stage shows the state: *Get down into the push-up position*, *Put the hands on the floor*, *Hold still at the top…*, *✓ Ready*. The game's countdown waits until every player is ready ([Browser Prototype Modes](../game-engine/browser-prototype-modes.md)).
 
 ## 3. Three lights (`judge.ts`)
 
@@ -41,6 +41,8 @@ The judging panel shows the state: *Get down into the push-up position*, *Put th
 | Lockout | highest elbow angle on the way up | ≥ 145° | ≥ 155° | ≥ 165° |
 
 2 or 3 white lights = counted; 3 = perfect.
+
+The game always judges on **Hard** (no toggle since 2026-10-10). Easy/Normal remain in `DIFFICULTY` for tests and tuning only.
 
 **Abdominal point**: 60% of the way from shoulder to hip (`ABDOMEN_FRACTION`), over the abdomen where the trunk folds. MediaPipe has no spine landmarks, so the point lies on the shoulder–hip line; the angle at it, measured to the knee, captures hip flexion and abdominal crunch/sag. `bodyOffset` (its signed distance from the shoulder–ankle line) names the fault: *hips sagging* (below) or *hips piked up* (above).
 
@@ -55,5 +57,5 @@ The judging panel shows the state: *Get down into the push-up position*, *Put th
 
 ## 5. Open items
 
-- Thresholds are tuned on synthetic data only; record real players and compare difficulties with *Judge this log*.
+- Thresholds are tuned on synthetic data only; record real players and replay them with *Diagnostics → Judge this log* (scores on Hard).
 - A half rep with straight body and lockout still scores 2 lights (counts). Making depth mandatory is a one-line change.

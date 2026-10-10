@@ -2,7 +2,7 @@
 
 > **Module**: `backend/src/game/` and `backend/src/engine.rs`  
 > **Key Types**: `Session`, `RoundPhase`, `RoundMode`, `RoundResult`, `SessionSnapshot`  
-> **Related Documents**: [Game Modes](game-modes.md), [Engine Thread Loop](engine-thread-loop.md), [Frontend UI](../frontend-ui/README.md)  
+> **Related Documents**: [Game Modes](game-modes.md), [Engine Thread Loop](engine-thread-loop.md), [Frontend UI](../frontend-ui/README.md), [Browser Prototype Modes](browser-prototype-modes.md)  
 > **Maintenance Status**: Active / Match Governance  
 
 ---

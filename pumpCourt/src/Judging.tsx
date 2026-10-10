@@ -1,6 +1,8 @@
-// Judging UI: the three referee lights over the camera, the counters and
-// controls, and the summary after a session. All the rules live in judge.ts.
-import { DIFFICULTY, LIGHT_LABEL, LIGHTS, type Difficulty, type Light, type LightState, type RepResult, type SessionSummary } from './judge'
+// Game UI: each player's stage (video, skeleton, three lights, counters), the
+// clock and 3-2-1, and the results. All the rules live in judge.ts and game.ts.
+import type { ReactNode, RefObject } from 'react'
+import { clock, FINISH_TEXT, formatClock, goodReps, MODES, type GameState, type PlayerState } from './game'
+import { LIGHT_LABEL, LIGHTS, summarise, type Light, type LightState, type RepResult, type SessionSummary } from './judge'
 
 export function Lights({ states, flash }: { states: Record<Light, LightState>; flash: number }) {
   return (
@@ -16,125 +18,154 @@ export function Lights({ states, flash }: { states: Record<Light, LightState>; f
   )
 }
 
-interface PanelProps {
-  judging: boolean
-  canStart: boolean
-  difficulty: Difficulty
-  onDifficulty(d: Difficulty): void
-  onStart(): void
-  onStop(): void
-  good: number
-  perfect: number
-  attempted: number
-  lastFaults: string[] | null
-  waitingReason: string | null
-  /** While judging: whether the player is in position. Null when not judging. */
-  inPosition: boolean | null
+interface StageProps {
+  label: string
+  videoRef: RefObject<HTMLVideoElement | null>
+  canvasRef: RefObject<HTMLCanvasElement | null>
+  lights: Record<Light, LightState>
+  flash: number
+  /** Shown over the video: posture prompts, countdown, finish reason. */
+  banner: ReactNode
+  bannerKind: 'info' | 'ready' | 'big' | 'done' | null
+  player: PlayerState | null
+  noCamera: string | null
+  winner?: boolean
 }
 
-export function JudgePanel(p: PanelProps) {
+/** One player's camera with the lights and their score. */
+export function PlayerStage(p: StageProps) {
+  const good = p.player ? goodReps(p.player) : 0
+  const perfect = p.player ? p.player.results.filter((r) => r.perfect).length : 0
+  const noRep = p.player ? p.player.results.length - good : 0
   return (
-    <aside className="judge-panel">
-      <div className="counters">
-        <div className="counter main">
-          <span className="counter-n">{p.good}</span>
-          <span className="counter-l">Push-ups</span>
-        </div>
-        <div className="counter">
-          <span className="counter-n">{p.perfect}</span>
-          <span className="counter-l">Perfect</span>
-        </div>
-        <div className="counter">
-          <span className="counter-n">{p.attempted - p.good}</span>
-          <span className="counter-l">No rep</span>
-        </div>
+    <section className={`player ${p.winner ? 'winner' : ''}`}>
+      <div className="stage">
+        <video ref={p.videoRef} autoPlay playsInline muted />
+        <canvas ref={p.canvasRef} />
+        <Lights states={p.lights} flash={p.flash} />
+        <span className="player-tag">{p.label}{p.winner ? ' 🏆' : ''}</span>
+        {p.noCamera && <div className="no-camera">{p.noCamera}</div>}
+        {p.banner && <div className={`banner ${p.bannerKind ?? 'info'}`}>{p.banner}</div>}
       </div>
+      {p.player && <div className="score-row">
+        <div className="score main"><b>{good}</b><span>Push-ups</span></div>
+        <div className="score"><b>{perfect}</b><span>Perfect</span></div>
+        <div className="score"><b>{noRep}</b><span>No rep</span></div>
+      </div>}
+    </section>
+  )
+}
 
-      {p.judging
-        ? <button className="big stop" onClick={p.onStop}>■ Stop judging</button>
-        : <button className="big start" onClick={p.onStart} disabled={!p.canStart}>▶ Start judging</button>}
-      {p.inPosition != null && (
-        <p className={`position ${p.inPosition ? 'ready' : ''}`} role="status">
-          {p.inPosition ? '● Ready. Go!' : `○ ${p.waitingReason ?? 'Get into position'}`}
-        </p>
-      )}
-      {p.inPosition == null && p.waitingReason && <p className="hint">{p.waitingReason}</p>}
-
-      <fieldset className="difficulty" disabled={p.judging}>
-        <legend>Difficulty</legend>
-        <div className="segmented">
-          {(Object.keys(DIFFICULTY) as Difficulty[]).map((d) => (
-            <label key={d} className={p.difficulty === d ? 'on' : ''}>
-              <input type="radio" name="difficulty" value={d} checked={p.difficulty === d} onChange={() => p.onDifficulty(d)} />
-              {DIFFICULTY[d].label}
-            </label>
-          ))}
-        </div>
-        <p className="hint">{DIFFICULTY[p.difficulty].blurb}</p>
-      </fieldset>
-
-      {p.judging && p.lastFaults && p.lastFaults.length > 0 && (
-        <ul className="faults">
-          {p.lastFaults.map((f) => <li key={f}>{f}</li>)}
-        </ul>
-      )}
-    </aside>
+/** Mode, clock and Stop, above the stages. */
+export function GameBar({ game, now, onStop, onBack }: { game: GameState; now: number; onStop(): void; onBack(): void }) {
+  const m = MODES[game.mode]
+  const timed = m.durationMs != null
+  const ms = clock(game, now)
+  const low = timed && game.phase === 'running' && ms <= 5000
+  return (
+    <div className="game-bar">
+      <span className="game-mode">{m.label}{game.players.length > 1 ? ' · Co-op' : ''} · Hard</span>
+      <span className={`game-clock ${low ? 'low' : ''}`} aria-live="off">{formatClock(ms, timed)}</span>
+      {game.phase === 'finished'
+        ? <button onClick={onBack}>Change setup</button>
+        : <button className="stop" onClick={onStop}>■ Stop</button>}
+    </div>
   )
 }
 
 const pct = (v: number | null) => (v == null ? '—' : `${Math.round(v * 100)}%`)
 
-export function SessionReport({ summary, results, difficulty, onClose }: {
-  summary: SessionSummary
-  results: RepResult[]
-  difficulty: Difficulty
-  onClose(): void
-}) {
+/** End-of-round results: one card per player, the winner in co-op, and play again. */
+export function Results({ game, winner, onAgain, onBack }: { game: GameState; winner: number | null; onAgain(): void; onBack(): void }) {
+  const dur = (game.endT ?? 0) - (game.startT ?? game.endT ?? 0)
+  const team = game.players.reduce((n, p) => n + goodReps(p), 0)
+  return (
+    <section className="card results">
+      <header className="report-head">
+        <h2>{MODES[game.mode].label} results{game.players.length > 1 ? ` · team total ${team}` : ''}</h2>
+        <div className="row">
+          <button className="start" onClick={onAgain}>↻ Play again</button>
+          <button onClick={onBack}>Change setup</button>
+        </div>
+      </header>
+      {game.players.length > 1 && (
+        <p className="winner-line">{winner == null ? 'It’s a tie!' : `Player ${winner + 1} wins!`}</p>
+      )}
+      <div className="results-grid">
+        {game.players.map((p, i) => (
+          <PlayerReport key={i} title={`Player ${i + 1}`} player={p} summary={summarise(p.results, dur)} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function PlayerReport({ title, player, summary }: { title: string; player: PlayerState; summary: SessionSummary }) {
+  return (
+    <div className="player-report">
+      <h3>{title} · {player.finished ? FINISH_TEXT[player.finished] : ''}</h3>
+      <div className="metrics">
+        <Metric label="Push-ups" value={String(summary.counted)} note={`${summary.attempted} attempted`} />
+        <Metric label="Perfect" value={String(summary.perfect)} note={summary.attempted ? `${pct(summary.perfect / summary.attempted)} of attempts` : ''} />
+        <Metric label="Accuracy" value={pct(summary.accuracy)} note={`${summary.counted} of ${summary.attempted} counted`} />
+      </div>
+      {summary.attempted > 0 && <RepDetails summary={summary} results={player.results} />}
+    </div>
+  )
+}
+
+function RepDetails({ summary, results }: { summary: SessionSummary; results: RepResult[] }) {
+  return (
+    <>
+      <div className="light-rates">
+        {LIGHTS.map((l) => (
+          <div key={l} className="rate">
+            <span>{LIGHT_LABEL[l]}</span>
+            <div className="rate-bar"><div style={{ width: pct(summary.lightRates[l]) }} /></div>
+            <b>{pct(summary.lightRates[l])}</b>
+          </div>
+        ))}
+      </div>
+      <details>
+        <summary>Every rep</summary>
+        <div className="table-scroll">
+          <table className="reps">
+            <thead>
+              <tr><th>Rep</th><th>Lights</th><th>Result</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              {results.map((r, i) => (
+                <tr key={i}>
+                  <td>{i + 1}</td>
+                  <td className="mini-lights">
+                    {LIGHTS.map((l) => <span key={l} className={r.lights[l] ? 'white' : 'red'} title={LIGHT_LABEL[l]} />)}
+                  </td>
+                  <td className={r.counted ? 'ok' : 'low'}>{r.perfect ? '★ Perfect' : r.counted ? '✓ Counted' : '✗ No rep'}</td>
+                  <td>{r.faults.join(' · ') || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </>
+  )
+}
+
+/** A replayed log's score (Diagnostics → Judge this log). */
+export function SessionReport({ summary, results, title, onClose }: { summary: SessionSummary; results: RepResult[]; title: string; onClose(): void }) {
   return (
     <section className="card report">
       <header className="report-head">
-        <h2>Session results · {DIFFICULTY[difficulty].label}</h2>
+        <h2>{title}</h2>
         <button className="small" onClick={onClose}>Dismiss</button>
       </header>
       <div className="metrics">
         <Metric label="Accuracy" value={pct(summary.accuracy)} note={`${summary.counted} of ${summary.attempted} counted`} />
-        <Metric label="Perfect push-ups" value={String(summary.perfect)} note={summary.attempted ? `${pct(summary.perfect / summary.attempted)} of attempts` : ''} />
-        <Metric label="Push-ups attempted" value={String(summary.attempted)} note={`${(summary.durationMs / 1000).toFixed(0)} s session`} />
+        <Metric label="Perfect push-ups" value={String(summary.perfect)} note="" />
+        <Metric label="Push-ups attempted" value={String(summary.attempted)} note={`${(summary.durationMs / 1000).toFixed(0)} s`} />
       </div>
-      {summary.attempted > 0 && (
-        <>
-          <h3>Lights given</h3>
-          <div className="light-rates">
-            {LIGHTS.map((l) => (
-              <div key={l} className="rate">
-                <span>{LIGHT_LABEL[l]}</span>
-                <div className="rate-bar"><div style={{ width: pct(summary.lightRates[l]) }} /></div>
-                <b>{pct(summary.lightRates[l])}</b>
-              </div>
-            ))}
-          </div>
-          <h3>Every rep</h3>
-          <div className="table-scroll">
-            <table className="reps">
-              <thead>
-                <tr><th>Rep</th><th>Lights</th><th>Result</th><th>Why</th></tr>
-              </thead>
-              <tbody>
-                {results.map((r) => (
-                  <tr key={r.rep}>
-                    <td>{r.rep}</td>
-                    <td className="mini-lights">
-                      {LIGHTS.map((l) => <span key={l} className={r.lights[l] ? 'white' : 'red'} title={LIGHT_LABEL[l]} />)}
-                    </td>
-                    <td className={r.counted ? 'ok' : 'low'}>{r.perfect ? '★ Perfect' : r.counted ? '✓ Counted' : '✗ No rep'}</td>
-                    <td>{r.faults.join(' · ') || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
+      {summary.attempted > 0 && <RepDetails summary={summary} results={results} />}
     </section>
   )
 }
@@ -148,3 +179,4 @@ function Metric({ label, value, note }: { label: string; value: string; note: st
     </div>
   )
 }
+

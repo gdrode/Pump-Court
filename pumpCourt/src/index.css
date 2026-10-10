@@ -153,3 +153,52 @@ button.stop { background: var(--critical); border-color: var(--critical); }
 .position { margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--surface-2); color: var(--text-2); font-weight: 600; }
 .position.ready { color: #fff; background: var(--good); }
 button.linkish { background: none; border: none; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+
+/* --- Game: stages, setup, clock, results -------------------------------- */
+.stages { display: grid; gap: 12px; }
+.stages.players-2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) { .stages.players-2 { grid-template-columns: 1fr; } }
+.player { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.player .stage { aspect-ratio: 16 / 9; }
+.player .stage video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
+.player.winner .stage { outline: 3px solid var(--good); }
+.player-tag { position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,.6); padding: 4px 10px; border-radius: 6px; font-weight: 700; z-index: 2; }
+.no-camera { position: absolute; inset: 0; display: grid; place-items: center; padding-top: 18% !important; color: var(--muted); font-size: 15px; text-align: center; padding: 16px; }
+.banner { position: absolute; left: 50%; top: 55%; transform: translate(-50%, -50%); z-index: 3; text-align: center; border-radius: 10px; padding: 10px 16px; max-width: 90%; font-weight: 700; background: rgba(0,0,0,.65); }
+.banner.info { font-size: clamp(14px, 1.6vw, 20px); color: #fff; }
+.banner.ready { font-size: clamp(16px, 2vw, 26px); background: var(--good); color: #fff; }
+.banner.big { font-size: clamp(64px, 12vw, 160px); line-height: 1; background: none; color: #fff; text-shadow: 0 4px 24px rgba(0,0,0,.8); }
+.banner.done { font-size: clamp(16px, 2vw, 26px); background: rgba(0,0,0,.75); color: var(--warning); }
+.score-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; }
+.score { display: flex; flex-direction: column; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; }
+.score b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.score.main b { font-size: 44px; }
+.score span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+.game-bar { display: flex; align-items: center; gap: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; }
+.game-mode { color: var(--text-2); font-weight: 600; }
+.game-clock { margin: 0 auto; font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.game-clock.low { color: #ff8a8a; }
+.game-bar .stop { background: var(--critical); border-color: var(--critical); font-weight: 700; }
+.waiting-note { margin: 0; text-align: center; color: var(--text-2); }
+
+.setup { display: grid; gap: 16px; }
+.setup-step h2 { margin-bottom: 8px; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice { flex: 1 1 180px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 12px 14px; border-radius: 8px; }
+.choice b { font-size: 17px; }
+.choice span { font-size: 13px; color: var(--text-2); }
+.choice.on { background: var(--accent); border-color: var(--accent); }
+.choice.on span { color: #fff; }
+.camera-pickers { display: flex; flex-wrap: wrap; gap: 12px; }
+.camera-picker { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.camera-picker select { min-width: 220px; max-width: 100%; }
+.setup-go { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.setup-go .big { min-width: 220px; }
+
+.results { display: grid; gap: 12px; }
+.winner-line { margin: 0; font-size: 24px; font-weight: 800; color: var(--good); text-align: center; }
+.results-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.player-report { background: var(--surface-2); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.player-report h3 { margin: 0; }
+.player-report .metric { background: var(--surface); }
