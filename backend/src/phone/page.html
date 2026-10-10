@@ -34,6 +34,12 @@
 // Streams the camera to the Pump Court desktop app that served this page.
 // Protocol: one JSON "hello" text message, then one binary JPEG per frame.
 const code = new URLSearchParams(location.search).get("code") || "";
+// After pairing, the laptop gives this phone a session token: the 6-digit code
+// is single-use, so reconnects (and page reloads) use the token instead.
+const TOKEN_KEY = "pumpCourt.token";
+let token = null;
+try { token = sessionStorage.getItem(TOKEN_KEY); } catch {}
+let everConnected = false, failedOpens = 0;
 const $ = (id) => document.getElementById(id);
 const video = $("video"), canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
 const TARGET_FPS = 30, MAX_BUFFERED = 512 * 1024;
@@ -56,23 +62,44 @@ async function startCamera() {
 
 function connect() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  ws = new WebSocket(`${proto}//${location.host}/ws?code=${encodeURIComponent(code)}`);
+  const auth = token ? `token=${encodeURIComponent(token)}` : `code=${encodeURIComponent(code)}`;
+  ws = new WebSocket(`${proto}//${location.host}/ws?${auth}`);
+  let opened = false;
   ws.binaryType = "arraybuffer";
   ws.onopen = () => {
+    opened = true;
+    failedOpens = 0;
     retry = 1000;
     ws.send(JSON.stringify({ type: "hello", device: navigator.userAgent.slice(0, 120) }));
   };
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    if (msg.type === "welcome") setStatus("Connected — streaming to the laptop", "live");
-    if (msg.type === "replaced") { running = false; setStatus("Another phone took over, or the code changed. Scan the new QR code.", "bad"); }
+    if (msg.type === "welcome") {
+      everConnected = true;
+      token = msg.token;
+      try { sessionStorage.setItem(TOKEN_KEY, token); } catch {}
+      setStatus("Connected — streaming to the laptop", "live");
+    }
+    if (msg.type === "replaced" || msg.type === "refused") stopForRescan();
   };
   ws.onclose = () => {
     if (!running) return;
+    // Refused at the door: the code was already used or the token was revoked.
+    // (A dropped network also fails to open, so a paired phone retries a few times first.)
+    if (!opened && (!everConnected || ++failedOpens >= 5)) return stopForRescan();
     setStatus("Lost the laptop — reconnecting…", "bad");
     setTimeout(connect, retry);
     retry = Math.min(retry * 2, 8000);
   };
+}
+
+function stopForRescan() {
+  running = false;
+  token = null;
+  try { sessionStorage.removeItem(TOKEN_KEY); } catch {}
+  stream?.getTracks().forEach((t) => t.stop());
+  $("start").textContent = "Start camera";
+  setStatus("This code has been used or replaced. Scan the new QR code on the Pump Court screen.", "bad");
 }
 
 function sendFrame() {

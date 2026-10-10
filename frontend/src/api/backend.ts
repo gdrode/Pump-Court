@@ -7,7 +7,6 @@ import type {
   Category,
   CrowdView,
   PhoneLink,
-  PhoneStatus,
   PushedPoseFrame,
   RecentRun,
   JudgeConfig,
@@ -59,7 +58,8 @@ export const events = {
     listen<RoundResult>("round-finished", (e) => cb(e.payload)),
   onSourceStatus: (cb: (s: SourceStatus) => void) =>
     listen<SourceStatus>("source-status", (e) => cb(e.payload)),
-  onPhoneStatus: (cb: (s: PhoneStatus) => void) => listen<PhoneStatus>("phone-status", (e) => cb(e.payload)),
+  /** New code, QR or connection status (sent the moment a phone pairs). */
+  onPhoneLink: (cb: (l: PhoneLink) => void) => listen<PhoneLink>("phone-link", (e) => cb(e.payload)),
   onCrowdView: (cb: (v: CrowdView) => void) => listen<CrowdView>("crowd-view", (e) => cb(e.payload)),
 };
 

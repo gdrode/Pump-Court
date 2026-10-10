@@ -36,8 +36,15 @@ pub fn run() {
             // Phone camera link: a local HTTPS server the phone streams to.
             let phone = phone::PhoneHub::new();
             let handle = app.handle().clone();
-            phone.set_status_listener(move |status| {
-                let _ = handle.emit("phone-status", status);
+            let last_code = Mutex::new(String::new());
+            phone.set_change_listener(move |link| {
+                let mut last = last_code.lock().unwrap();
+                if *last != link.code && link.status.listening {
+                    println!("Phone camera link: {}", link.url);
+                    *last = link.code.clone();
+                }
+                drop(last);
+                let _ = handle.emit("phone-link", link);
             });
             tauri::async_runtime::spawn(phone::server::run(phone.clone()));
 

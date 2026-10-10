@@ -9,9 +9,7 @@ export type Referee = "depth" | "lockout" | "plank";
 export type SourceSpec =
   | { kind: "mock" }
   | { kind: "phone" }
-  | { kind: "pushed" }
-  | { kind: "camera"; index: number }
-  | { kind: "file"; path: string };
+  | { kind: "pushed" };
 
 export interface SourceInfo {
   label: string;
@@ -135,11 +133,14 @@ export interface PhoneStatus {
   width: number;
   height: number;
   fps: number;
+  /** How many phones have paired since the app started. */
+  pairings: number;
 }
 
 export interface PhoneLink {
   /** Address the QR code encodes. */
   url: string;
+  /** Single-use: changes as soon as a phone pairs with it. */
   code: string;
   /** QR code as an SVG string. */
   qrSvg: string;
