@@ -11,9 +11,9 @@
 | Symptom | Probable Cause | What to do |
 | :--- | :--- | :--- |
 | **"This laptop isn't on a network"** in Add camera | Laptop Wi-Fi is off or not connected. | Join the venue Wi-Fi or the phone's hotspot. The list refreshes by itself every 5 s. |
-| **Phone page never loads after scanning** | Venue/school Wi-Fi stops devices reaching each other, a VPN, or the phone is on a different network. | Follow the hints shown after 12 s (compare address prefixes, iPhone hotspot *Maximize Compatibility*, turn off VPNs), or use the **Phone · any network** tab (the default). |
-| **Phone · any network: "cloudflared is not installed"** | The tunnel program is missing. | macOS `brew install cloudflared`; Windows `winget install --id Cloudflare.cloudflared`, then restart Pump Court. See [Internet Link](../phone-camera/internet-link.md). |
-| **Phone · any network: "The internet link … never became reachable" / "stopped"** | No internet, or a firewall blocks cloudflared. | Check the laptop's internet; try again, or use the **Phone · same Wi-Fi (offline)** tab or a USB webcam. |
+| **Phone page never loads after scanning** | Venue/school Wi-Fi stops devices reaching each other, a VPN, or the phone is on a different network. | Follow the hints shown after 12 s (compare address prefixes, iPhone hotspot *Maximize Compatibility*, turn off VPNs), or use the **Phone (any network)** tab (the default). |
+| **Phone (any network): "cloudflared is not installed"** | The tunnel program is missing. | macOS `brew install cloudflared`; Windows `winget install --id Cloudflare.cloudflared`, then restart Pump Court. See [Internet Link](../phone-camera/internet-link.md). |
+| **Phone (any network): "The internet link … never became reachable" / "stopped"** | No internet, or a firewall blocks cloudflared. | Check the laptop's internet; try again, or use a USB webcam. |
 | **Phone shows "Connection not private"** | Expected: the laptop uses a self-signed certificate. | Safari: *Show Details → visit this website*. Chrome: *Advanced → Proceed*. |
 | **Phone: "This pairing code has expired"** | The dialog was closed, or the phone was removed. | Open **Add camera** again and scan the new code. |
 | **Phone: "Another phone took over this code"** | A second phone scanned the same code. | Use one phone per code; press **A** again for another phone. |

@@ -32,7 +32,7 @@ backend/src/
     ├── mod.rs      PhoneHub: pairing rooms, HTTP peers, relay phones; PORT 47800
     ├── server.rs   axum HTTPS server, self-signed cert, tunnel guard, embedded phone page
     ├── net.rs      laptop addresses for the QR code
-    └── tunnel.rs   cloudflared quick tunnel ("Phone · any network")
+    └── tunnel.rs   cloudflared quick tunnel ("Phone (any network)")
 ```
 
 ---

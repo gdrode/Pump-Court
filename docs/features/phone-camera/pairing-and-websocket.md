@@ -9,7 +9,7 @@
 
 ## 1. Rooms and codes
 
-`PhoneHub` holds all pairing **rooms** in memory. A room has three slots: the **host** (the app window), one **phone** signalling over HTTP (same Wi-Fi), and one **relay** phone sending frames (any network).
+`PhoneHub` holds all pairing **rooms** in memory. A room has three slots: the **host** (the app window), one **phone** signalling over HTTP (same Wi-Fi; kept in code, not offered in the app), and one **relay** phone sending frames (any network).
 
 - `phone_open` creates a room with a fresh **8-character code** from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no look-alikes `I`, `O`, `0`, `1`), e.g. `K7MX2PQA`.
 - Codes the server accepts (`valid_room`): 4–32 letters or digits. Anything else is refused before lookup.
@@ -58,7 +58,9 @@ The other way, `phone_notify(room, data)` sends `{type: "note", data}` to the ro
 
 ---
 
-## 3. Phone · same Wi-Fi: HTTP signalling
+## 3. Phone · same Wi-Fi: HTTP signalling (not offered in the app)
+
+> The Add camera dialog no longer has this tab: only **Phone (any network)** was tested at events. The routes and `phoneLink.ts` WebRTC code below are kept but unused by the UI.
 
 Phones signal with plain HTTPS requests (long-polling) instead of a WebSocket, because iPhone Safari often refuses WebSockets to a self-signed certificate even after the warning was accepted.
 
@@ -96,7 +98,7 @@ Signal data (`SignalData`) is one of `{sdp}`, `{candidate}`, or, phone → lapto
 
 ---
 
-## 4. Phone · any network: the relay WebSocket
+## 4. Phone (any network): the relay WebSocket
 
 `GET /relay?room=<code>&role=phone` upgrades to a WebSocket.
 

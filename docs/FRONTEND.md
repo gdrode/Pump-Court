@@ -26,12 +26,12 @@ frontend/src/
 │   ├── useKeys.ts       keyboard shortcuts helper (ignores typing)
 │   └── events.ts        backend event subscriptions (useBackendEvent, useSession)
 ├── config/
-│   └── modes.ts    Menu modes, labels, keys, board tabs, REFEREE_RULES.  Edit freely.
+│   └── modes.ts    Menu modes, labels, board tabs, REFEREE_RULES.  Edit freely.
 ├── ui/         The design (the team's sketchbook art). Replace freely.
 │   ├── screens/    Home, Players, Round (ready check + countdown + round),
 │   │               Results, DuelResult, Leaderboard, Crowd, Settings (the Camera screen)
 │   ├── components/ CameraView (live camera + skeleton), AddCameraDialog, Dragon,
-│   │               Lights, LeaderboardTable, KeyHints, SketchDefs
+│   │               Lights, LeaderboardTable, KeyHints, NavMenu (gear menu), SketchDefs
 │   ├── host.ts     everything the dragon says
 │   ├── hostMood.ts what the dragon does during a round (shared by Round and Crowd)
 │   └── sounds.ts   mp3s from public/sounds/, synthesised tones until then
@@ -78,7 +78,7 @@ the functions the hooks give them. They never call the backend directly.
 | Leaderboard | `useLeaderboard` | `mode` (`null` = all time), `rows`, `message` | `setMode`, `remove`, `exportBackup` |
 | Crowd | `useCrowd` | `round` (live, or null), `rows`, `leader`, `playerCount`, `posted` | none (no keys) |
 | Camera (Settings) | `useTracker` | `cameras`, `current`, `modelStatus`, `live.posture`, `live.poseFps`, `rotation`, `rotationAuto` | `choose`, `removePhone`, `refreshDevices`, `rotate`, `rotateAuto` |
-| Add camera dialog | `useWifiPairing`, `useInternetPairing` | `url`, `qr`, `room`, `status`, `visit`, `lan`, `tunnel` | `setHost` |
+| Add camera dialog | `useInternetPairing` | `url`, `qr`, `room`, `status`, `visit`, `tunnel` | `setHost` |
 
 `lastRep.lights` is `{ depth, torso, lockout }`, each `true` (white) or
 `false` (red). `lastRep.faults` has ready-made text like

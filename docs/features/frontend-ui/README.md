@@ -30,7 +30,7 @@ The code has three layers:
 │  ├── Results           ├── Dragon (SVG host)       ├── tokens.css         │
 │  ├── DuelResult        ├── Lights (3 referees)     └── styles.css         │
 │  ├── Leaderboard       ├── LeaderboardTable                               │
-│  ├── Crowd             ├── KeyHints                                       │
+│  ├── Crowd             ├── KeyHints, NavMenu (⚙ top-right gear menu)      │
 │  └── Settings (Camera) └── SketchDefs (SVG filters)                       │
 └─────────────────────────────────▲─────────────────────────────────────────┘
                                   │ state, props, handlers
@@ -65,7 +65,7 @@ The code has three layers:
 ### Screens
 | Screen | File | Shows |
 | :--- | :--- | :--- |
-| Home | `ui/screens/Home.tsx` | Title with three lights, dragon. Two steps: a top bar **Singleplayer / Duel**, then the mode cards **Sprint / Marathon / Max** (dimmed until a play style is picked, then they light up). Under them a dashed **Create event** button: a placeholder for per-event leaderboards, shows "coming soon". Once a play style is picked the modes light up (Sprint purple, **Max red**, Marathon cream). The dragon says a different line each time the menu opens (`HOME_LINES` in `ui/host.ts`, in order, counted by `useGameFlow`'s `home()`). At the very bottom, next to the key hints, a small **Fixed camera** switch (key F): on = the camera stays for every player and scores post automatically. |
+| Home | `ui/screens/Home.tsx` | Title with three lights, dragon. Two steps: a top bar **Singleplayer / Duel**, then the mode cards **Sprint / Marathon / Max** (dimmed until a play style is picked, then they light up). Under them a dashed **Create event** button: a placeholder for per-event leaderboards, shows "coming soon". Once a play style is picked the modes light up (Sprint purple, **Max red**, Marathon cream). The dragon says a different line each time the menu opens (`HOME_LINES` in `ui/host.ts`, in order, counted by `useGameFlow`'s `home()`). No key-hint footer and no number badges on the mode cards (keys ← → / 1–3 / E still work). The **Fixed camera** switch (key F) is in the gear menu: on = the camera stays for every player and scores post automatically. |
 | Players | `ui/screens/Players.tsx` | Name entry: one name, or two for a Duel |
 | Round | `ui/screens/Round.tsx` | Camera on the left (with **⟳ Rotate** until the clock runs). Side panel: get-ready checklist with a camera picker and **+ Add camera** (`ui/components/CameraPicker.tsx`), then the clock, score vs record (or "To beat" in a Duel), lights and dragon. 3-2-1 / GO overlay. |
 | Duel round | `ui/screens/DuelRound.tsx` | Split screen for a two-camera Duel, cut in half top to bottom: player 1 on top, player 2 below. Each half: camera on the left (with **⟳ Rotate** until the clock runs), and on the right the score, lights and, before the clock, a camera picker with **+ Add camera** (`CameraPicker`). One clock in the top bar. The 3-2-1 covers the whole split screen, faded, and the layout never moves between phases (the note above and the "Take turns" button below keep their space). |
@@ -96,3 +96,11 @@ See [Crowd Display Sync](crowd-display-sync.md).
 - `ui/sounds.ts` plays `chime.mp3`, `buzzer.mp3` and `norep.mp3` from `frontend/public/sounds/` if they exist.
 - Otherwise (and always for `beep`, `go` and `final`) a Web Audio tone plays. `norep` has no tone, since the buzzer already covers it.
 - Until the mp3s are added, the console shows three harmless "file not found" messages at start-up.
+
+## Gear menu (`NavMenu`)
+
+- `ui/components/NavMenu.tsx`: a small ⚙ button fixed in the top-right corner, in the sketch-card style.
+- Hover (or click / keyboard focus) slides it open to the left: **Leaderboard**, **Camera settings**, **Crowd screen**, then the **Fixed camera** switch (`useFixedCamera`). Clicking a link closes the menu; the switch keeps it open so its state shows.
+- `App.tsx` shows it on every screen except `round`, `results`, `duelRound` and `duelResult`, and adds `app--nav` so the Camera screen leaves room at the top.
+- The home screen no longer has a key-hint footer or the number badges on the mode cards. `L`, `S`, `W`, `F` still work on home, and the menu shows those keys there.
+- Styles: the "gear menu" section at the end of `theme/styles.css` (`.nav`, `.nav__gear`, `.nav__items`, `.nav__item`).

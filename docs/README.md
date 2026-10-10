@@ -37,10 +37,10 @@ docs/
     │   ├── engine-thread-loop.md        # Engine thread, commands, 100 ms tick
     │   └── browser-prototype-modes.md   # The standalone pumpCourt app's modes and co-op (not used by the app)
     ├── phone-camera/                    # Feature 4: Phones as cameras
-    │   ├── README.md                    # Overview: rooms, any network, same Wi-Fi (WebRTC), rotation
+    │   ├── README.md                    # Overview: rooms, any network, Wi-Fi link (not offered), rotation
     │   ├── https-and-tls.md             # Self-signed HTTPS on :47800, address ranking
     │   ├── pairing-and-websocket.md     # Rooms, HTTP signalling, relay socket, IPC
-    │   ├── internet-link.md             # "Phone · any network": Cloudflare quick tunnel
+    │   ├── internet-link.md             # "Phone (any network)": Cloudflare quick tunnel
     │   ├── mobile-web-client.md         # The phone page: build, WebRTC and relay modes
     │   └── browser-prototype-pairing.md # How the prototype's pairing was ported to Rust
     ├── leaderboard/                     # Feature 5: SQLite storage
