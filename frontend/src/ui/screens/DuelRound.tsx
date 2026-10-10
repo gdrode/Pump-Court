@@ -26,7 +26,8 @@ interface Props {
 const WARN_MS = 3000;
 
 /**
- * Side-by-side Duel: both players at once, each on their own camera. Before
+ * Split-screen Duel: both players at once, each on their own camera. The
+ * screen is cut in half top to bottom: player 1 on top, player 2 below. Before
  * the clock: each side picks its camera (or pairs a phone); the 3-2-1 starts
  * once both hold the push-up position. Rules: logic/useDuelMatch.ts.
  */
@@ -73,7 +74,7 @@ export function DuelRound({ mode, players, onFinished, onAbort, onTakeTurns }: P
         </p>
       )}
 
-      <div className="duel__sides">
+      <div className="duel__sides" aria-label="Split screen: player 1 on top, player 2 below">
         {[0, 1].map((i) => (
           <TrackerSlot key={i} slot={i as 0 | 1}>
             <DuelSide index={i} duel={duel} pickCamera={before} />
@@ -101,7 +102,11 @@ export function DuelRound({ mode, players, onFinished, onAbort, onTakeTurns }: P
   );
 }
 
-/** One player's half: their camera, name, score, lights and prompts. Reads the tracker of its slot. */
+/**
+ * One player's half of the split screen: their camera across most of the
+ * width, and a panel beside it with the score, lights and (before the clock)
+ * the camera picker. Reads the tracker of its slot.
+ */
 function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; pickCamera: boolean }) {
   const tracker = useTracker();
   const [adding, setAdding] = useState(false);
@@ -113,7 +118,7 @@ function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; 
     banner = FINISH_TEXT[p.finished];
     kind = "is-done";
   } else if (duel.phase === "waiting" || duel.phase === "running") {
-    if (!tracker.hasCamera) banner = "Pick a camera for this player below";
+    if (!tracker.hasCamera) banner = "Pick a camera for this player on the right";
     else if (p.posture && !p.posture.ready) banner = POSTURE_MESSAGE[p.posture.state];
     else if (duel.phase === "waiting") {
       banner = "✓ Ready";
@@ -134,7 +139,7 @@ function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; 
         {banner && <div className={`duel-side__banner sketch ${kind}`}>{banner}</div>}
       </div>
 
-      <div className="duel-side__score">
+      <div className="duel-side__panel">
         <div className="score score--you sketch">
           <span className="score__label">{p.name}</span>
           <span className="score__num" key={p.reps}>
@@ -145,29 +150,29 @@ function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; 
           </span>
         </div>
         <Lights rep={p.lastRep} flashKey={p.attempts} showFaults={false} />
-      </div>
 
-      {pickCamera && (
-        <div className="duel-side__pick">
-          <select
-            className="sketch"
-            value={tracker.current ?? ""}
-            onChange={(e) => e.target.value && tracker.choose(e.target.value)}
-            aria-label={`Camera for player ${index + 1}`}
-          >
-            <option value="">{index === 0 ? "Default camera" : "Choose a camera…"}</option>
-            {tracker.cameras.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.label}
-                {c.note ? ` (${c.note})` : ""}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="sketch" onClick={() => setAdding(true)}>
-            + Add camera
-          </button>
-        </div>
-      )}
+        {pickCamera && (
+          <div className="duel-side__pick">
+            <select
+              className="sketch"
+              value={tracker.current ?? ""}
+              onChange={(e) => e.target.value && tracker.choose(e.target.value)}
+              aria-label={`Camera for player ${index + 1}`}
+            >
+              <option value="">{index === 0 ? "Default camera" : "Choose a camera…"}</option>
+              {tracker.cameras.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                  {c.note ? ` (${c.note})` : ""}
+                </option>
+              ))}
+            </select>
+            <button type="button" className="sketch" onClick={() => setAdding(true)}>
+              + Add camera
+            </button>
+          </div>
+        )}
+      </div>
       {adding && <AddCameraDialog onClose={() => setAdding(false)} />}
     </section>
   );

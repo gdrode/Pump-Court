@@ -40,8 +40,13 @@ Every round starts with the ready check and a 3-second countdown (see [Game Engi
 - The menu marks it "only when nobody is queuing".
 
 ### 2.4 Duel (2 players)
-- Exactly **two** players. Each has a 30-second turn (`RoundMode::Duel`, played like a Sprint). The frontend runs the two turns; Rust sees two separate rounds.
-- Flow:
+- Exactly **two** players. A Duel starts as a **split screen** on two cameras (below); with only one camera the players take turns instead.
+- **Split screen (two cameras)**: `ui/screens/DuelRound.tsx`, rules in `logic/useDuelMatch.ts`.
+  - The screen is cut in half **top to bottom**: player 1 on top (camera slot 0), player 2 below (slot 1). Each half has the player's camera on the left and a panel on the right with their score, three lights and, before the clock, a camera picker with **+ Add camera** (pair a phone).
+  - One clock for both, in the top bar. The 3-2-1 starts when both players hold the push-up position; each player can fail on their own. Both scores are saved through `save_round` when both are done.
+  - **Only one camera? Take turns instead** switches to the turn-based flow below.
+- **Taking turns (one camera)**: each player has a 30-second turn (`RoundMode::Duel`, played like a Sprint). The frontend runs the two turns; Rust sees two separate rounds.
+- Turn flow:
   1. The operator enters two different names.
   2. Player 1 does the ready check and a 30 s turn. The Results screen shows the score: **Enter** posts it and calls player 2; **Esc** redoes the turn (deletes the saved run).
   3. Player 2 sees a "To beat" box with player 1's score.

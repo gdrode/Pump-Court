@@ -68,6 +68,7 @@ The code has three layers:
 | Home | `ui/screens/Home.tsx` | Title with three lights, dragon. Two steps: a top bar **Singleplayer / Duel**, then the mode cards **Sprint / Minute / Max** (dimmed until a play style is picked, then they light up). Under them a dashed **Create event** button: a placeholder for per-event leaderboards, shows "coming soon". |
 | Players | `ui/screens/Players.tsx` | Name entry: one name, or two for a Duel |
 | Round | `ui/screens/Round.tsx` | Camera on the left (with **⟳ Rotate** until the clock runs). Side panel: get-ready checklist, then the clock, score vs record (or "To beat" in a Duel), lights and dragon. 3-2-1 / GO overlay. |
+| Duel round | `ui/screens/DuelRound.tsx` | Split screen for a two-camera Duel, cut in half top to bottom: player 1 on top, player 2 below. Each half: camera on the left (with **⟳ Rotate** until the clock runs), and on the right the score, lights and, before the clock, a camera picker with **+ Add camera**. One clock in the top bar. |
 | Results | `ui/screens/Results.tsx` | Push-ups, attempts, perfect, rank, red lights per referee |
 | Duel result | `ui/screens/DuelResult.tsx` | Both players in order, the winner or a tie, rematch |
 | Leaderboard | `ui/screens/Leaderboard.tsx` | Five tabs (All time, Sprint, Minute, Max, Duel), select + delete, backup |
