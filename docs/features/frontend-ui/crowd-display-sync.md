@@ -36,7 +36,7 @@ The board is read with `get_leaderboard(null, 10)` (all time, `CROWD_ROWS`) and 
 
 ## 3. Between rounds: the all-time board
 
-- Title, the dragon, and **Most push-ups · all time**: each player's best round in any mode, top 10, with name, mode and push-ups.
+- The logo (`Logo variant="crowd"`), the dragon, and **Most push-ups · all time**: each player's best round in any mode, top 10, with name, mode and push-ups.
 - "N people have competed so far" under the board.
 - The dragon says "Can anyone beat Rosa's 19?" (or "Step up and be the first on the board!" on an empty board).
 - **Just posted**: when a score is posted (`round-posted`), its player's row is highlighted and the dragon dances and says "Rosa just posted 19, that's #2!" for 8 s (`CROWD_POSTED_MS`). The `#2` is the round's place on the all-time board shown beside it (looked up by `runId` in the board rows; left out if the round is not in the top 10).

@@ -107,7 +107,7 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles the a
 
 ## Using it
 
-Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Marathon or Max (or click the cards), **E** events (pick the active event, or create one with per-mode, per-role and team leaderboards). The gear in the top-right corner opens a menu: **Leaderboard**, **Camera settings**, **Crowd screen** (opens the crowd screen as a second window; drag it to the external monitor) and the **Fixed camera** switch. Hover the gear, or tap it on a touch screen. The gear is hidden during a round and on a result. On the home screen the keys **L**, **S**, **W** and **F** do the same. **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Marathon or Max (or click the cards), **E** events (pick the active event, or create one with per-mode, per-role and team leaderboards). The gear in the bottom-left corner opens a menu: **Leaderboard**, **Camera settings**, **Crowd screen** (opens the crowd screen as a second window; drag it to the external monitor) and the **Fixed camera** switch. Hover the gear, or tap it on a touch screen. The gear is hidden during a round and on a result. On the home screen the keys **L**, **S**, **W** and **F** do the same. **Enter** / **Esc** move through screens.
 
 The crowd screen shows the all-time leaderboard (each player's best round in any mode: name, mode, push-ups) between rounds, and the live count and lights during a round.
 

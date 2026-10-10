@@ -4,7 +4,7 @@ import { LeaderboardTable, TeamTable } from "../components/LeaderboardTable";
 import { Lights } from "../components/Lights";
 import { host } from "../host";
 import { hostReaction } from "../hostMood";
-import { TitleLights } from "./Home";
+import { Logo } from "../components/Logo";
 
 /**
  * The aisle-facing second window. Live round → big count, lights and the
@@ -75,10 +75,7 @@ export function Crowd() {
 
   return (
     <div className="crowd crowd--idle">
-      <h1 className="title title--crowd">
-        <TitleLights />
-        Pump Court
-      </h1>
+      <Logo variant="crowd" />
       <div className="crowd__body">
         <Dragon action={posted ? "hype" : "curl"} size="lg" bubble="top" says={says} mood={posted ? "good" : undefined} />
         <div className="crowd__board">

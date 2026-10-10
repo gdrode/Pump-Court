@@ -93,6 +93,59 @@ kbd {
 .banner { padding: 0.5rem 0.9rem; font-size: 1.15rem; }
 .banner--warn { background: var(--cream); }
 
+/* ---- logo (ui/components/Logo.tsx) ------------------------------------------
+   Cartoon letters: purple / white fill, thick ink outline, a hard offset
+   shadow, each letter tipped a little and bobbing; the referee lights glow in turn. */
+
+.logo {
+  margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.32em;
+  font-size: clamp(3.2rem, 4.2vw + 1.6rem, 6.4rem); line-height: 1; letter-spacing: 0.01em;
+  transform: rotate(-2deg); user-select: none;
+}
+.logo__words { display: inline-flex; align-items: baseline; gap: 0.3em; flex-wrap: wrap; justify-content: center; }
+.logo__word { display: inline-flex; position: relative; }
+.logo__l {
+  display: inline-block; position: relative;
+  -webkit-text-stroke: 0.075em var(--ink); paint-order: stroke fill;
+  text-shadow: 0.055em 0.075em 0 var(--ink);
+  --tilt: -4deg;
+  transform: rotate(var(--tilt));
+  animation: logo-bob 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.16s);
+}
+.logo__l:nth-child(even) { --tilt: 4deg; }
+.logo__word--pump .logo__l { color: #fff; }
+.logo__word--court .logo__l { color: var(--purple); }
+.logo__l:hover { animation: logo-pop 420ms ease; }
+@keyframes logo-bob {
+  0%, 100% { transform: rotate(var(--tilt)) translateY(0); }
+  50% { transform: rotate(calc(var(--tilt) * -0.4)) translateY(-0.06em); }
+}
+@keyframes logo-pop {
+  0% { transform: rotate(var(--tilt)) scale(1); }
+  45% { transform: rotate(calc(var(--tilt) * -2)) translateY(-0.18em) scale(1.18); }
+  100% { transform: rotate(var(--tilt)) scale(1); }
+}
+.logo__spark {
+  position: absolute; right: -0.55em; top: -0.25em; font-size: 0.42em; color: var(--cream);
+  -webkit-text-stroke: 0.06em var(--ink); paint-order: stroke fill;
+  animation: logo-twinkle 1.8s ease-in-out infinite;
+}
+@keyframes logo-twinkle { 0%, 100% { transform: scale(0.7) rotate(0); opacity: 0.6; } 50% { transform: scale(1.15) rotate(25deg); opacity: 1; } }
+/* The three referee lights: white lamps with an ink rim, glowing one after another. */
+.logo__lights { display: inline-flex; gap: 0.16em; transform: rotate(2deg); }
+.logo__lights i {
+  width: 0.46em; height: 0.46em; border-radius: 50%; display: block; background: #fff;
+  border: 0.06em solid var(--ink); box-shadow: 0.04em 0.06em 0 var(--ink);
+  animation: logo-lamp 2.4s ease-in-out infinite;
+}
+.logo__lights i:nth-child(2) { animation-delay: 0.4s; }
+.logo__lights i:nth-child(3) { animation-delay: 0.8s; }
+@keyframes logo-lamp {
+  0%, 60%, 100% { box-shadow: 0.04em 0.06em 0 var(--ink); transform: scale(1); }
+  20% { box-shadow: 0.04em 0.06em 0 var(--ink), 0 0 0.35em 0.12em rgba(255, 255, 255, 0.95), 0 0 0.6em 0.2em var(--purple-light); transform: scale(1.12); }
+}
+
 /* ---- title ------------------------------------------------------------------ */
 
 .title { font-size: clamp(3rem, 6vw, 4.6rem); display: flex; align-items: center; gap: 0.9rem; transform: rotate(-1.2deg); }
@@ -234,14 +287,19 @@ kbd {
 /* ---- home ------------------------------------------------------------------- */
 
 .home {
-  width: min(1200px, 100%); height: 100%;
-  display: grid; grid-template-columns: 360px 1fr; grid-template-rows: auto auto 1fr;
-  align-content: center; column-gap: 3rem; row-gap: 2.4rem; padding: 1rem 0;
+  width: min(1200px, 100%); min-height: 100%;
+  display: grid; grid-template-columns: clamp(190px, 30vw, 380px) minmax(0, 1fr); grid-template-rows: auto auto;
+  align-content: center; column-gap: clamp(1.2rem, 3.5vw, 3.5rem); row-gap: clamp(1rem, 3.5vh, 2.4rem); padding: 1rem 0;
 }
 .home__head { display: contents; }
-.home .title { grid-column: 1 / -1; align-self: end; }
-.home .host { grid-column: 1; grid-row: 2; align-self: center; }
-.home__menu { grid-column: 2; grid-row: 2; align-self: center; display: flex; flex-direction: column; gap: 1.4rem; }
+.home .logo { grid-column: 1 / -1; grid-row: 1; align-self: end; justify-self: center; }
+/* The dragon scales with the window, so split screen isn't half empty. */
+.home .host { grid-column: 1; grid-row: 2; align-self: center; --h: clamp(140px, min(28vw, 34vh), 290px); }
+.home .host--lg .host__bubble { font-size: clamp(1.2rem, 1.1vw + 0.7rem, 1.7rem); }
+.home__menu {
+  grid-column: 2; grid-row: 2; align-self: center; display: flex; flex-direction: column; gap: clamp(0.8rem, 2.2vh, 1.4rem);
+  container-type: inline-size;
+}
 
 /* Step 1: who's playing. A two-way switch across the top. */
 .play-style { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
@@ -504,7 +562,7 @@ kbd {
 /* ---- crowd ------------------------------------------------------------------ */
 
 .crowd { height: 100%; padding: 3vh 4vw; display: flex; flex-direction: column; gap: 2.5vh; }
-.title--crowd { font-size: 6.5vh; }
+.logo--crowd { font-size: 9vh; }
 .crowd__body { flex: 1; min-height: 0; display: grid; grid-template-columns: auto 1fr; gap: 4vw; align-items: center; }
 .crowd__board { background: var(--card); border: 3px solid var(--ink); border-radius: var(--r); padding: 1.2rem 1.6rem; align-self: stretch; overflow: hidden; }
 .crowd__tabs { display: flex; gap: 0.8rem; margin-bottom: 0.6rem; }
@@ -530,11 +588,6 @@ kbd {
 @media (max-width: 1000px) {
   body { overflow-x: hidden; overflow-y: auto; }
   .app { height: auto; min-height: 100%; padding: 1.2rem 16px; }
-  .home { grid-template-columns: 1fr; height: auto; }
-  .home .title { font-size: clamp(2.4rem, 11vw, 4rem); }
-  .home .host, .modes { grid-column: 1; }
-  .home .host { grid-row: 2; }
-  .modes { grid-row: 3; grid-template-columns: 1fr; }
   .results { grid-template-columns: 1fr; }
   .app--camera { grid-template-columns: 1fr; grid-template-rows: 34vh auto; grid-template-areas: 'camera' 'side'; padding: 1rem 16px; gap: 1rem; }
   .side-panel { overflow: visible; }
@@ -546,6 +599,14 @@ kbd {
   .standing__acc { display: none; }
   .standing__post { grid-column: 2 / -1; }
   .crowd__body { grid-template-columns: 1fr; }
+}
+
+/* Phone width: one column (title, dragon, menu). */
+@media (max-width: 640px) {
+  .home { grid-template-columns: 1fr; }
+  .home .logo { font-size: clamp(2.6rem, 13vw, 4.2rem); }
+  .home .host { --h: 130px; }
+  .home__menu { grid-column: 1; grid-row: 3; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -705,12 +766,12 @@ kbd {
 
 /* ---- gear menu (top right) ------------------------------------------------- */
 
-/* The camera screen fills the window: leave the gear its own strip at the top. */
-.app--camera.app--nav { padding-top: 4.4rem; }
+/* Leave the gear (bottom left) its own strip, so it never covers a screen's buttons. */
+.app--nav { padding-bottom: 4.2rem; }
 
 .nav {
-  position: fixed; top: 0.9rem; right: 0.9rem; z-index: 30;
-  display: flex; flex-direction: row-reverse; align-items: center;
+  position: fixed; bottom: 0.9rem; left: 0.9rem; z-index: 30;
+  display: flex; flex-direction: row; align-items: center;
   background: var(--card); padding: 0.25rem;
 }
 .nav__gear {
@@ -735,4 +796,35 @@ kbd {
 @media (max-width: 560px) {
   .nav__item { font-size: 0.95rem; padding: 0.3rem 0.35rem; }
   .nav__item kbd { display: none; }
+}
+
+/* Home, during an event: its boards in turn, under the Events button (ui/components/EventBoardCycle.tsx). */
+.event-cycle {
+  width: 100%; cursor: pointer; border: 0; background: var(--card); text-align: left; font: inherit; color: inherit;
+  display: flex; flex-direction: column; gap: 0.35rem; padding: 0.7rem 0.9rem 0.6rem;
+}
+.event-cycle:hover, .event-cycle:focus-visible { background: #fffdf6; outline: none; }
+.event-cycle::before { border-color: var(--purple); }
+.event-cycle__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.event-cycle__head .eyebrow { margin: 0; }
+.event-cycle__title { font-size: 1.35rem; color: var(--purple); animation: cycle-in 260ms ease; }
+.event-cycle__table { display: block; animation: cycle-in 260ms ease; }
+.event-cycle .board th { font-size: 0.85rem; padding: 0.1rem 0.4rem; }
+.event-cycle .board td { font-size: 1.1rem; padding: 0.2rem 0.4rem; }
+.event-cycle .board__name { font-size: 1.15rem !important; }
+.event-cycle .board__reps { font-size: 1.3rem !important; }
+.event-cycle .board th.num:first-child, .event-cycle .board td.num:first-child { width: 1.8rem; }
+.event-cycle .board__empty { font-size: 1.05rem; margin: 0.3rem 0; }
+.event-cycle__dots { display: flex; justify-content: center; gap: 0.35rem; }
+.event-cycle__dots i { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--faint); }
+.event-cycle__dots i.is-on { background: var(--purple); }
+@keyframes cycle-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+/* A narrow menu column (split screen): modes stacked, label and blurb on one line. */
+@container (max-width: 560px) {
+  .modes { grid-template-columns: 1fr; gap: 0.7rem; }
+  .mode { min-height: 0; padding: 0.75rem 1.1rem 0.8rem; flex-direction: row; justify-content: flex-start; align-items: baseline; flex-wrap: wrap; gap: 0.2rem 0.8rem; }
+  .mode__label { font-size: 1.7rem; }
+  .play-style__label { font-size: 1.8rem; }
+  .play-style__btn { padding: 0.6rem 0.8rem; }
 }

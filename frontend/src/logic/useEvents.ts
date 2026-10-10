@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { EVENT_BOARD_MS, MODE_LABELS } from "../config/modes";
 import { backend, errorText, events } from "../api/backend";
 import type { EventDraft, EventInfo, LeaderboardRow, RoundMode, TeamRow } from "../api/types";
 import { useBackendEvent } from "./events";
@@ -75,6 +76,58 @@ export function allEventBoards(event: EventInfo): BoardRef[] {
     ),
     ...event.teamModes.map((mode): BoardRef => ({ kind: "team", eventId: event.id, mode })),
   ];
+}
+
+/** A board's name, e.g. "Sprint · Everyone", "Max · Hacker", "Team · Sprint". */
+export function boardTitle(board: BoardRef): string {
+  if (board.kind === "global") return board.mode ? MODE_LABELS[board.mode] : "All time";
+  if (board.kind === "team") return `Team · ${MODE_LABELS[board.mode]}`;
+  return `${MODE_LABELS[board.mode]} · ${board.role ?? "Everyone"}`;
+}
+
+/**
+ * Shows an event's boards one after another (each mode's Everyone board, each
+ * role's board, then the team boards), `ms` each. Reloads when a score is
+ * posted or `refreshKey` changes. Null without an event.
+ */
+export function useEventBoardCycle(event: EventInfo | null, limit: number, refreshKey = 0, ms = EVENT_BOARD_MS) {
+  const boards = event ? allEventBoards(event) : [];
+  const [turn, setTurn] = useState(0);
+  const [rows, setRows] = useState<BoardRows>({ players: [], teams: [] });
+  const [posted, setPosted] = useState(0);
+  const board = boards.length ? boards[turn % boards.length] : null;
+  const key = board ? JSON.stringify(board) : "";
+
+  useEffect(() => {
+    if (boards.length < 2) return;
+    const t = setInterval(() => setTurn((n) => n + 1), ms);
+    return () => clearInterval(t);
+  }, [boards.length, ms]);
+
+  useEffect(() => {
+    if (!board) return;
+    let alive = true;
+    fetchBoard(board, limit)
+      .then((r) => alive && setRows(r))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, limit, refreshKey, posted]);
+
+  useBackendEvent(events.onRoundPosted, () => setPosted((n) => n + 1));
+
+  if (!board) return null;
+  return {
+    board,
+    title: boardTitle(board),
+    team: board.kind === "team",
+    ...rows,
+    /** Which board of how many, e.g. for dots. */
+    index: turn % boards.length,
+    count: boards.length,
+  };
 }
 
 /** Same board, ignoring the role. */

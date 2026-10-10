@@ -103,8 +103,11 @@ export const EVENT_NAME_MAX = 24;
 export const CROWD_POSTED_MS = 8000;
 /** Rows on the crowd screen's all-time board. */
 export const CROWD_ROWS = 10;
-/** During an event, the crowd screen shows each of its boards for this long. */
-export const CROWD_BOARD_MS = 10_000;
+/**
+ * During an event, the home screen and the crowd screen show each of its
+ * boards (every mode × Everyone and each role, then the team boards) for this long.
+ */
+export const EVENT_BOARD_MS = 5_000;
 
 /** m:ss, for untimed rounds. */
 export function formatElapsed(ms: number): string {

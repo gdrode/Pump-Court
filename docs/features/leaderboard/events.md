@@ -54,7 +54,9 @@ An event is a named contest (for example a hackathon) with its own leaderboards.
   - tabs per mode and per team board (keys **1–n**, ← →);
   - role chips: **Everyone** and each role (key **R**).
   - Delete works on player boards. To fix a team score, delete the player's run.
-- **Crowd screen**: while an event is active, it shows the event's boards one after another every `CROWD_BOARD_MS` (10 s, `config/modes.ts`): each mode's Everyone board, each role's board, then the team boards. With no event it shows the all-time board as before.
+- **Board cycle** (`useEventBoardCycle` in `logic/useEvents.ts`): while an event is active, its boards are shown one after another, every `EVENT_BOARD_MS` (**5 s**, `config/modes.ts`). The order is each mode's Everyone board, then each role's board, then the team boards. Dots show where it is in the cycle, and it reloads when a score is posted.
+  - **Home screen**: a small card right under the Events button (`ui/components/EventBoardCycle.tsx`, top 4). Clicking the card opens that board on the Leaderboard screen.
+  - **Crowd screen** (gear menu → Crowd screen, or W): the same cycle, big, top 10. With no event it shows the all-time board as before.
 
 ---
 

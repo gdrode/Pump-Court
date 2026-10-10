@@ -63,7 +63,7 @@ round ends ─▶ "round-finished" (runId, rank = null) ─▶ ScorePost (fronte
 - `save_round(round)` (`leaderboard::save_finished`): checks the name, `save_run`, `rank_of(Some(mode), player)` (the player's place on **that mode's** board), then emits `round-posted` to every window. That `rank` is shown on the Results screen ("#3"), the phone and the Duel result.
 - A score nobody posts is never saved. A player who said no on their phone is not overruled by the operator's Enter.
 - If the save fails, the status is "failed" and Enter (or the phone button) tries again.
-- **Fixed camera** (switch in the top-right gear menu, key **F** on home, remembered on this computer; `frontend/src/logic/fixedCamera.ts`): for a venue camera that stays in place. When on, every score is posted **at once, without asking**, and the camera (phone or not) is not let go after the round. Off is the default (the player's own phone, opt-in posting).
+- **Fixed camera** (switch in the bottom-left gear menu, key **F** on home, remembered on this computer; `frontend/src/logic/fixedCamera.ts`): for a venue camera that stays in place. When on, every score is posted **at once, without asking**, and the camera (phone or not) is not let go after the round. Off is the default (the player's own phone, opt-in posting).
 
 ---
 

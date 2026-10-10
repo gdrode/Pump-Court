@@ -61,3 +61,15 @@ All colors, the font and the corner shape are CSS custom properties in `frontend
 4. With `rotatable`, a row at the bottom right (`.camera-view__rotate`, cream sketch boxes) shows the turn ("90° auto"), **⟳ Rotate** and, after a manual turn, **auto**.
 
 The Round screen and the Camera screen each show one `CameraView`. The Camera screen is always `rotatable`; the Round screen only until the clock runs (`round.phase !== "running"`). See [Pose Tracking](../pose-tracking/README.md#5-picture-rotation).
+
+## Logo
+
+`ui/components/Logo.tsx` draws "Pump Court" on the home screen (centered, above both columns) and the crowd screen (`variant="crowd"`, 9vh). Styles are under `/* ---- logo` in `styles.css`:
+- **Letters**: each letter is its own span.
+  - "Pump" is white and "Court" is `--purple`.
+  - Every letter gets a thick ink outline (`-webkit-text-stroke` with `paint-order: stroke fill`) and a hard ink offset shadow.
+  - Letters tip ±4° in turn (`--tilt`) and bob gently (`logo-bob`, staggered by the letter index `--i`).
+  - A letter pops when hovered.
+- **Lights**: the three referee lights are white lamps with an ink rim. They glow one after another (`logo-lamp`), with a white and `--purple-light` glow.
+- **Sparkle**: a small ✦ in `--cream` twinkles above "Court".
+- **Size**: `clamp(3.2rem, 4.2vw + 1.6rem, 6.4rem)`. Under 640 px it wraps to two lines. Reduced motion stops all the animations.

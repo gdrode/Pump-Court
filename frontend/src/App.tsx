@@ -44,7 +44,7 @@ function Operator() {
           visit={state.visit}
           onPick={flow.pickMode}
           onEvents={flow.events}
-          onLeaderboard={() => flow.leaderboard()}
+          onLeaderboard={(board) => flow.leaderboard(board)}
           onSettings={flow.settings}
           onCrowd={flow.openCrowd}
         />

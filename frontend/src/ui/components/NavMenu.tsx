@@ -10,8 +10,8 @@ interface Props {
 }
 
 /**
- * Gear in the top right corner. Hovering it (or tabbing to it, or tapping it
- * on a touch screen) slides the menu out to the left. Last item is the
+ * Gear in the bottom left corner. Hovering it (or tabbing to it, or tapping it
+ * on a touch screen) slides the menu out to the right. Last item is the
  * Fixed camera switch, which stays open after a click so its state shows.
  */
 export function NavMenu({ onLeaderboard, onSettings, onCrowd, showKeys = false }: Props) {

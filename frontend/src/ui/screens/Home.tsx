@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { GAME_MODES, HOME_KEYS, menuMode, PLAY_STYLES, type MenuModeInfo, type PlayStyle } from "../../config/modes";
 import { setFixedCamera, isFixedCamera } from "../../logic/fixedCamera";
-import { useActiveEvent } from "../../logic/useEvents";
+import { useActiveEvent, type BoardRef } from "../../logic/useEvents";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
+import { EventBoardCycle } from "../components/EventBoardCycle";
+import { Logo } from "../components/Logo";
 import { host } from "../host";
 
 interface Props {
@@ -12,7 +14,8 @@ interface Props {
   onPick: (mode: MenuModeInfo) => void;
   /** The events screen (create, edit, pick the active event). */
   onEvents: () => void;
-  onLeaderboard: () => void;
+  /** The leaderboard screen, on `board` if given (e.g. a click on the event's boards). */
+  onLeaderboard: (board?: BoardRef) => void;
   onSettings: () => void;
   onCrowd: () => void;
 }
@@ -22,7 +25,7 @@ interface Props {
  * game mode below it (the modes light up once a play style is picked).
  * Keys: ← / → pick the play style, 1–3 the mode, so the player can stay on the mat.
  * Leaderboard, camera, crowd screen and the Fixed camera switch live in the
- * gear menu (top right); L, S, W and F still work here.
+ * gear menu (bottom left); L, S, W and F still work here.
  */
 export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCrowd }: Props) {
   const [style, setStyle] = useState<PlayStyle | null>(null);
@@ -40,7 +43,7 @@ export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCro
     [HOME_KEYS.duel]: () => setStyle("duel"),
     [HOME_KEYS.event]: onEvents,
     [HOME_KEYS.fixedCamera]: toggleFixed,
-    [HOME_KEYS.leaderboard]: onLeaderboard,
+    [HOME_KEYS.leaderboard]: () => onLeaderboard(),
     [HOME_KEYS.settings]: onSettings,
     [HOME_KEYS.crowd]: onCrowd,
   });
@@ -50,12 +53,10 @@ export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCro
   return (
     <div className="home">
       <header className="home__head">
-        <h1 className="title">
-          <TitleLights />
-          Pump Court
-        </h1>
+        <Logo />
         <Dragon action="curl" size="lg" bubble="top" says={says} />
       </header>
+
 
       <div className="home__menu">
         <div className="play-style" role="radiogroup" aria-label="Who's playing">
@@ -95,18 +96,10 @@ export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCro
             {event ? "Solo scores count for this event. Change or make events" : "Run a leaderboard for the event you're hosting"}
           </span>
         </button>
+
+        {/* During an event: its boards in turn (every mode × Everyone and each role, then teams). */}
+        {event && <EventBoardCycle event={event} rows={4} onOpen={onLeaderboard} />}
       </div>
     </div>
-  );
-}
-
-/** The three white lights next to the title. */
-export function TitleLights() {
-  return (
-    <span className="title__lights" aria-hidden="true">
-      <i className="sketch" />
-      <i className="sketch" />
-      <i className="sketch" />
-    </span>
   );
 }
