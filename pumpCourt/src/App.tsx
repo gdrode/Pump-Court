@@ -26,6 +26,8 @@ interface PhoneCamera {
   link: PhoneLink
   status: PhoneStatus
   detail: string
+  /** Paired through the internet link (server/tunnel.ts) rather than the local network. */
+  viaInternet: boolean
 }
 
 const PHONE_STATUS_TEXT: Record<PhoneStatus, string> = {
@@ -193,14 +195,14 @@ export default function App() {
     setSource(key)
   }
 
-  const onPhone = useCallback((p: { id: string; label: string; stream: MediaStream; link: PhoneLink }) => {
+  const onPhone = useCallback((p: { id: string; label: string; stream: MediaStream; link: PhoneLink; viaInternet?: boolean }) => {
     const setStatus = (status: PhoneStatus, detail?: string) =>
       setPhones((list) => list.map((x) => (x.id === p.id ? { ...x, status, detail: detail ?? '' } : x)))
     // If the phone page reloads it reconnects with a new stream.
     const setStream = (stream: MediaStream) =>
       setPhones((list) => list.map((x) => (x.id === p.id ? { ...x, stream } : x)))
     p.link.setHandlers({ onStatus: setStatus, onStream: setStream })
-    setPhones((list) => [...list, { ...p, status: 'connected', detail: '' }])
+    setPhones((list) => [...list, { ...p, status: 'connected', detail: '', viaInternet: !!p.viaInternet }])
     setPhoneNumber((n) => n + 1)
     setSource(`phone:${p.id}`)
     setAddingCamera(false)
@@ -211,6 +213,8 @@ export default function App() {
     p?.link.close()
     p?.stream.getTracks().forEach((t) => t.stop())
     setPhones((list) => list.filter((x) => x.id !== id))
+    // Close the internet link once no phone uses it, so the laptop isn't reachable from outside for longer than needed.
+    if (p?.viaInternet && !phones.some((x) => x.id !== id && x.viaInternet)) fetch('/api/tunnel/stop', { method: 'POST' }).catch(() => {})
     if (source === `phone:${id}`) setSource(activeDeviceId ? `dev:${activeDeviceId}` : null)
   }
 
@@ -495,7 +499,7 @@ export default function App() {
             ))}
             {phones.map((p) => (
               <option key={p.id} value={`phone:${p.id}`}>
-                {p.label} (Wi-Fi){p.status === 'connected' ? '' : ` · ${p.status}`}
+                {p.label} ({p.viaInternet ? 'internet' : 'Wi-Fi'}){p.status === 'connected' ? '' : ` · ${p.status}`}
               </option>
             ))}
           </select>

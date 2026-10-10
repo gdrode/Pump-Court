@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "postinstall": "node scripts/setup-assets.mjs",
     "setup": "node scripts/setup-assets.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:local": "NO_HTTPS=1 vite --host 127.0.0.1"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "1.0.1",
