@@ -31,7 +31,7 @@ The Rust game engine keeps the **clock and the score**. The tracker and referee 
             │ set_ready(true)
             ▼
     ┌───────────────┐
-    │   Countdown   │ ◀── COUNTDOWN_MS = 3000 (3, 2, 1); set_ready(false) → back to GetReady
+    │   Countdown   │ ◀── COUNTDOWN_MS = 3000 (3, 2, 1); always runs to GO once started
     └───────┬───────┘
             │ 3 s passed (checked on tick)
             ▼

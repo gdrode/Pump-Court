@@ -78,5 +78,5 @@ useRound: RepJudge gets ready = posture.ready and depth = posture.height
 ```
 
 - `tracker.resetPosture()` is called when each round (or Duel turn) starts, so an old floor line is never reused. Changing the camera's rotation (**⟳ Rotate** or the phone's own value) also resets it, because the floor line was measured on the old picture.
-- Leaving the position during the countdown (`set_ready(false)`) sends the round back to get ready; the countdown starts again from 3 once the player is back. Once the clock runs, getting up does not stop it. The referee simply ignores reps while the player is out of position. (Singleplayer. In a side-by-side Duel the 3-2-1 always runs to GO once started; see [Game Modes](../game-engine/game-modes.md).)
+- Once the countdown has started it **always runs to GO**, in every mode (Singleplayer and Duel): leaving the position during the 3-2-1 (`set_ready(false)`) never stops it. Once the clock runs, 2 s out of position ends the round (`left`, see [Game Modes](../game-engine/game-modes.md#2-failure-when-a-round-ends-early-every-mode)).
 - The camera stalling for 500 ms publishes a `null` frame, so ready cannot stay on by mistake.

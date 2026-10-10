@@ -5,6 +5,9 @@
 //                                      ├─ player taps "Post my score" (phone) ─▶ save_round ─▶ posted
 //                                      └─ player taps "Don't post" (phone)  ─▶ declined (never saved)
 //
+// With "Fixed camera" on (logic/fixedCamera.ts) the score is posted at once,
+// without asking, and the phone (if any) keeps filming for the next player.
+//
 // When the round was filmed with a phone, the phone gets the stats and the two
 // buttons, and hears about every change. The phone is let go (its link closed)
 // once the choice is made, or after PHONE_WAIT_MS.
@@ -13,6 +16,7 @@ import { backend } from "../api/backend";
 import type { PhoneRoundStats, PostStatus, RoundResult } from "../api/types";
 import { MODE_LABELS } from "../config/modes";
 import { FINISH_TEXT } from "@tracker/game";
+import { isFixedCamera } from "./fixedCamera";
 import type { ReleasedPhone } from "./tracker/TrackerProvider";
 
 /** How long a player has to choose on their phone before it is let go. */
@@ -33,8 +37,10 @@ export class ScorePost {
   constructor(
     readonly result: RoundResult,
     phone: ReleasedPhone | null,
+    autoPost = false,
   ) {
     this.phone = phone;
+    if (autoPost) void this.post("host");
     if (!phone) return;
     phone.link.setHandlers({
       onStatus: () => {},
@@ -120,16 +126,23 @@ function phoneStats(r: RoundResult): PhoneRoundStats {
 
 const posts = new WeakMap<RoundResult, ScorePost>();
 
-/** Starts the post for a round that just ended, with the phone that filmed it (if any). */
-export function startScorePost(result: RoundResult, phone: ReleasedPhone | null): ScorePost {
-  const post = new ScorePost(result, phone);
+/**
+ * Starts the post for a round that just ended. Fixed camera: posted at once and
+ * the camera stays. Otherwise the round's phone camera (if any) is let go with
+ * `release()` and shows the player their stats.
+ */
+export function startScorePost(result: RoundResult, release: () => ReleasedPhone | null): ScorePost {
+  const fixed = isFixedCamera();
+  const post = new ScorePost(result, fixed ? null : release(), fixed);
   posts.set(result, post);
   return post;
 }
 
 /** The post for a finished round (one without a phone if none was started). */
 export function scorePostFor(result: RoundResult): ScorePost {
-  return posts.get(result) ?? startScorePost(result, null);
+  let post = posts.get(result);
+  if (!post) posts.set(result, (post = new ScorePost(result, null)));
+  return post;
 }
 
 /** The posts for these rounds, re-rendering whenever one changes. */

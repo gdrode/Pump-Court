@@ -212,15 +212,14 @@ impl Session {
     }
 
     /// The tracker's posture check, and whether its referee is partway through
-    /// a rep. Holding the top of a push-up starts the countdown; leaving the
-    /// position during the countdown stops it.
+    /// a rep. Holding the top of a push-up starts the countdown; once started
+    /// it always runs to GO (a wobble never stops it).
     pub fn set_ready(&mut self, ready: bool, in_rep: bool, now: i64) {
         self.now = now.max(self.now);
         self.in_position = ready;
         self.in_rep = in_rep;
         match self.phase {
             RoundPhase::GetReady if ready => self.set_phase(RoundPhase::Countdown),
-            RoundPhase::Countdown if !ready => self.set_phase(RoundPhase::GetReady),
             _ => {}
         }
     }
@@ -393,18 +392,17 @@ mod tests {
     }
 
     #[test]
-    fn leaving_position_during_the_countdown_stops_it() {
+    fn once_started_the_countdown_never_stops() {
         let mut s = Session::new();
         s.start(RoundMode::Sprint, "Ana".into(), 0);
         s.set_ready(true, false, 1_000);
         s.tick(2_500);
         s.set_ready(false, false, 2_600);
-        assert_eq!(s.phase(), RoundPhase::GetReady, "back to get ready");
-        s.set_ready(true, false, 3_000);
-        assert!(s.tick(5_500).is_none());
-        assert_eq!(s.phase(), RoundPhase::Countdown, "the countdown starts again from 3");
-        s.tick(6_000);
-        assert_eq!(s.phase(), RoundPhase::Running);
+        assert_eq!(s.phase(), RoundPhase::Countdown, "a wobble doesn't stop it");
+        assert!(s.tick(3_900).is_none());
+        assert_eq!(s.phase(), RoundPhase::Countdown);
+        s.tick(4_000);
+        assert_eq!(s.phase(), RoundPhase::Running, "GO 3 s after it started");
     }
 
     #[test]

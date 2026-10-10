@@ -60,7 +60,7 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 ### 2.2 The engine thread (`backend/src/engine.rs`, `backend/src/game/`)
 - **Its own thread**, named `pump-court-engine`. Tauri commands only drop an `EngineCommand` into an `mpsc` channel; the thread never waits on the UI.
 - **Clock only**: the thread wakes every 100 ms (`TICK_INTERVAL`) while a round is on, moves the `Session` clock and emits `tick`. It does no image work.
-- **Session phases**: `idle → getReady → countdown (3 s) → running → finished`. `set_ready(true)` moves get-ready to countdown. Reps only count while running.
+- **Session phases**: `idle → getReady → countdown (3 s) → running → finished`. `set_ready(true)` moves get-ready to countdown, which then always runs to GO. Reps only count while running.
 - **Saving is opt-in**: when a round finishes the engine emits `round-finished` with `runId`/`rank` empty. It is saved only when posted (`save_round`, by the operator or from the player's phone), which emits `round-posted`. See [Scoring & Ranking](features/leaderboard/scoring-and-ranking.md#4-posting-is-opt-in).
 - **Hourly backup**: the same thread writes a JSON backup every hour.
 - See [Game Engine](features/game-engine/README.md).

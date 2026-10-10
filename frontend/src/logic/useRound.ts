@@ -92,8 +92,9 @@ export function useRound(opts: RoundOptions) {
   useBackendEvent(events.onRoundFinished, (r) => {
     if (done.current || r.player !== optsRef.current.player) return;
     done.current = true;
-    // A phone camera is let go now (the next player pairs their own) and shows this player their stats.
-    startScorePost(r, tracker.releasePhone());
+    // A phone camera is let go now (the next player pairs their own) and shows this player
+    // their stats; with Fixed camera on, the camera stays and the score is posted at once.
+    startScorePost(r, tracker.releasePhone);
     optsRef.current.onFinished(r);
   });
 

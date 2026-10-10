@@ -28,6 +28,8 @@
 
 The chosen system camera is remembered for next time. Phones must be paired again after a restart, **and after every round**: a phone camera is let go when its round ends, so each player can film with their own phone and see their stats on it.
 
+**Fixed camera** (press **F** on the home screen, or the small switch at the bottom): use it when one camera or phone stays mounted for everyone. When on, the camera is kept after each round and every score goes on the leaderboard automatically, without asking. The setting is remembered on this laptop.
+
 ---
 
 ## 2. Match Workflow (per player)
@@ -89,6 +91,7 @@ If the player walks out of view or stands up for 2 s during a round, their round
 | **`←` / `→`** | Home | Singleplayer / Duel (the mode buttons light up once one is picked) |
 | **`1`–`3`** | Home | Sprint, Minute, Max (for the picked play style) |
 | **`E`** | Home | Create event (placeholder: "coming soon") |
+| **`F`** | Home | Fixed camera on/off (small switch, bottom of the screen) |
 | **`L`** | Home | Leaderboard |
 | **`S`** | Home | Camera screen |
 | **`W`** | Home | Open (or bring forward) the crowd window |

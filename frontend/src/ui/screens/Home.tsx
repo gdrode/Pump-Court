@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GAME_MODES, HOME_KEYS, menuMode, PLAY_STYLES, type MenuModeInfo, type PlayStyle } from "../../config/modes";
+import { useFixedCamera } from "../../logic/fixedCamera";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
@@ -20,6 +21,8 @@ interface Props {
 export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
   const [style, setStyle] = useState<PlayStyle | null>(null);
   const [eventNote, setEventNote] = useState(false);
+  const [fixed, setFixed] = useFixedCamera();
+  const toggleFixed = () => setFixed(!fixed);
 
   const pickMode = (i: number) => {
     const m = GAME_MODES[i];
@@ -31,6 +34,7 @@ export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
     [HOME_KEYS.single]: () => setStyle("single"),
     [HOME_KEYS.duel]: () => setStyle("duel"),
     [HOME_KEYS.event]: () => setEventNote(true),
+    [HOME_KEYS.fixedCamera]: toggleFixed,
     [HOME_KEYS.leaderboard]: onLeaderboard,
     [HOME_KEYS.settings]: onSettings,
     [HOME_KEYS.crowd]: onCrowd,
@@ -87,16 +91,34 @@ export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
         </button>
       </div>
 
-      <KeyHints
-        hints={[
-          ["← →", "singleplayer / duel"],
-          [`1–${GAME_MODES.length}`, "pick a mode"],
-          ["E", "create event"],
-          ["L", "leaderboard", onLeaderboard],
-          ["S", "camera", onSettings],
-          ["W", "crowd screen", onCrowd],
-        ]}
-      />
+      <div className="home__foot">
+        <KeyHints
+          hints={[
+            ["← →", "singleplayer / duel"],
+            [`1–${GAME_MODES.length}`, "pick a mode"],
+            ["E", "create event"],
+            ["L", "leaderboard", onLeaderboard],
+            ["S", "camera", onSettings],
+            ["W", "crowd screen", onCrowd],
+          ]}
+        />
+        <button
+          role="switch"
+          aria-checked={fixed}
+          className={`fixed-camera ${fixed ? "is-on" : ""}`}
+          onClick={toggleFixed}
+          title={
+            fixed
+              ? "On: the camera stays for every player and scores post to the leaderboard automatically"
+              : "Off: players use their own phone, see their stats on it and choose whether to post"
+          }
+        >
+          <span className="fixed-camera__track" aria-hidden="true">
+            <span className="fixed-camera__knob" />
+          </span>
+          Fixed camera <kbd>F</kbd>
+        </button>
+      </div>
     </div>
   );
 }

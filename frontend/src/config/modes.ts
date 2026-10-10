@@ -97,7 +97,7 @@ export const BOARDS: { mode: RoundMode | null; title: string }[] = [
 ];
 
 /** Global operator shortcuts on the home screen. */
-export const HOME_KEYS = { leaderboard: "l", settings: "s", crowd: "w", single: "ArrowLeft", duel: "ArrowRight", event: "e" } as const;
+export const HOME_KEYS = { leaderboard: "l", settings: "s", crowd: "w", single: "ArrowLeft", duel: "ArrowRight", event: "e", fixedCamera: "f" } as const;
 
 export const NAME_MAX = 12;
 
