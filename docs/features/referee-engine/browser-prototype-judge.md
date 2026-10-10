@@ -35,12 +35,14 @@ Each player's stage shows the state: *Get down into the push-up position*, *Put 
 
 | Light | Measured as | Easy | Normal | Hard |
 | --- | --- | --- | --- | --- |
-| Depth | lowest height above the floor line (arm lengths) | ≤ 0.55 | ≤ 0.42 | ≤ 0.30 |
+| Depth | lowest height above the floor line (arm lengths) | ≤ 0.70 | ≤ 0.65 | ≤ 0.60 |
 | Torso: body line | angle at the **abdominal point** (shoulder–abdomen–knee), worst 10% of frames ignored | ≥ 145° | ≥ 155° | ≥ 165° |
 | Torso: knees | hip–knee–ankle | ≥ 140° | ≥ 150° | ≥ 160° |
-| Lockout | highest elbow angle on the way up | ≥ 145° | ≥ 155° | ≥ 165° |
+| Lockout | elbow on the way up reaches the threshold, **or** the shoulders get back within 0.05 arm lengths of the player's straight-arm top height | ≥ 145° | ≥ 155° | ≥ 165° |
 
 2 or 3 white lights = counted; 3 = perfect.
+
+Hard's depth was loosened twice on 2026-10-10 after live testing (0.30 → 0.45 → 0.60): players had to go lower than a conventional push-up. At a conventional bottom (elbows ~90°, forearms vertical) the shoulders sit about half an arm length above the hands, plus the wrist landmark sits above the floor; 0.60 passes that. Without visible hands, depth falls back to the elbow angle (Easy 100°, Normal 95°, Hard 90°).
 
 The game always judges on **Hard** (no toggle since 2026-10-10). Easy/Normal remain in `DIFFICULTY` for tests and tuning only.
 
@@ -48,12 +50,17 @@ The game always judges on **Hard** (no toggle since 2026-10-10). Easy/Normal rem
 
 ## 4. Rep segmentation (`SEGMENT` in `judge.ts`)
 
-- Start: elbow 20° below its highest value in the last 4 s, and the player is ready.
-- Coming up: elbow 20° above its lowest point.
-- End: lockout reached, or 1.5 s without getting higher, or a new descent of 45°. Smaller dips stay in the same rep.
-- An attempt needs ≥ 45° of elbow range (or shoulders below 0.75), **≥ 0.25 arm lengths of real shoulder drop toward the floor**, and ≥ 0.12 s.
+Reps are found from a **drive signal**: the shoulders' height above the floor line (× `HEIGHT_TO_DRIVE` = 150, so a full rep spans ~100 units like the elbow's ~100°) whenever posture has a floor line, else the elbow angle. This handles **flared elbows**: seen side-on, a flared elbow points at or away from the camera and barely seems to bend, but the shoulders still go all the way down and up. The elbow angle is then only used for the Lockout light (straight arms read straight however they are rotated). The thresholds below are in drive units (≈ degrees).
+
+- Start: drive 20 below its highest value in the last 4 s (≈ 0.13 arm lengths of shoulder drop), and the player is ready.
+- Coming up: drive 20 above its lowest point.
+- End: **judged immediately on lockout** (elbow threshold, or shoulders back at the top height) once at least 60% back up, or a new descent of 45 (≈ 0.3 arm lengths; smaller dips stay in the same rep), or 1.5 s without getting higher **once the player is at least 60% of the way back up**. Lower than that, the judge keeps waiting: a slow grind still counts when it locks out.
+- **A push-up is two parts: down, then back up.** A rep is judged only if the shoulders came back up at least 60% of the way they went down (`minAscent`; measured from the floor line, else shoulder position, else elbow). Collapsing flat to the floor at failure is a descent with no ascent: no rep, no lights. In Max mode, staying collapsed ends the round after 5 s ("couldn't press up").
+- An attempt needs ≥ 45 of drive range (or shoulders below 0.75), **≥ 0.25 arm lengths of real shoulder drop toward the floor**, and ≥ 0.12 s.
 - Out of position for 0.6 s mid-rep drops the rep.
-- 3-frame median on elbow/depth at ≥ 20 fps (off below that); lockout trusts a brief raw peak when a neighbouring frame is within 20°.
+- 3-frame median on elbow/depth at ≥ 20 fps (off below that); lockout trusts a brief raw peak when a neighbouring frame is within 20° (elbow) or 0.1 arm lengths (height), so touch-and-go tops lasting one frame aren't smoothed away.
+- **Lockout by height** (added 2026-10-10): straight arms often read only 155–165° side-on (less with flared elbows), so the 165° Hard elbow threshold missed real lockouts and the rep was only judged when the next one began. The straight-arm top height is the highest shoulder height seen between reps over the last 30 s; getting back within 0.05 arm lengths of it (≈ elbows ≥ 157°) counts as locked out, and the rep is judged on that frame. Coming back only to ~145° (≈ 0.08 short) still fails.
+- During posture's 0.6 s grace period the player still counts as ready, but no height is reported, so sitting up can't be read as "back at the top".
 
 ## 5. Open items
 

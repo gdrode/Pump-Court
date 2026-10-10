@@ -57,10 +57,13 @@ export function createPostureTracker() {
   // Wrist samples while settling at the top.
   let settle: { t: number; x: number; y: number }[] = []
 
-  const result = (state: PostureState, a: PoseAngles | null): Posture => ({
+  // `measure` = false during the grace period: the player still counts as ready,
+  // but a frame where the body is out of position (sitting up, standing) must
+  // not be read as a shoulder height.
+  const result = (state: PostureState, a: PoseAngles | null, measure = true): Posture => ({
     state,
     ready,
-    height: ready && a && Number.isFinite(floorY) ? (floorY - a.shoulderY) / armLength : NaN,
+    height: measure && ready && a && Number.isFinite(floorY) ? (floorY - a.shoulderY) / armLength : NaN,
   })
 
   /** Why this frame is not a push-up position, or null if it is. */
@@ -84,7 +87,7 @@ export function createPostureTracker() {
           return result('ready', a)
         }
         if (!Number.isFinite(lostSince)) lostSince = t
-        if (t - lostSince <= POSTURE.graceMs) return result('ready', a)
+        if (t - lostSince <= POSTURE.graceMs) return result('ready', a, false)
         ready = false
         settle = []
         return result(bad ?? 'hands-off-floor', a)
