@@ -1,18 +1,25 @@
 import { CONFIG_FIELDS, useSettings } from "../../logic/useSettings";
 import { useKeys } from "../../logic/useKeys";
+import { KeyHints } from "../components/KeyHints";
 import { PhoneLinkPanel } from "../components/PhoneLinkPanel";
 
-/** Camera picker and referee thresholds. */
+/** Camera picker, phone QR link and referee thresholds. */
 export function Settings({ onBack }: { onBack: () => void }) {
   const settings = useSettings();
   useKeys({ Escape: onBack });
 
   return (
-    <div className="screen settings">
+    <div className="panel sketch settings">
+      <p className="eyebrow">Operator</p>
       <h2>Camera</h2>
-      <div className="row wrap">
+      <div className="seg" role="group" aria-label="Camera">
         {settings.sources.map((s) => (
-          <button key={s.label} className={settings.isCurrent(s.spec) ? "active" : ""} onClick={() => settings.pickSource(s.spec)}>
+          <button
+            key={s.label}
+            type="button"
+            className={`seg__btn sketch ${settings.isCurrent(s.spec) ? "is-on" : ""}`}
+            onClick={() => settings.pickSource(s.spec)}
+          >
             {s.label}
           </button>
         ))}
@@ -37,11 +44,13 @@ export function Settings({ onBack }: { onBack: () => void }) {
           ))}
         </div>
       )}
-      <div className="row">
-        <button className="primary" disabled={!settings.config} onClick={settings.applyConfig}>Apply thresholds</button>
-        <button onClick={onBack}>Back (Esc)</button>
+      {settings.message && <p className="message">{settings.message}</p>}
+      <div className="players__foot">
+        <button type="button" className="start-btn sketch" disabled={!settings.config} onClick={settings.applyConfig}>
+          Apply thresholds
+        </button>
+        <KeyHints hints={[["Esc", "Back", onBack]]} />
       </div>
-      {settings.message && <p className="muted">{settings.message}</p>}
     </div>
   );
 }

@@ -12,8 +12,28 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub const MAX_NAME_LEN: usize = 12;
 
-/// Names the operator never wants on the crowd screen. Extend as needed.
-const BLOCKLIST: &[&str] = &["admin", "fuck", "shit", "cunt", "nigg", "fag", "rape", "nazi"];
+/// Names the operator never wants on the crowd screen. Keep it short and add
+/// to it at the event. Matching ignores case, spaces and common swaps (see `normalise`).
+const BLOCKLIST: &[&str] = &[
+    "admin", "fuck", "shit", "cunt", "nigg", "fag", "bitch", "dick", "cock", "pussy", "nazi", "hitler", "rape",
+    "slut", "whore",
+];
+
+/// Lower-cases and undoes the usual dodges: "F.u_c-k", "sh1t", "$lut".
+fn normalise(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .filter(|c| !matches!(c, ' ' | '.' | '_' | '-'))
+        .map(|c| match c {
+            '0' => 'o',
+            '1' => 'i',
+            '3' => 'e',
+            '4' => 'a',
+            '5' | '$' => 's',
+            other => other,
+        })
+        .collect()
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -75,8 +95,8 @@ pub fn validate_name(raw: &str) -> Result<String, String> {
     if name.chars().count() > MAX_NAME_LEN {
         return Err(format!("Names are {MAX_NAME_LEN} characters at most"));
     }
-    let lower = name.to_lowercase();
-    if BLOCKLIST.iter().any(|bad| lower.contains(bad)) {
+    let plain = normalise(&name);
+    if BLOCKLIST.iter().any(|bad| plain.contains(bad)) {
         return Err("Please pick another name".into());
     }
     Ok(name)
@@ -322,5 +342,9 @@ mod tests {
         assert_eq!(validate_name("  Jo   Lee ").unwrap(), "Jo Lee");
         assert!(validate_name("").is_err());
         assert!(validate_name("ThirteenChars").is_err());
+        assert!(validate_name("sh1t").is_err());
+        assert!(validate_name("F.u_c-k").is_err());
+        assert!(validate_name("Dick Lee").is_err());
+        assert!(validate_name("Rosa").is_ok());
     }
 }

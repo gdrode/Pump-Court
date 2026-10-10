@@ -1,14 +1,25 @@
 import type { RoundResult } from "../api/types";
 
-/** Everything the results screen shows, worked out from the finished turns. */
-export function summarizeResults(results: RoundResult[], players: string[]) {
-  const latest = results[results.length - 1];
-  const nextPlayer = players[results.length] ?? null;
-  let duelWinner: string | null | undefined; // undefined = not a finished duel, null = draw
-  if (players.length === 2 && results.length === 2) {
-    const [a, b] = results;
-    const score = (r: RoundResult) => (r.voided ? -1 : r.cleanReps + r.accuracy / 10); // accuracy breaks ties
-    duelWinner = score(a) === score(b) ? null : score(a) > score(b) ? a.player : b.player;
-  }
-  return { latest, all: results, nextPlayer, duelWinner };
+/** Clean reps first, accuracy breaks ties; voided runs rank last. */
+export function rankResults(results: RoundResult[]): RoundResult[] {
+  const score = (r: RoundResult) => (r.voided ? -1 : r.cleanReps);
+  return [...results].sort((a, b) => score(b) - score(a) || b.accuracy - a.accuracy);
+}
+
+/** Final standings of a Versus game. `winner` is null on a full tie. */
+export function versusOutcome(results: RoundResult[]) {
+  const ranked = rankResults(results);
+  const [first, second] = ranked;
+  const tie = !!second && first.cleanReps === second.cleanReps && first.accuracy === second.accuracy;
+  return {
+    ranked,
+    winner: tie || !first ? null : first.player,
+    decidedOnAccuracy: !tie && !!second && first.cleanReps === second.cleanReps,
+  };
+}
+
+/** In Versus, everyone after the first player chases the best score so far. */
+export function bestSoFar(results: RoundResult[]): { name: string; reps: number } | null {
+  const best = rankResults(results)[0];
+  return best && !best.voided ? { name: best.player, reps: best.cleanReps } : null;
 }

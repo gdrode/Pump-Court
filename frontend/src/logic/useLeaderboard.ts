@@ -3,8 +3,8 @@ import { backend, errorText } from "../api/backend";
 import type { Category, LeaderboardRow } from "../api/types";
 
 /** Operator leaderboard: tabs, moderation and backups. */
-export function useLeaderboard(limit = 50) {
-  const [category, setCategory] = useState<Category>("thirtySecond");
+export function useLeaderboard(initial: Category = "thirtySecond", limit = 50) {
+  const [category, setCategory] = useState<Category>(initial);
   const [includeTeam, setIncludeTeam] = useState(false);
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);

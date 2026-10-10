@@ -1,20 +1,44 @@
 import type { LeaderboardRow } from "../../api/types";
+import { formatPosted } from "../../config/modes";
 
-export function LeaderboardTable({ rows }: { rows: LeaderboardRow[] }) {
-  if (rows.length === 0) return <p className="muted">No scores yet. Be the first!</p>;
+interface Props {
+  rows: LeaderboardRow[];
+  limit?: number;
+  /** Name to mark as "← you". */
+  highlight?: string;
+  /** Row index selected by the operator (for delete). */
+  selected?: number;
+  big?: boolean;
+}
+
+export function LeaderboardTable({ rows, limit = 10, highlight, selected, big }: Props) {
+  if (rows.length === 0) return <p className="board__empty">No scores yet. Be the first.</p>;
   return (
-    <table className="board">
+    <table className={`board ${big ? "board--big" : ""}`}>
       <thead>
-        <tr><th>#</th><th>Name</th><th>Clean reps</th><th>Accuracy</th><th>Posted</th></tr>
+        <tr>
+          <th className="num">#</th>
+          <th>Name</th>
+          <th className="num">Reps</th>
+          <th className="num">Accuracy</th>
+          <th className="num">Posted</th>
+        </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.runId}>
-            <td>{r.rank}</td>
-            <td>{r.name}</td>
-            <td>{r.cleanReps}</td>
-            <td>{Math.round(r.accuracy * 100)}%</td>
-            <td>{new Date(r.postedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+        {rows.slice(0, limit).map((r, i) => (
+          <tr
+            key={r.runId}
+            className={[
+              highlight && r.name.toLowerCase() === highlight.toLowerCase() ? "is-highlight" : "",
+              selected === i ? "is-selected" : "",
+              r.rank === 1 ? "is-first" : "",
+            ].join(" ")}
+          >
+            <td className="num">{r.rank}</td>
+            <td className="board__name">{r.name}</td>
+            <td className="num board__reps">{r.cleanReps}</td>
+            <td className="num">{Math.round(r.accuracy * 100)}%</td>
+            <td className="num board__time">{formatPosted(r.postedAt)}</td>
           </tr>
         ))}
       </tbody>

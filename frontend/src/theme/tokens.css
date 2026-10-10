@@ -1,42 +1,31 @@
 /*
  * Design tokens: every colour, font and key size in one place.
- * A new look usually starts by changing only this file.
+ * Sketchbook look from the frontend design: paper, ink and a handwritten
+ * font. One accent colour (dragon green) plus red for no-reps.
  */
 :root {
-  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --paper: #f3ecd9;
+  --card: #fffaf0;
+  --ink: #241f1a;
+  --ink-soft: #6e665a;
+  --faint: #d9cfb6;
+  --green: #4f9a3e;
+  --green-light: #dcedc8;
+  --cream: #f6e6ab;
+  --red: #d2452e;
+  --red-light: #f6d3c8;
+  --font: 'Patrick Hand', 'Comic Neue', 'Chalkboard SE', 'Comic Sans MS', cursive;
+  --r: 14px 22px 12px 20px / 20px 12px 22px 14px; /* uneven corners read as hand-drawn */
 
-  --bg: #0d0f14;
-  --panel: #171a22;
-  --text: #f3f4f6;
-  --muted: #9ca3af;
-  --border: #2a2f3b;
-  --border-strong: #4b5563;
-  --accent: #4ade80;
-  --accent-text: #052e16;
-  --bad: #f87171;
-  --bad-bg: #7f1d1d;
-  --hint: #fde68a;
-  --overlay: rgba(0, 0, 0, 0.55);
-  --video-bg: #111318;
-  --qr-bg: #ffffff; /* keep light: phones scan dark-on-light codes best */
+  /* Camera view and the skeleton drawn on it (read by PoseView) */
+  --video-bg: #2b2620;
+  --skeleton-bone: rgba(255, 250, 240, 0.92);
+  --skeleton-bone-lost: rgba(210, 69, 46, 0.9);
+  --skeleton-joint: #8fd17a;
+  --skeleton-label: #f6e6ab;
 
-  /* Referee lights */
-  --light-idle: #1f2937;
-  --light-pass: #ffffff;
-  --light-fail: #ef4444;
-  --light-ring: #374151;
-  --light-size: 56px;
-  --light-size-big: 140px;
+  /* Phone QR code: keep light, phones scan dark-on-light codes best */
+  --qr-bg: #ffffff;
 
-  /* Skeleton drawn on the video (read by PoseView) */
-  --skeleton-bone: rgba(255, 255, 255, 0.9);
-  --skeleton-bone-lost: rgba(255, 90, 90, 0.9);
-  --skeleton-joint: #4ade80;
-  --skeleton-label: #facc15;
-
-  --radius: 8px;
-  --radius-lg: 12px;
-  --size-count: 6rem;
-  --size-count-giant: 16rem;
-  --size-countdown: 12rem;
+  color-scheme: light;
 }
