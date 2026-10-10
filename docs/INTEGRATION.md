@@ -1,5 +1,7 @@
 # Plugging in the motion tracker
 
+> 💡 **Notice for AI Agents and Developers**: This guide has been incorporated into the comprehensive documentation suite. See the full feature documentation in [`docs/features/developer-guides/tracker-integration.md`](features/developer-guides/tracker-integration.md) and [`docs/features/pose-tracking/`](features/pose-tracking/README.md).
+
 The camera engine in `pumpCourt/` runs **MediaPipe Pose Landmarker in the
 browser** (`@mediapipe/tasks-vision`). That fits the Tauri app well, because
 the app's screens are a browser too. The backend accepts landmarks from either
