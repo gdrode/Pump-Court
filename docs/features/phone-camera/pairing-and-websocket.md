@@ -78,6 +78,7 @@ certificate even after the warning is accepted.
 | `POST /signal-http/leave` | Leave. Sent on `pagehide`, so the laptop knows at once when the tab closes. |
 
 - A phone that stops polling for **15 s** is dropped. Unknown `id` → **410 gone**.
+- **Takeover:** a second phone with the same code replaces the first. The first phone's next poll gets `{type:'closed', code:4000}`, so it shows "Another phone took over this code" (not just "gone").
 - `GET /api/lan` lists the laptop's network addresses (best first) plus its
   **Bonjour name** (`<name>.local`). The QR dialog lets the operator pick one.
   The by-name address helps iPhones / Macs when the number is wrong.

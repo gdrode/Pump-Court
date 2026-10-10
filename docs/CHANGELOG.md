@@ -15,4 +15,6 @@ Short, plain-words log of each work session. Newest first.
 - Posture gate: no reps unless flat plank, hands on floor, held still. Floor line from planted hands. Shoulders must really drop. → [Ready check](features/referee-engine/ready-check-calibration.md)
 - Troubleshooting steps for the QR problem. → [Troubleshooting](features/venue-operations/troubleshooting.md)
 
+- Fix: a phone replaced by a second phone now learns why (it used to just get "gone"). Tested end to end in a real browser: QR → phone page → live video → close tab = laptop sees "disconnected".
+
 **Checks:** `npm test` in `pumpCourt/` → 213 / 213 pass, `tsc -b` clean.
