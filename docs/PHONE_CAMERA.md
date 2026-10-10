@@ -1,5 +1,7 @@
 # Phone camera (QR code link)
 
+> 💡 **Notice for AI Agents and Developers**: This guide has been incorporated into the comprehensive documentation suite. See the full feature documentation in [`docs/features/phone-camera/`](features/phone-camera/README.md), including [HTTPS & TLS](features/phone-camera/https-and-tls.md), [Pairing & Protocol](features/phone-camera/pairing-and-websocket.md), and [Mobile Web Client](features/phone-camera/mobile-web-client.md).
+
 A phone can be the camera, so it can sit on the floor next to the mat while
 the laptop stays on the table. The **desktop app is the server**: the phone
 only captures video and sends it to the laptop; all tracking, judging and

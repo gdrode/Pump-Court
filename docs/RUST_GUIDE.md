@@ -1,5 +1,7 @@
 # Rust in this project: a first-timer's guide
 
+> 💡 **Notice for AI Agents and Developers**: This guide has been incorporated into the comprehensive documentation suite. See the full feature documentation in [`docs/features/developer-guides/rust-backend-guide.md`](features/developer-guides/rust-backend-guide.md) and [`docs/features/developer-guides/`](features/developer-guides/README.md).
+
 This is a tour of the Rust ideas you'll meet in `backend/`, using the
 project's own code as examples.
 
