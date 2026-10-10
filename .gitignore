@@ -11,3 +11,6 @@ frontend/dist/
 .DS_Store
 .vscode/
 .idea/
+
+# Local-only browser preview (simulated backend); see frontend/preview/README.md
+frontend/preview/

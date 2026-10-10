@@ -48,7 +48,11 @@ export function useSettings() {
     pickSource: async (spec: SourceSpec) => {
       try {
         await backend.startSource(spec);
-        localStorage.setItem(SOURCE_KEY, JSON.stringify(spec));
+        try {
+          localStorage.setItem(SOURCE_KEY, JSON.stringify(spec));
+        } catch {
+          /* storage unavailable: just don't remember it */
+        }
         setCurrent(spec);
         setMessage(null);
       } catch (e) {

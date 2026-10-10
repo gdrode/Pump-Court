@@ -4,6 +4,14 @@
 let ctx: AudioContext | null = null;
 
 function tone(freq: number, durationS: number, type: OscillatorType, delayS = 0, gain = 0.2) {
+  try {
+    playTone(freq, durationS, type, delayS, gain);
+  } catch {
+    /* audio blocked (e.g. no user gesture yet): stay silent */
+  }
+}
+
+function playTone(freq: number, durationS: number, type: OscillatorType, delayS: number, gain: number) {
   ctx ??= new AudioContext();
   const t = ctx.currentTime + delayS;
   const osc = ctx.createOscillator();
