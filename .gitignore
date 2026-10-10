@@ -1,0 +1,24 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# SQLite database and backups
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+*.bak
+backups/
+
+# Tuning clips and rep logs stay on the laptop
+clips/
+**/clips/
+replog-*.json
+
+# Build / deps
+node_modules/
+dist/
+.DS_Store
