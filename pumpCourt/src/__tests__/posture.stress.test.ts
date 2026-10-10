@@ -508,9 +508,10 @@ describe('stress: form faults', () => {
   })
 
   it('half reps: depth light red, no perfect reps', () => {
+    // Shoulders drop ~27% of the top height: an attempt (over minAttemptDrop) but short of Normal's depthDrop.
     const s = new Scene({ noise: 0.005 })
     s.hold(1200, plank(B.hTop))
-    s.reps(5, 1200, { hBot: 0.19 })
+    s.reps(5, 1200, { hBot: 0.21 })
     s.hold(1000, plank(B.hTop))
     const rs = judge(s.frames)
     expect(rs.every((r) => !r.lights.depth && !r.perfect)).toBe(true)
@@ -525,19 +526,12 @@ describe('stress: form faults', () => {
     expect(judge(s.frames)).toHaveLength(0)
   })
 
-  it('KNOWN: knee push-ups from all fours get ready and count on 2 of 3 lights (torso red for the knees)', () => {
+  it('knee push-ups from all fours never get ready, so nothing counts', () => {
     const s = new Scene({ noise: 0.005 })
     s.hold(1500, tabletop())
     s.run(6000, (k) => tabletop(1, repH((k * 4) % 1, 0.1)))
     s.hold(1000, tabletop())
-    const rs = judge(s.frames)
-    expect(rs).toHaveLength(4)
-    for (const r of rs) {
-      expect(r.lights.torso).toBe(false)
-      expect(r.perfect).toBe(false)
-      expect(r.counted).toBe(true)
-      expect(r.faults.join(' ')).toMatch(/Knees bent/)
-    }
+    expect(judge(s.frames)).toHaveLength(0)
   })
 })
 

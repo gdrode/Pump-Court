@@ -1,7 +1,7 @@
 # Feature 06: Frontend Architecture & Dual-Screen UI
 
 > **Module**: `frontend/src/`  
-> **Key Types**: `App.tsx`, `useGameFlow`, `useRound`, `PoseView`, `tokens.css`  
+> **Key Types**: `App.tsx`, `useGameFlow`, `useRound`, `useCrowd`, `TrackerProvider`, `Dragon`, `tokens.css`  
 > **Related Documents**: [State & Hooks](state-and-hooks.md), [Crowd Display Sync](crowd-display-sync.md), [Styling & Design Tokens](styling-and-tokens.md)  
 > **Maintenance Status**: Active / User Experience Architecture  
 
@@ -9,56 +9,87 @@
 
 ## 1. Executive Summary
 
-The Pump-Court frontend is built with **React 18, TypeScript, and Vite**, bundled into native OS windows by Tauri 2. 
+The Pump Court frontend is built with **React 18, TypeScript and Vite**, shown in native windows by Tauri 2.
 
-The architecture strictly adheres to a **Decoupled Three-Tier Model**:
-1. **API Tier (`frontend/src/api/`)**: Pure TypeScript bindings and type definitions mirroring the Rust backend.
-2. **Logic Tier (`frontend/src/logic/`)**: React hooks encapsulating state machines, clocks, sound triggers, and IPC.
-3. **UI Presentation Tier (`frontend/src/ui/` & `frontend/src/theme/`)**: Pure presentational screens and components driven by CSS custom properties (design tokens).
+The look is the team's **sketchbook design**: paper background, ink lines, the bundled *Patrick Hand* font, hand-drawn borders, and an animated **dragon host** that reacts to every rep.
+
+The **motion tracker and the referee run in the operator window**, not in Rust. `TrackerProvider` wraps the teammate's modules in `pumpCourt/src` (imported as `@tracker/…`). The Rust backend keeps the clock, the score and the leaderboard. See [Pose Tracking](../pose-tracking/README.md).
+
+The code has three layers:
+1. **API (`frontend/src/api/`)**: typed wrappers for the Rust commands and events, and the shared types.
+2. **Logic (`frontend/src/logic/`)**: React hooks with all state, screen flow, backend calls, and the tracker.
+3. **UI (`frontend/src/ui/` and `frontend/src/theme/`)**: screens and components. They show hook data and call hook actions. They never call Tauri directly.
 
 ```text
-┌─────────────────────────────────────────────────────────────┐
-│                    PRESENTATION LAYER                       │
-│                                                             │
-│   ui/screens/          ui/components/         theme/        │
-│   ├── HomeScreen       ├── PoseView (Canvas)  ├── tokens.css│
-│   ├── RoundScreen      ├── RefereeLights      └── styles.css│
-│   ├── ResultsScreen    ├── ReadyChecklist                   │
-│   └── CrowdScreen      └── PhoneLinkPanel                   │
-└──────────────────────────────▲──────────────────────────────┘
-                               │ State, Props & Handlers
-┌──────────────────────────────┴──────────────────────────────┐
-│                        LOGIC LAYER                          │
-│                                                             │
-│   useGameFlow.ts       useRound.ts            useCrowd.ts   │
-│   useNameEntry.ts      useSettings.ts         useKeys.ts    │
-└──────────────────────────────▲──────────────────────────────┘
-                               │ Invocations & Event Listeners
-┌──────────────────────────────┴──────────────────────────────┐
-│                         API LAYER                           │
-│                                                             │
-│   api/backend.ts       api/types.ts           events.ts     │
-└──────────────────────────────▲──────────────────────────────┘
-                               │ Tauri IPC (invoke / listen)
-                    [ Rust Backend Engine ]
+┌───────────────────────────────────────────────────────────────────────────┐
+│                               UI LAYER                                    │
+│  ui/screens/           ui/components/              ui/ + theme/           │
+│  ├── Home              ├── CameraView (video +     ├── host.ts (lines)    │
+│  ├── Players           │   skeleton)               ├── hostMood.ts        │
+│  ├── Round             ├── AddCameraDialog         ├── sounds.ts          │
+│  ├── Results           ├── Dragon (SVG host)       ├── tokens.css         │
+│  ├── DuelResult        ├── Lights (3 referees)     └── styles.css         │
+│  ├── Leaderboard       ├── LeaderboardTable                               │
+│  ├── Crowd             ├── KeyHints                                       │
+│  └── Settings (Camera) └── SketchDefs (SVG filters)                       │
+└─────────────────────────────────▲─────────────────────────────────────────┘
+                                  │ state, props, handlers
+┌─────────────────────────────────┴─────────────────────────────────────────┐
+│                              LOGIC LAYER                                  │
+│  useGameFlow  useRound  useNameEntry  useLeaderboard  useCrowd            │
+│  useBoardRecord  useKeys  results.ts  events.ts                           │
+│  tracker/: TrackerProvider  phoneLink.ts  usePhonePairing.ts              │
+└─────────────────────────────────▲─────────────────────────────────────────┘
+                                  │ invoke / listen / Channels
+┌─────────────────────────────────┴─────────────────────────────────────────┐
+│  API LAYER: api/backend.ts   api/types.ts                                 │
+└─────────────────────────────────▲─────────────────────────────────────────┘
+                                  │ Tauri IPC
+                       [ Rust backend ]
 ```
 
 ---
 
-## 2. Directory Layout & Invariants
+## 2. Directory Layout & Rules
 
 | Directory | Role | Rule |
 | :--- | :--- | :--- |
-| `frontend/src/api/` | Contract with Rust backend | **Never call directly from UI components**. Only hooks call API. |
-| `frontend/src/config/`| Menus, blurbs, keybindings | Edit freely without affecting core logic. |
-| `frontend/src/logic/` | State machines & React hooks | Reusable by any UI replacement (Tailwind, Chakra, etc.). |
-| `frontend/src/ui/` | Visual components & screens | Only displays props and calls hook actions. |
-| `frontend/src/theme/` | CSS tokens & layout rules | Change colors, sizes, and fonts without touching TSX. |
+| `frontend/src/api/` | Contract with the Rust backend | Only hooks call it, never UI components. |
+| `frontend/src/config/` | Modes, labels, board tabs, home keys, `REFEREE_RULES`, crowd timings | Edit freely; screens read it. |
+| `frontend/src/logic/` | Hooks, flow, tracker | Reusable by any new UI. |
+| `frontend/src/ui/` | Screens, components, dragon lines, sounds | Only shows props and calls hook actions. |
+| `frontend/src/theme/` | CSS tokens and layout | Change colors, sizes and fonts without touching TSX. |
+
+`App.tsx` is the one place that picks a screen component for each flow state. To try a new design, point its imports at new components; hooks and API stay as they are.
+
+### Screens
+| Screen | File | Shows |
+| :--- | :--- | :--- |
+| Home | `ui/screens/Home.tsx` | Title with three lights, dragon. Two steps: a top bar **Singleplayer / Duel**, then the mode cards **Sprint / Minute / Max** (dimmed until a play style is picked, then they light up). Under them a dashed **Create event** button: a placeholder for per-event leaderboards, shows "coming soon". |
+| Players | `ui/screens/Players.tsx` | Name entry: one name, or two for a Duel |
+| Round | `ui/screens/Round.tsx` | Camera on the left (with **⟳ Rotate** until the clock runs). Side panel: get-ready checklist, then the clock, score vs record (or "To beat" in a Duel), lights and dragon. 3-2-1 / GO overlay. |
+| Results | `ui/screens/Results.tsx` | Push-ups, attempts, perfect, rank, red lights per referee |
+| Duel result | `ui/screens/DuelResult.tsx` | Both players in order, the winner or a tie, rematch |
+| Leaderboard | `ui/screens/Leaderboard.tsx` | Five tabs (All time, Sprint, Minute, Max, Duel), select + delete, backup |
+| Crowd | `ui/screens/Crowd.tsx` | Second window: live round, or the all-time board |
+| Camera | `ui/screens/Settings.tsx` | Camera picture with **⟳ Rotate**, camera list, **Add camera**, tracking status, the player's posture (file and flow state are still called "settings") |
+
+If the camera has a problem while another screen is showing, a red banner at the top says so; clicking it opens the Camera screen.
 
 ---
 
-## 3. The Dual-Window Multi-Monitor Pattern
+## 3. Two Windows
 
-Pump-Court renders two independent windows from the same application build:
-- **Operator Console (`/`)**: Main window used by match referees and tournament staff to register athletes, view diagnostic angles, and select sources.
-- **Crowd Stadium Display (`/#crowd`)**: High-contrast, billboard-style display meant for athletes, coaches, and spectators on external HDMI monitors or stadium projectors.
+The same build runs in two windows:
+- **Operator window** (label `main`): the operator picks modes, enters names, runs rounds and manages the board. The tracker runs here.
+- **Crowd window** (label `crowd`): a big display for the player and the people watching. **W** on the home screen opens it (`open_crowd_window`). It loads the same `index.html`; `isCrowdWindow()` in `api/backend.ts` sees the label `crowd` (or a `#/crowd` hash in a plain browser) and renders only `<Crowd />`, without the tracker.
+
+See [Crowd Display Sync](crowd-display-sync.md).
+
+---
+
+## 4. Sounds
+
+- `ui/sounds.ts` plays `chime.mp3`, `buzzer.mp3` and `norep.mp3` from `frontend/public/sounds/` if they exist.
+- Otherwise (and always for `beep`, `go` and `final`) a Web Audio tone plays. `norep` has no tone, since the buzzer already covers it.
+- Until the mp3s are added, the console shows three harmless "file not found" messages at start-up.

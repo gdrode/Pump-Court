@@ -1,90 +1,96 @@
 # AI Agent Operational Manual & Maintenance Protocol
 
-> **Target**: AI Coding Assistants (Google Antigravity, Gemini Coder, Claude Code, Cursor, Copilot)  
-> **Scope**: Repository-wide architectural comprehension, navigation, and documentation upkeep  
+> **Target**: AI coding assistants (Google Antigravity, Gemini Coder, Claude Code, Cursor, Copilot)  
+> **Scope**: Finding your way around the repo and keeping the docs true  
 > **Last Updated**: 2026-10-10  
 
 ---
 
 ## 1. Prime Directives for AI Agents
 
-When modifying, extending, or debugging the Pump-Court codebase, all AI agents **MUST** follow these rules:
-
-1. **Consult Feature Docs Before Code Edits**:
-   - Before editing files in `backend/src/judge/`, read [`docs/features/referee-engine/README.md`](features/referee-engine/README.md).
-   - Before modifying camera or networking logic, read [`docs/features/phone-camera/README.md`](features/phone-camera/README.md).
-   - Before altering React screens or hooks, read [`docs/features/frontend-ui/README.md`](features/frontend-ui/README.md).
-2. **Preserve Decoupled Architectures**:
-   - Never call Tauri `invoke()` directly from `frontend/src/ui/`. All IPC belongs in `frontend/src/api/` or custom hooks in `frontend/src/logic/`.
-   - Never perform database I/O or GUI state mutation inside the referee engine (`backend/src/judge/`). Keep judging algorithms strictly pure and deterministic.
-   - Never block the `pump-court-engine` thread. Any heavy computation must be scheduled on the async runtime or offloaded.
-3. **Synchronize Type Definitions Across Boundaries**:
-   - When modifying any struct in `backend/src/game/session.rs`, `backend/src/judge/tracker.rs`, or `backend/src/leaderboard.rs`, you **MUST** update the matching TypeScript interfaces in `frontend/src/api/types.ts`.
-4. **Maintain Documentation Integrity**:
-   - If an API, struct, configuration default, or architecture pattern changes, update the relevant `docs/features/<feature>/` markdown file in the same PR or response.
-   - Do not allow docs to become stale snapshots.
+1. **Read the feature docs before editing code**:
+   - Before editing `pumpCourt/src/judge.ts`, `posture.ts` or `pose.ts`, read [`features/referee-engine/README.md`](features/referee-engine/README.md).
+   - Before editing camera or phone code (`frontend/src/logic/tracker/`, `backend/src/phone/`), read [`features/phone-camera/README.md`](features/phone-camera/README.md).
+   - Before editing React screens or hooks, read [`features/frontend-ui/README.md`](features/frontend-ui/README.md).
+2. **Keep the layers apart**:
+   - Never call Tauri `invoke()` from `frontend/src/ui/`. IPC belongs in `frontend/src/api/backend.ts`, used by hooks in `frontend/src/logic/`.
+   - Keep `pumpCourt/src/{geometry,pose,posture,judge}.ts` plain: no camera, DOM, React or backend calls. They must stay deterministic so tests and log replay work.
+   - Never block the `pump-court-engine` thread. It only runs the round clock.
+   - `pumpCourt/` is the teammate's code and is shared with their standalone prototype. The app imports it through the `@tracker/*` alias; do not copy it into `frontend/`.
+3. **Keep Rust and TypeScript types in step**:
+   - When you change a struct in `backend/src/game/session.rs`, `backend/src/leaderboard.rs`, `backend/src/phone/net.rs` or `backend/src/phone/tunnel.rs`, update `frontend/src/api/types.ts`.
+4. **Keep docs current**:
+   - When an API, struct, constant or flow changes, update the matching page in `docs/features/<feature>/` in the same change.
 
 ---
 
 ## 2. Progressive Disclosure Architecture
 
-To conserve context tokens, documentation is structured hierarchically. Agents should read only as deep as necessary for their immediate task:
+Read only as deep as the task needs:
 
 ```text
-Level 1: System Level
- docs/README.md ─────────────── High-level sitemap, tech stack & repo layout
- docs/ARCHITECTURE.md ──────── High-level subsystem boundaries & data flow
+Level 1: System
+ docs/README.md ─────────────── Index and stack summary
+ docs/ARCHITECTURE.md ──────── What runs where, IPC contract
 
-Level 2: Feature Root
- docs/features/<feature>/README.md ── Component overview, key files & API surface
+Level 2: Feature
+ docs/features/<feature>/README.md ── Overview, key files, API
 
-Level 3: Deep Technical Sub-Docs
- docs/features/<feature>/<topic>.md ── Detailed mathematical proofs, state machines, protocols
+Level 3: Detail
+ docs/features/<feature>/<topic>.md ── Algorithms, constants, protocols
 ```
 
-### Navigation Cheat Sheet for Agents
+### Navigation Cheat Sheet
 
-| Task You Are Working On | Primary Doc to Read First | Secondary Reference |
+| Task | Read first | Code |
 | :--- | :--- | :--- |
-| Tuning referee thresholds or depth/lockout math | `docs/features/referee-engine/angles-and-biomechanics.md` | `backend/src/judge/config.rs` |
-| Fixing false rep counts or double counting | `docs/features/referee-engine/rep-segmentation.md` | `backend/src/judge/tracker.rs` |
-| Adding or modifying a game mode | `docs/features/game-engine/game-modes.md` | `backend/src/game/mode.rs` |
-| Modifying the phone video stream or QR pairing | `docs/features/phone-camera/pairing-and-websocket.md` | `backend/src/phone/server.rs` |
-| Altering leaderboard rankings or migrations | `docs/features/leaderboard/scoring-and-ranking.md` | `backend/src/leaderboard.rs` |
-| Redesigning a screen or tweaking visual theme | `docs/features/frontend-ui/styling-and-tokens.md` | `frontend/src/theme/tokens.css` |
-| Linking external C++ or WASM pose trackers | `docs/features/developer-guides/tracker-integration.md` | `docs/INTEGRATION.md` |
+| Referee thresholds, lights, fault text | `features/referee-engine/README.md` | `pumpCourt/src/judge.ts` (`DIFFICULTY`), `frontend/src/config/modes.ts` (`REFEREE_RULES`) |
+| False or missed rep counts | `features/referee-engine/rep-segmentation.md` | `pumpCourt/src/judge.ts` (`SEGMENT`, `RepJudge`) |
+| Ready check / "get in position" | `features/referee-engine/ready-check-calibration.md` | `pumpCourt/src/posture.ts` (`POSTURE`) |
+| Camera choice, detection loop, model loading | `features/pose-tracking/README.md` | `frontend/src/logic/tracker/TrackerProvider.tsx`, `pumpCourt/src/landmarker.ts` |
+| Round clock, phases, Max idle limit | `features/game-engine/README.md` | `backend/src/game/session.rs`, `mode.rs` |
+| Adding or changing a mode | `features/game-engine/game-modes.md` | `backend/src/game/mode.rs`, `frontend/src/config/modes.ts` |
+| Phone pairing, QR, relay | `features/phone-camera/pairing-and-websocket.md` | `backend/src/phone/mod.rs`, `server.rs`, `frontend/src/logic/tracker/phoneLink.ts` |
+| Cloudflare tunnel | `features/phone-camera/internet-link.md` | `backend/src/phone/tunnel.rs` |
+| Sideways phone picture, ⟳ Rotate | `features/pose-tracking/README.md` (§5) | `frontend/src/logic/tracker/TrackerProvider.tsx`, `frontend/src/ui/components/CameraView.tsx`, `pumpCourt/src/phone/main.ts` |
+| Leaderboard queries or migration | `features/leaderboard/scoring-and-ranking.md` | `backend/src/leaderboard.rs` |
+| Screens, theme | `features/frontend-ui/styling-and-tokens.md` | `frontend/src/theme/tokens.css`, `frontend/src/ui/` |
 
 ---
 
 ## 3. Documentation Maintenance Protocol
 
-Whenever you perform a code modification, execute the following **Documentation Maintenance Checklist**:
+After a code change, run through this list:
 
 ```markdown
-- [ ] Check if struct fields in `backend/src/` were added or renamed.
-  ↳ If YES: Update `frontend/src/api/types.ts` AND `docs/features/<feature>/README.md`.
-- [ ] Check if `JudgeConfig` defaults were tuned in `backend/src/judge/config.rs`.
-  ↳ If YES: Update `docs/features/referee-engine/angles-and-biomechanics.md`.
-- [ ] Check if a new Tauri IPC command was added to `backend/src/lib.rs`.
-  ↳ If YES: Update `frontend/src/api/backend.ts`, `docs/ARCHITECTURE.md`, and the relevant feature README.
-- [ ] Check if a new screen, hook, or keyboard shortcut was added to the UI.
-  ↳ If YES: Update `docs/features/frontend-ui/state-and-hooks.md` and `docs/features/venue-operations/operator-runbook.md`.
+- [ ] Struct fields added or renamed in `backend/src/`?
+  ↳ Update `frontend/src/api/types.ts` AND the feature README that shows the struct.
+- [ ] `DIFFICULTY`, `SEGMENT` or `POSTURE` changed in `pumpCourt/src/`, or `REFEREE_RULES` in `frontend/src/config/modes.ts`?
+  ↳ Update `features/referee-engine/` (README, rep-segmentation, ready-check-calibration). A new posture state also needs a row in `Round.tsx` (`STEPS`, `ORDER`) and in the operator runbook.
+- [ ] Tauri command added to `backend/src/lib.rs`?
+  ↳ Update `frontend/src/api/backend.ts`, `docs/ARCHITECTURE.md` §3.2 and the feature README.
+- [ ] New screen, hook or key?
+  ↳ Update `features/frontend-ui/state-and-hooks.md` and `features/venue-operations/operator-runbook.md`.
+- [ ] Phone route, port or message changed?
+  ↳ Update `features/phone-camera/pairing-and-websocket.md`.
 ```
+
+Check that relative links in `docs/` still resolve after renaming or deleting a page.
 
 ---
 
 ## 4. Documentation File Header Standard
 
-Every technical markdown file in `docs/features/` adheres to this metadata header standard. When authoring or revising documentation files, maintain this format:
+Every page in `docs/features/` starts like this:
 
 ```markdown
 # Feature or Component Title
 
-> **Module**: \`backend/src/...` or \`frontend/src/...\`  
-> **Key Types**: \`TypeName1\`, \`TypeName2\`  
+> **Module**: `backend/src/...` or `frontend/src/...` or `pumpCourt/src/...`  
+> **Key Types**: `TypeName1`, `TypeName2`  
 > **Related Documents**: [Link to related doc](path/to/doc.md)  
 > **Maintenance Status**: Active / Core  
 
 ## Summary
-A concise 2-sentence explanation of what this component accomplishes.
+Two plain sentences on what this part does.
 ```

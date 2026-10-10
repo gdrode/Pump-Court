@@ -1,142 +1,128 @@
 # Pump-Court System Architecture
 
-> **Audience**: Systems Engineers, Architects, and AI Coding Agents  
-> **Status**: Verified Active Architecture  
+> **Audience**: Systems engineers, architects, and AI coding agents  
+> **Status**: Verified against the code on 2026-10-10  
 
 ---
 
 ## 1. High-Level Architecture Overview
 
-Pump-Court is structured as a **hybrid desktop-distributed application**. It unites an ultra-low-latency backend pipeline written in Rust with a dynamic, dual-window user interface rendered in React / TypeScript via Tauri 2.
+Pump-Court is a Tauri 2 desktop app. The work is split in two:
+
+* **The app window (TypeScript)** sees the player. It opens the camera, runs MediaPipe pose tracking, checks the push-up position, and judges each rep with three lights. This code is the teammate's tracker in `pumpCourt/src`, imported by the frontend as `@tracker/*`.
+* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, Max mode's idle limit), counts valid push-ups, saves results to SQLite, and serves phone cameras.
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                          EXTERNAL SENSORS & INPUTS                              │
-│                                                                                 │
-│  [ Laptop / USB Webcam ]                [ Mobile Phone over Local Wi-Fi ]       │
-│           │                                              │                      │
-│           │ (getUserMedia)                               │ (HTTPS + WSS Binary) │
-│           ▼                                              ▼                      │
-│   Frontend MediaPipe /                  Axum Local HTTPS Server (:47800)        │
-│   Native Video Capture                                   │ (JPEG Frames)        │
-│           │                                              ▼                      │
-│           │ (pushed frames via IPC)                  PhoneHub                   │
-│           │                                         /        \                  │
-│           │                  PhoneSource (Rust FFI)          Frontend Preview   │
-└───────────┼────────────────────────────┬─────────────────────────┼──────────────┘
-            │                            │                         │
-            ▼                            ▼                         │
-┌────────────────────────────────────────────────────────┐         │
-│               RUST BACKEND CORE ENGINE                 │         │
-│                                                        │         │
-│   ┌────────────────────────────────────────────────┐   │         │
-│   │ PoseSource Trait (Mock / Pushed / PhoneSource) │   │         │
-│   └───────────────────────┬────────────────────────┘   │         │
-│                           │ PoseFrame (landmarks, dims)│         │
-│                           ▼                            │         │
-│   ┌────────────────────────────────────────────────┐   │         │
-│   │ Session State Machine                          │   │         │
-│   │   ├── Ready Check (framing, FPS, plank hold)   │   │         │
-│   │   ├── Angles & Biomechanics (elbow, hip, knee) │   │         │
-│   │   └── RepTracker (3 Referees: Depth/Lock/Plank)│   │         │
-│   └───────────────┬────────────────┬───────────────┘   │         │
-│                   │                │                   │         │
-│       RepVerdict  │                │ RoundResult       │         │
-│                   ▼                ▼                   │         │
-│             App Events       Leaderboard (SQLite)      │         │
-│          ("rep", "tick")           │                   │         │
-│                   │          Hourly Backups            │         │
-└───────────────────┼────────────────┼───────────────────┘         │
-                    │                │                             │
-    IPC Event Stream│                │ Database Queries            │
-    (Tauri Emitter) │                │ (Tauri Commands)            │
-                    ▼                ▼                             │
-┌────────────────────────────────────────────────────────┐         │
-│                FRONTEND PRESENTATION LAYER             │         │
-│                                                        │         │
-│   ┌────────────────────────────────────────────────┐   │         │
-│   │ Logic Layer (React Hooks: useRound, etc.)      │◀──┼─────────┘
-│   └───────────────┬────────────────────────────────┘   │
-│                   │ UI State & Callbacks               │
-│                   ▼                                    │
-│   ┌────────────────────────────────────────────────┐   │
-│   │ Primary Screen (Operator Console)              │   │
-│   │   ├── Video & Skeleton (PoseView Canvas)       │   │
-│   │   ├── Referee Lights & Reason Alerts           │   │
-│   │   └── Match Management Controls                │   │
-│   └────────────────────────────────────────────────┘   │
-│                   │ CrowdView Broadcast                │
-│                   ▼                                    │
-│   ┌────────────────────────────────────────────────┐   │
-│   │ Secondary Screen (Crowd Stadium View #/crowd)  │   │
-│   │   ├── Fullscreen Scoreboard & Leaderboards     │   │
-│   │   ├── Live Rep Telemetry & Lights              │   │
-│   │   └── Recent Runs Carousel                     │   │
-│   └────────────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────┘
+┌──────────────────────────── CAMERAS ─────────────────────────────┐
+│ Laptop / USB webcam         Phone on Wi-Fi          Phone, any network
+│   (getUserMedia)            (WebRTC video)          (JPEG frames)
+└──────┬───────────────────────────┬──────────────────────┬────────┘
+       │                           │                      │ wss://<tunnel>/relay
+       │                           │                      ▼
+       │                           │        Rust HTTPS server :47800 (axum)
+       │                           │        PhoneHub room ── Tauri Channel ──┐
+       │                           │ offer/answer/ICE via the room (IPC)     │ JPEG bytes
+       ▼                           ▼                                         ▼
+┌──────────────────── OPERATOR WINDOW ("main", TypeScript) ────────────────────────┐
+│ TrackerProvider: one <video> ─▶ MediaPipe Pose Landmarker (GPU, else CPU)          │
+│   ─▶ pose.ts side tracker (angles) ─▶ posture.ts (ready? floor line)               │
+│   ─▶ useRound: judge.ts RepJudge (Depth / Torso / Lockout)                         │
+│        │ set_ready(bool)              │ report_rep({counted, perfect, lights, faults})
+└────────┼──────────────────────────────┼─────────────────────────────────────────────┘
+         ▼                              ▼
+┌──────────────────── RUST BACKEND (backend/src) ──────────────────────────────────┐
+│ commands.rs ─▶ mpsc channel ─▶ engine thread "pump-court-engine"                  │
+│                                  Session: idle → getReady → countdown → running   │
+│                                           → finished                              │
+│                                  emits "tick" (~10 Hz while a round is active),   │
+│                                        "rep", "round-finished"                    │
+│                                  saves RoundResult ─▶ SQLite runs(name,mode,reps) │
+└──────────────────────────────────────┬─────────────────────────────────────────────┘
+                                       │ events go to every window
+                     ┌─────────────────┴──────────────────┐
+                     ▼                                    ▼
+             Operator window (screens)          Crowd window ("crowd")
+                                                live count / all-time top 10
 ```
 
 ---
 
 ## 2. Core Subsystems and Responsibility Boundaries
 
-### 2.1 The Engine Thread (`backend/src/engine.rs`)
-- **Isolation**: Runs on a dedicated background thread spawned via `std::thread::Builder::new().name("pump-court-engine")`.
-- **Decoupling**: Never shares synchronous execution with the Tauri UI or Tokio runtime. If the UI lags or redraws, the 30–60Hz motion pipeline is completely unaffected.
-- **Message Loop**: Interacts with Tauri commands strictly through an asynchronous bounded channel (`std::sync::mpsc::Receiver<EngineCommand>`).
-- **Tick Dispatch**: Evaluates biomechanics and emits a `tick` event containing body angles, normalized coordinates, smoothed FPS, base64 JPEG preview (capped at ~15 Hz), and current session snapshot.
+### 2.1 Tracker and referee (`pumpCourt/src/`, used from `frontend/src/logic/`)
+- **Plain TypeScript**: `geometry.ts`, `pose.ts`, `posture.ts` and `judge.ts` have no camera or drawing code. They take numbers and return numbers, so they run the same live, in tests (`pumpCourt/src/__tests__/`) and on replayed logs.
+- **Runs in the operator window**: `frontend/src/logic/tracker/TrackerProvider.tsx` owns the one `<video>`, the rotated-picture `<canvas>`, the overlay `<canvas>` and the detection loop. The crowd window never runs the tracker.
+- **Rotation**: a phone on its side sends a sideways picture. The phone reports the turn it needs, or the operator presses **⟳ Rotate**; the tracker then turns the picture on the frame canvas and tracks that. See [Phone on its side](features/phone-camera/README.md#5-phone-on-its-side-rotation).
+- **Fixed rules**: `REFEREE_RULES = DIFFICULTY.normal` in `frontend/src/config/modes.ts` (lockout 155°, torso 155°, knee 150°, depth = shoulders drop at least 30% of the player's straight-arm top height, depth fallback 95°). The posture check also needs straight legs (knee ≥ 150°) before the countdown. There is no thresholds editor.
+- **Three lights**: Depth, Torso, Lockout. 2 or 3 white = a valid push-up (counted); 3 = perfect.
+- See [Pose Tracking](features/pose-tracking/README.md) and [Referee Engine](features/referee-engine/README.md).
 
-### 2.2 The Referee Pipeline (`backend/src/judge/`)
-- **Functional & Deterministic**: The judging calculations (`angles.rs`, `tracker.rs`, `ready.rs`) contain zero I/O, zero network dependencies, and zero GUI state.
-- **Three-Light Standard**:
-  1. **Depth**: Measures minimum elbow flexion during the rep descent phase (default `<= 90°`).
-  2. **Lockout**: Measures elbow extension on ascent, calibrated dynamically to athlete's starting anatomy (default `>= 160°`).
-  3. **Plank**: Measures hip angle (shoulder-hip-ankle) and knee angle (hip-knee-ankle) to ensure full body tension throughout the movement (default `>= 160°`).
-- **Anti-Cheat Hysteresis**:
-  - Requires `confirm_frames` (default 2 consecutive frames) at top and bottom reversal points to eliminate sensor noise / frame drops.
-  - Requires ascent margin (`25°`) before acknowledging the push-up ascent.
-  - Detects "redip" cheats (`20°` elbow drop after ascent before achieving lockout) and flags lockout failure.
+### 2.2 The engine thread (`backend/src/engine.rs`, `backend/src/game/`)
+- **Its own thread**, named `pump-court-engine`. Tauri commands only drop an `EngineCommand` into an `mpsc` channel; the thread never waits on the UI.
+- **Clock only**: the thread wakes every 100 ms (`TICK_INTERVAL`) while a round is on, moves the `Session` clock and emits `tick`. It does no image work.
+- **Session phases**: `idle → getReady → countdown (3 s) → running → finished`. `set_ready(true)` moves get-ready to countdown. Reps only count while running.
+- **Saving**: when a round finishes, the engine saves it to SQLite first, fills in `runId` and `rank`, then emits `round-finished`.
+- **Hourly backup**: the same thread writes a JSON backup every hour.
+- See [Game Engine](features/game-engine/README.md).
 
-### 2.3 The Phone Camera Bridge (`backend/src/phone/`)
-- **Zero-Install Client**: Any iOS or Android device connects through its native browser.
-- **Embedded Web Server**: Spawns an internal Axum HTTPS daemon on port `47800` using an ephemeral in-memory self-signed certificate.
-- **Binary JPEG WebSocket**: Ingests up to 30 frames per second of raw JPEG streams over `wss://<laptop-ip>:47800/ws?code=<pairing-code>`.
-- **Fan-Out Architecture**: `PhoneHub` dispatches frames both to native Rust consumers (`PhoneSource`) and browser subscribers via Tauri IPC (`subscribe_phone_frames`).
+### 2.3 Phone cameras (`backend/src/phone/`, `frontend/src/logic/tracker/`)
+- **HTTPS server** on port `47800` (axum + rustls), self-signed certificate made with `rcgen` at start-up.
+- **Pairing rooms** with 8-character codes. The app window is the room's host and talks to Rust over IPC (commands and Tauri Channels), never over the network.
+- **Phone · any network** (the default tab): a Cloudflare quick tunnel (`cloudflared`) gives a public address. The phone sends JPEG frames over `wss://<tunnel>/relay`; Rust forwards each frame to the app window over a Channel. Text notes on the same socket (`{type: "orientation", rotation}`) are checked by `PhoneHub::relay_text` and forwarded on the events Channel.
+- **Phone · same Wi-Fi (offline)**: WebRTC video goes straight from the phone to the app window. Rust only passes the offer, answer, ICE candidates and the phone's `{orientation}` (`/signal-http/*`).
+- **Tunnel guard**: requests that come through the tunnel may only reach `/phone.html` and `/relay`.
+- See [Phone Camera](features/phone-camera/README.md).
 
-### 2.4 Persistence Layer (`backend/src/leaderboard.rs`)
-- **Storage Engine**: Embedded SQLite database via `rusqlite` bundled statically with the binary.
-- **Data Integrity**: Enforces strict transactions, schema migrations on startup, and hourly JSON file exports to prevent data loss during long tournament days.
-- **Validation**: Enforces 12-character display name limits, Unicode whitespace normalization, and a profane keyword blocklist.
+### 2.4 Persistence (`backend/src/leaderboard.rs`)
+- **SQLite** via `rusqlite` with the `bundled` feature, file `pump-court.sqlite3` in the app data folder.
+- **One table**: `runs(id, name, mode, reps)`. Only name, mode and valid push-ups are stored.
+- **Boards**: each player's best run, per mode or across all modes (all time).
+- **Names**: 12 characters at most, blocklist checked (`validate_name`).
+- See [Leaderboard](features/leaderboard/README.md).
 
-### 2.5 Dual-Window Frontend (`frontend/src/`)
-- **Tauri IPC Contract**: Defined in `frontend/src/api/backend.ts` and mirrored strictly with Rust structs in `frontend/src/api/types.ts`.
-- **Presentation / Logic Decoupling**: Visual components in `frontend/src/ui/` do not call Tauri backend commands directly; they consume state through modular React hooks in `frontend/src/logic/`.
-- **Dual Display Model**:
-  - Window 1 (`/`): The Operator Control Station.
-  - Window 2 (`#/crowd`): The Crowd Stadium Projector. Synchronized in real time via backend `CrowdView` state broadcasts.
+### 2.5 Two windows (`frontend/src/`)
+- **Operator window** (label `main`): all screens, the camera and the tracker.
+- **Crowd window** (label `crowd`): opened by `open_crowd_window`, loads the same `index.html`. `App.tsx` checks the window label (`isCrowdWindow()` in `api/backend.ts`) and shows only the crowd screen.
+- **Layers**: `ui/` never calls Tauri; it uses hooks in `logic/`, which use `api/backend.ts`.
+- See [Frontend UI](features/frontend-ui/README.md).
 
 ---
 
 ## 3. Data Contracts & IPC Message Specification
 
-### 3.1 Backend Events (Rust ➔ React)
-Events are broadcast to all open Tauri windows using `app.emit(event, payload)`:
+Rust structs and their TypeScript mirrors in `frontend/src/api/types.ts` must match. Rust `snake_case` fields become `camelCase` in JSON (`#[serde(rename_all = "camelCase")]`).
 
-| Event Name | Frequency | Payload Type | Description |
+### 3.1 Backend events (Rust ➔ every window)
+
+| Event | When | Payload | Description |
 | :--- | :--- | :--- | :--- |
-| `tick` | Per video frame (~30–60Hz) | `Tick` | Coordinates, smoothed angles, FPS, session state, optional base64 JPEG |
-| `rep` | On rep completion | `RepVerdict` | Attempt index, pass/fail status, 3 lights, detailed fault messages |
-| `round-finished` | Round conclusion | `RoundResult` | Final clean rep count, accuracy, duration, rank, fault breakdown |
-| `phone-status` | On connection change | `PhoneStatus` | Client device name, stream resolution, frame rate, server state |
-| `source-status` | On camera source change | `SourceStatus` | Camera running flag, active error message |
+| `tick` | about 10 times a second while a round is active, and after every engine command | `SessionSnapshot` | phase, mode, player, `inPosition`, `countdownMs`, `elapsedMs`, `remainingMs`, `idleRemainingMs`, `reps`, `attempts`, `perfect`, `lastRep` |
+| `rep` | each rep reported while the clock runs | `RepVerdict` | `attempt`, `counted`, `perfect`, `lights {depth, torso, lockout}`, `faults[]` |
+| `round-finished` | once, at the end of a round (already saved) | `RoundResult` | `mode`, `player`, `reps`, `attempts`, `perfect`, `noReps {depth, torso, lockout}`, `durationMs`, `runId`, `rank` |
 
-### 3.2 Key Tauri Commands (React ➔ Rust)
-Commands are registered in `backend/src/lib.rs` and invoked through `invoke(command_name, args)`:
+### 3.2 Tauri commands (React ➔ Rust)
 
-- `start_source(spec: SourceSpec)`: Selects between `mock`, `camera`, `pushed`, or `file`.
-- `start_round(mode: RoundMode, player: String, is_team: bool)`: Initializes a competitive match.
-- `cancel_round()`: Aborts an active round.
-- `get_leaderboard(category: Category, include_team: bool, limit: u32)`: Queries top scores.
-- `set_crowd_view(view: CrowdView)`: Switches the crowd display mode between leaderboards and recent rounds.
-- `get_phone_link()`: Returns local Wi-Fi URL, pairing code, and SVG QR code string.
-- `push_pose_frame(frame: PushedPoseFrame)`: Ingests client-side MediaPipe landmark detections.
+Registered in `backend/src/lib.rs`, wrapped in `frontend/src/api/backend.ts`.
+
+| Command | Arguments | Returns | Job |
+| :--- | :--- | :--- | :--- |
+| `check_name` | `name` | cleaned name | Same rules as `start_round` |
+| `start_round` | `mode`, `player` | – | New round, waits in `getReady` |
+| `cancel_round` | – | – | Back to idle, nothing saved |
+| `set_ready` | `ready: bool` | – | Posture check changed; `true` in `getReady` starts the countdown |
+| `report_rep` | `rep: RepReport` | – | A judged rep; counted only while running |
+| `get_leaderboard` | `mode: RoundMode \| null`, `limit` | `LeaderboardRow[]` | Best run per player; `null` = all time |
+| `get_player_count` | – | number | Different names that have played |
+| `delete_run` | `runId` | – | Moderation and "Discard" |
+| `export_backup` | – | file path | JSON backup now |
+| `open_crowd_window` | – | – | Opens or focuses the `crowd` window (an `async` command) |
+| `phone_open` | `events: Channel`, `frames: Channel` | 8-character room code | Opens a pairing room |
+| `phone_signal` | `room`, `data` | – | The app's WebRTC answer or ICE candidate, for the phone |
+| `phone_close` | `room` | – | Closes the room; the phone is told |
+| `phone_lan` | – | `LanInfo` | Laptop addresses for the QR code, Bonjour name, port, server error |
+| `tunnel_status` / `tunnel_start` / `tunnel_stop` | – | `TunnelStatus` | The "Phone · any network" Cloudflare tunnel |
+
+`open_crowd_window` must stay `async`: on Windows, creating a window inside a plain (sync) command deadlocks the app. That bug froze every button and left the crowd window blank.
+
+### 3.3 Linux camera permission
+On Linux the web view (webkit2gtk) keeps the camera and WebRTC off. `allow_camera` in `backend/src/lib.rs` turns on media streams and WebRTC for the `main` window and allows its permission requests.

@@ -2,6 +2,20 @@
 
 Short, plain-words log of each work session. Newest first.
 
+## 2026-10-10 (later) — Windows demo fixes, merge with main
+
+**Reported:** webcam shows `NotReadableError: Could not start video source`; phone over "any network" shows a Cloudflare tunnel error.
+
+**Done:**
+- Busy webcam now says so in plain words (close the other app/tab). `frontend/src/logic/tracker/TrackerProvider.tsx`
+- Tunnel now points cloudflared at `127.0.0.1` instead of `localhost` (Windows could pick IPv6, which the app doesn't listen on). `backend/src/phone/tunnel.rs`, `pumpCourt/server/tunnel.ts`
+- Merged `main` (teammate's new depth rule, knee check, Cloudflare link, 1v1). Kept the earlier posture fixes on top. Stress tests updated: knee push-ups now never count; half-rep test uses a shallower rep.
+- Docs: [Internet link](features/phone-camera/internet-link.md), [Troubleshooting](features/venue-operations/troubleshooting.md).
+
+**Note:** with the new relative depth rule, a rep going about halfway down (≈ 30–35 % drop) passes Depth on Normal.
+
+**Checks:** `pumpCourt` 334 / 334 tests pass; `frontend` typecheck clean. Rust not built here (cloud box lacks GUI libraries).
+
 ## 2026-10-10 — Phone pairing fix, posture gate, abdominal torso point
 
 **Asked for:**

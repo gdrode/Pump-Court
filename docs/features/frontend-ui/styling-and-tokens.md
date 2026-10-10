@@ -1,61 +1,61 @@
-# Design Tokens, Theming & PoseView Canvas Rendering
+# Design Tokens, Sketchbook Theme & the Camera View
 
-> **Module**: `frontend/src/theme/tokens.css`, `frontend/src/ui/components/PoseView.tsx`  
-> **Key Files**: `tokens.css`, `styles.css`, `PoseView.tsx`, `pumpCourt/src/draw.ts`  
+> **Module**: `frontend/src/theme/`, `frontend/src/ui/components/`  
+> **Key Files**: `tokens.css`, `styles.css`, `SketchDefs.tsx`, `Dragon.tsx`, `Lights.tsx`, `CameraView.tsx`  
 > **Related Documents**: [Frontend UI Overview](README.md), [Pose Tracking Overview](../pose-tracking/README.md)  
 > **Maintenance Status**: Active / Design System  
 
 ---
 
-## 1. Design Token System (`tokens.css`)
+## 1. Design Tokens (`tokens.css`)
 
-All visual styling—colors, surface contrasts, border radii, referee light dimensions, typography, and skeleton rendering colors—is parameterized as standard CSS Custom Properties in `frontend/src/theme/tokens.css`.
+All colors, the font and the corner shape are CSS custom properties in `frontend/src/theme/tokens.css`. A restyle starts there; no TSX changes are needed.
 
-A developer or designer can completely transform the visual theme (e.g., light mode, high-contrast tournament theme, brand colors) without altering any React code or TSX components.
-
-### Core Token Palette:
 ```css
 :root {
-  /* Surfaces & Backgrounds */
-  --bg-app: #0f1117;
-  --bg-surface: #1a1d26;
-  --bg-surface-elevated: #242836;
-  --border-subtle: rgba(255, 255, 255, 0.08);
-
-  /* Typography */
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --text-primary: #ffffff;
-  --text-muted: #8e95a5;
-
-  /* Referee Light Tokens */
-  --light-size-operator: 48px;
-  --light-size-crowd: 140px;
-  --light-white-glow: rgba(255, 255, 255, 0.8);
-  --light-red: #ff3b30;
-  --light-red-glow: rgba(255, 59, 48, 0.8);
-
-  /* Pose Skeleton Tokens */
-  --skeleton-bone: #00e5ff;
-  --skeleton-joint: #ffffff;
-  --skeleton-depth-arc: #ffe600;
+  --paper: #f3ecd9;        /* page background */
+  --card: #fffaf0;         /* panels and cards */
+  --ink: #241f1a;          /* lines and text */
+  --ink-soft: #6e665a;     /* secondary text */
+  --faint: #d9cfb6;        /* dashed rules */
+  --green: #4f9a3e;        /* the one accent (dragon green) */
+  --green-light: #dcedc8;
+  --cream: #f6e6ab;        /* hover / highlight */
+  --red: #d2452e;          /* no-reps */
+  --red-light: #f6d3c8;
+  --font: 'Patrick Hand', 'Comic Neue', 'Chalkboard SE', 'Comic Sans MS', cursive;
+  --r: 14px 22px 12px 20px / 20px 12px 22px 14px;  /* uneven, hand-drawn corners */
+  --video-bg: #2b2620;     /* behind the camera picture */
+  --qr-bg: #ffffff;        /* phone QR code background, keep light */
 }
 ```
 
+`styles.css` holds layout and animations and uses only these tokens. The skeleton colors are **not** tokens: the skeleton is drawn by the tracker's own `pumpCourt/src/draw.ts`.
+
 ---
 
-## 2. Real-Time Canvas Skeleton Rendering (`PoseView`)
+## 2. Sketchbook Elements
 
-`PoseView.tsx` renders the athlete's camera feed and anatomical skeleton overlay using an HTML5 `<canvas>` element at 60Hz.
+- **Font**: `@fontsource/patrick-hand` is an npm package, bundled into the build. It works with no internet.
+- **Hand-drawn borders**: any element with class `sketch` gets a border drawn by `.sketch::before`. `SketchDefs.tsx` renders the SVG filters `#rough` and `#rough-sm` once per window; they roughen the edges.
+- **Referee lights**: `Lights.tsx` draws one lamp per referee: **Depth, Torso, Lockout** (names and order from `@tracker/judge`). White = pass, red = fault, empty = waiting. Under the lamps, a list of the faults, e.g. "Not deep enough: elbows only bent to 104° (needs 95°; hands not visible)". The crowd window hides that list. A new `flashKey` re-flashes the lamps even when two reps get the same calls.
+- **Dragon host**: `Dragon.tsx` is an animated SVG with a speech bubble. Moves are CSS animations in `styles.css`:
+  - `curl` (dumbbell curls), `cheer` (jump), `sad` (head shake + sweat), `hype` (bouncing dance + sparkles), `hurry` (frantic), `wave`, `idle`.
+  - The `beat` prop replays a one-shot move, e.g. on every rep.
+- **Dragon lines**: all text the dragon says is in `ui/host.ts`.
+- **Dragon reactions**: `ui/hostMood.ts` picks the move and line during a round: no-rep → sad (and names the red light), just passed the best → hype, last five seconds → hurry, valid rep → cheer (hype when ahead), no rep for 2.5 s → hurry. The round screen and the crowd window share it.
+- **Reduced motion**: with the OS "reduce motion" setting on, all animations and transitions are off.
 
-### Rendering Pipeline:
-1. **Background Video / Preview**:
-   - If connected to local webcam: renders HTML5 `<video>` directly onto canvas.
-   - If connected to phone camera / pushed frames: decodes base64 JPEG from `Tick.preview`.
-2. **Skeleton Bones**:
-   - Connects Shoulder ➔ Elbow ➔ Wrist.
-   - Connects Shoulder ➔ Hip ➔ Knee ➔ Ankle.
-   - Draws only the tracked side facing the camera (preventing confusing overlapping lines from the hidden limb).
-3. **Joint Markers**:
-   - Renders 4px circles on active joints.
-4. **Depth Inflection Arc**:
-   - Renders a dynamic colored angle arc around the tracked elbow vertex, visually illustrating current arm flexion compared to the 90° depth threshold.
+---
+
+## 3. The Camera View (`CameraView`)
+
+`CameraView.tsx` gives the camera a place on screen. It does not draw anything itself:
+
+1. On mount it calls `tracker.attach(element)`. `TrackerProvider` moves its single `<video>`, the rotated-picture canvas (`canvas.camera-view__frame`) and the overlay `<canvas>` into that element. Detection only runs while a view is attached. When the picture is turned (rotation not 0), the video is `hidden` and the frame canvas shows instead; `.camera-view__media [hidden]` keeps it out of sight.
+2. The tracker draws the tracked side's skeleton on the overlay canvas each frame (`drawOverlay` from `@tracker/draw`).
+3. On top, a note shows the camera error, a model error, or "Loading tracking…" until the pose model is ready.
+
+4. With `rotatable`, a row at the bottom right (`.camera-view__rotate`, cream sketch boxes) shows the turn ("90° auto"), **⟳ Rotate** and, after a manual turn, **auto**.
+
+The Round screen and the Camera screen each show one `CameraView`. The Camera screen is always `rotatable`; the Round screen only until the clock runs (`round.phase !== "running"`). See [Pose Tracking](../pose-tracking/README.md#5-picture-rotation).

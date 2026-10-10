@@ -1,21 +1,19 @@
-//! The engine: one background thread that runs the whole live pipeline.
+//! The engine: one background thread that runs the round clock.
 //!
 //! ```text
-//! PoseSource ──frame──▶ Session (angles → ready check → rep tracker → referees)
-//!                           │
-//!                           ├─▶ "tick" event every frame  (skeleton, angles, timer, count)
-//!                           ├─▶ "rep" event per judged rep (lights + sounds)
-//!                           └─▶ "round-finished" event      (results, saved to SQLite)
+//! tracker (app window) ── set_ready / report_rep ──▶ Session
+//!                                                     │
+//!                         "tick" ~10× a second ◀──────┤  (timer, count, lights)
+//!                         "rep" per judged rep  ◀─────┤
+//!                         "round-finished"      ◀─────┘  (saved to SQLite first)
 //! ```
 //!
-//! The UI never blocks the camera: Tauri commands just drop an
-//! [`EngineCommand`] into a channel, and the thread picks it up between frames.
+//! Events go to every window, so the operator screen and the crowd screen
+//! always agree. Tauri commands only drop an [`EngineCommand`] into a channel;
+//! nothing here ever waits on the UI.
 
-use crate::game::{RoundMode, RoundResult, Session, SessionSnapshot};
-use crate::judge::{BodyAngles, JudgeConfig, RepVerdict};
+use crate::game::{RepReport, RoundMode, RoundResult, Session};
 use crate::leaderboard::Leaderboard;
-use crate::pose::{open_source, Landmark, PoseSource, SourceDeps, SourceSpec};
-use base64::Engine as _;
 use serde::Serialize;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
@@ -24,43 +22,22 @@ use tauri::{AppHandle, Emitter};
 
 /// Messages the commands send to the engine thread.
 pub enum EngineCommand {
-    SetSource(SourceSpec),
-    StopSource,
-    StartRound { mode: RoundMode, player: String, is_team: bool },
+    StartRound { mode: RoundMode, player: String },
     CancelRound,
-    SetConfig(JudgeConfig),
+    /// The tracker's posture check: is the player in the push-up position?
+    SetReady(bool),
+    ReportRep(RepReport),
 }
 
-/// Sent to every window once per frame.
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct Tick {
-    width: u32,
-    height: u32,
-    landmarks: Option<Vec<Landmark>>,
-    angles: Option<BodyAngles>,
-    fps: f32,
-    /// `data:image/jpeg;base64,...`, at most ~15 times a second.
-    preview: Option<String>,
-    session: SessionSnapshot,
-}
-
-#[derive(Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-struct SourceStatus {
-    running: bool,
-    error: Option<String>,
-}
-
-const PREVIEW_INTERVAL: Duration = Duration::from_millis(66);
+const TICK_INTERVAL: Duration = Duration::from_millis(100);
 const BACKUP_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 /// Starts the engine thread and returns the channel to talk to it.
-pub fn spawn(app: AppHandle, db: Arc<Mutex<Leaderboard>>, config: JudgeConfig, deps: SourceDeps) -> Sender<EngineCommand> {
+pub fn spawn(app: AppHandle, db: Arc<Mutex<Leaderboard>>) -> Sender<EngineCommand> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::Builder::new()
         .name("pump-court-engine".into())
-        .spawn(move || Engine::new(app, db, config, deps).run(rx))
+        .spawn(move || Engine::new(app, db).run(rx))
         .expect("failed to start engine thread");
     tx
 }
@@ -68,59 +45,34 @@ pub fn spawn(app: AppHandle, db: Arc<Mutex<Leaderboard>>, config: JudgeConfig, d
 struct Engine {
     app: AppHandle,
     db: Arc<Mutex<Leaderboard>>,
-    config: JudgeConfig,
-    deps: SourceDeps,
-    source: Option<Box<dyn PoseSource>>,
     session: Session,
-    fps: f32,
-    last_frame_at: Option<Instant>,
-    last_preview_at: Option<Instant>,
+    clock: Instant,
     last_backup_at: Instant,
 }
 
 impl Engine {
-    fn new(app: AppHandle, db: Arc<Mutex<Leaderboard>>, config: JudgeConfig, deps: SourceDeps) -> Self {
-        Self {
-            app,
-            db,
-            session: Session::new(config.clone()),
-            config,
-            deps,
-            source: None,
-            fps: 0.0,
-            last_frame_at: None,
-            last_preview_at: None,
-            last_backup_at: Instant::now(),
-        }
+    fn new(app: AppHandle, db: Arc<Mutex<Leaderboard>>) -> Self {
+        Self { app, db, session: Session::new(), clock: Instant::now(), last_backup_at: Instant::now() }
+    }
+
+    fn now(&self) -> i64 {
+        self.clock.elapsed().as_millis() as i64
     }
 
     fn run(mut self, rx: Receiver<EngineCommand>) {
+        let mut next_tick = Instant::now();
         loop {
-            // 1. Handle any waiting commands. With no source, sleep until one arrives.
-            if self.source.is_none() {
-                match rx.recv_timeout(Duration::from_millis(200)) {
-                    Ok(cmd) => self.handle(cmd),
-                    Err(RecvTimeoutError::Timeout) => {}
-                    Err(RecvTimeoutError::Disconnected) => return, // app is closing
+            let wait = next_tick.saturating_duration_since(Instant::now());
+            match rx.recv_timeout(wait) {
+                Ok(cmd) => {
+                    self.handle(cmd);
+                    continue;
                 }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return, // the app is closing
             }
-            while let Ok(cmd) = rx.try_recv() {
-                self.handle(cmd);
-            }
-
-            // 2. Process one frame.
-            if let Some(source) = self.source.as_mut() {
-                match source.next_frame() {
-                    Ok(frame) => self.on_frame(frame),
-                    Err(error) => {
-                        self.source = None;
-                        self.session.cancel();
-                        self.emit("source-status", SourceStatus { running: false, error: Some(error) });
-                    }
-                }
-            }
-
-            // 3. Hourly backup.
+            next_tick = Instant::now() + TICK_INTERVAL;
+            self.tick();
             if self.last_backup_at.elapsed() >= BACKUP_INTERVAL {
                 self.last_backup_at = Instant::now();
                 let _ = self.db.lock().unwrap().export_backup();
@@ -129,85 +81,38 @@ impl Engine {
     }
 
     fn handle(&mut self, cmd: EngineCommand) {
+        let now = self.now();
         match cmd {
-            EngineCommand::SetSource(spec) => {
-                self.session.cancel();
-                self.fps = 0.0;
-                self.last_frame_at = None;
-                match open_source(&spec, &self.deps) {
-                    Ok(source) => {
-                        self.source = Some(source);
-                        self.emit("source-status", SourceStatus { running: true, error: None });
-                    }
-                    Err(error) => {
-                        self.source = None;
-                        self.emit("source-status", SourceStatus { running: false, error: Some(error) });
-                    }
+            EngineCommand::StartRound { mode, player } => self.session.start(mode, player, now),
+            EngineCommand::CancelRound => self.session.cancel(),
+            EngineCommand::SetReady(ready) => self.session.set_ready(ready, now),
+            EngineCommand::ReportRep(rep) => {
+                if let Some(verdict) = self.session.report_rep(rep, now) {
+                    self.emit("rep", verdict);
                 }
             }
-            EngineCommand::StopSource => {
-                self.source = None;
-                self.session.cancel();
-                self.emit("source-status", SourceStatus { running: false, error: None });
-            }
-            EngineCommand::StartRound { mode, player, is_team } => {
-                self.session.start(mode, player, is_team, self.config.clone());
-            }
-            EngineCommand::CancelRound => self.session.cancel(),
-            EngineCommand::SetConfig(cfg) => self.config = cfg,
         }
+        self.emit("tick", self.session.snapshot());
     }
 
-    fn on_frame(&mut self, frame: crate::pose::PoseFrame) {
-        // Measured frame rate (smoothed), used by the ready check.
-        let now = Instant::now();
-        if let Some(prev) = self.last_frame_at {
-            let instant_fps = 1.0 / now.duration_since(prev).as_secs_f32().max(1e-3);
-            self.fps = if self.fps == 0.0 { instant_fps } else { self.fps * 0.9 + instant_fps * 0.1 };
+    fn tick(&mut self) {
+        if !self.session.is_active() {
+            return;
         }
-        self.last_frame_at = Some(now);
-
-        let outcome = self.session.update(&frame, self.fps);
-
-        if let Some(verdict) = &outcome.verdict {
-            self.emit::<RepVerdict>("rep", verdict.clone());
-        }
-        if let Some(result) = outcome.finished {
+        let finished = self.session.tick(self.now());
+        self.emit("tick", self.session.snapshot());
+        if let Some(result) = finished {
             let result = self.save(result);
             self.emit("round-finished", result);
         }
-
-        let preview = frame.preview_jpeg.as_ref().filter(|_| {
-            let due = self.last_preview_at.map_or(true, |t| t.elapsed() >= PREVIEW_INTERVAL);
-            if due {
-                self.last_preview_at = Some(now);
-            }
-            due
-        });
-        let tick = Tick {
-            width: frame.width,
-            height: frame.height,
-            landmarks: frame.landmarks.clone(),
-            angles: outcome.angles,
-            fps: self.fps,
-            preview: preview.map(|jpeg| {
-                format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(jpeg))
-            }),
-            session: self.session.snapshot(),
-        };
-        self.emit("tick", tick);
     }
 
-    /// Posts a valid round to the leaderboard and fills in its rank.
+    /// Posts the round to the leaderboard and fills in its rank.
     fn save(&self, mut result: RoundResult) -> RoundResult {
-        let category = result.mode.category();
-        if result.voided.is_some() {
-            return result;
-        }
         let db = self.db.lock().unwrap();
-        if let Ok(id) = db.save_run(category, &result) {
+        if let Ok(id) = db.save_run(&result.player, result.mode, result.reps) {
             result.run_id = Some(id);
-            result.rank = db.rank_of(category, &result.player).ok().flatten();
+            result.rank = db.rank_of(Some(result.mode), &result.player).ok().flatten();
         }
         result
     }

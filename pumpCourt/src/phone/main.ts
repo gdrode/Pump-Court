@@ -7,11 +7,15 @@ const startBtn = document.getElementById('start') as HTMLButtonElement
 const flipBtn = document.getElementById('flip') as HTMLButtonElement
 
 const room = new URLSearchParams(location.search).get('room') ?? ''
+/** 'relay' when opened through the internet link: frames go through the server instead of WebRTC. */
+const relayMode = new URLSearchParams(location.search).get('mode') === 'relay'
 let facing: 'environment' | 'user' = 'environment'
 let stream: MediaStream | null = null
 let pc: RTCPeerConnection | null = null
 let channel: SignalChannel | null = null
 let wakeLock: { release(): Promise<void> } | null = null
+let relay: WebSocket | null = null
+let relayTimer = 0
 // ICE candidates that arrive before the laptop's answer, applied once it lands.
 let pendingCandidates: RTCIceCandidateInit[] = []
 
@@ -59,6 +63,7 @@ async function startPeer() {
 
 /** Stop filming and go back to the Start screen. */
 function teardown(message: string, kind: '' | 'err' = '') {
+  stopRelay()
   const peer = pc
   pc = null
   peer?.close()
@@ -104,6 +109,7 @@ async function onSignal(data: SignalData) {
 }
 
 function connect() {
+  sentRotation = null
   status('Connecting to the laptop…')
   const me = httpSignal(room, 'phone', (msg: ServerMessage) => {
     if (me !== channel) return // torn down on purpose
@@ -132,8 +138,112 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && stream) keepAwake()
 })
 
+// --- Internet link: JPEG frames over a WebSocket through the relay ----------
+/** Frame width sent through the relay: enough for pose tracking, small enough for a phone's upload. */
+const RELAY_WIDTH = 640
+const RELAY_QUALITY = 0.6
+/** Skip a frame when this much is still waiting to be sent: keeps the delay down on a slow connection. */
+const RELAY_BACKLOG = 256 * 1024
+
+function stopRelay() {
+  clearInterval(relayTimer)
+  const ws = relay
+  relay = null
+  ws?.close()
+}
+
+function connectRelay() {
+  sentRotation = null
+  status('Connecting to the laptop over the internet…')
+  const ws = new WebSocket(`wss://${location.host}/relay?room=${encodeURIComponent(room)}&role=phone`)
+  relay = ws
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  let busy = false
+  const sendFrame = () => {
+    if (relay !== ws || ws.readyState !== WebSocket.OPEN || busy || ws.bufferedAmount > RELAY_BACKLOG || !preview.videoWidth) return
+    canvas.width = RELAY_WIDTH
+    canvas.height = Math.round((RELAY_WIDTH * preview.videoHeight) / preview.videoWidth)
+    ctx.drawImage(preview, 0, 0, canvas.width, canvas.height)
+    busy = true
+    canvas.toBlob((blob) => {
+      busy = false
+      if (blob && relay === ws && ws.readyState === WebSocket.OPEN) ws.send(blob)
+    }, 'image/jpeg', RELAY_QUALITY)
+  }
+  ws.onopen = () => {
+    status('Streaming to the laptop (internet link)', 'ok')
+    relayTimer = window.setInterval(sendFrame, 1000 / PHONE_FPS)
+  }
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(String(e.data)) as { type: string; message?: string }
+    if (msg.type === 'error') teardown(msg.message ?? 'Could not connect.', 'err')
+    else if (msg.type === 'peer-left') teardown('The laptop closed this camera. Scan a new code to reconnect.')
+  }
+  ws.onclose = (e) => {
+    if (relay !== ws) return // closed on purpose
+    teardown(e.code === 4000 ? 'Another phone took over this code.' : 'Lost the connection to the laptop. Reload to try again.', 'err')
+  }
+}
+
+// --- Which way up the phone is --------------------------------------------------
+// Propped on its side with rotation lock on, the phone keeps sending a portrait
+// picture, so the player appears lying sideways. Gravity says how the phone is
+// really held (it works with rotation lock on); the laptop turns the picture.
+let gravity: { x: number; y: number } | null = null
+let sentRotation: number | null = null
+window.addEventListener('devicemotion', (e) => {
+  const g = e.accelerationIncludingGravity
+  if (g?.x != null && g.y != null) gravity = { x: g.x, y: g.y }
+})
+/** iOS reports gravity with the opposite sign to the web standard. */
+const gravitySign = /iPhone|iPad|iPod/.test(navigator.userAgent) ? -1 : 1
+
+/** Clockwise turn that makes the picture upright, or null when unsure. */
+function neededRotation(): number | null {
+  if (!gravity || !preview.videoWidth) return null
+  const x = gravity.x * gravitySign, y = gravity.y * gravitySign
+  const frameLandscape = preview.videoWidth > preview.videoHeight
+  if (Math.abs(x) > Math.abs(y) * 1.3) {
+    // Held sideways. A landscape picture is already upright (rotation not locked).
+    if (frameLandscape) return 0
+    return x > 0 ? 90 : 270
+  }
+  if (Math.abs(y) > Math.abs(x) * 1.3) {
+    // Held upright (or upside down).
+    if (frameLandscape) return y > 0 ? 270 : 90
+    return y > 0 ? 0 : 180
+  }
+  return null // flat on a table or mid-turn: keep the last answer
+}
+
+function sendRotation(rotation: number) {
+  if (relayMode) {
+    if (relay?.readyState === WebSocket.OPEN) relay.send(JSON.stringify({ type: 'orientation', rotation }))
+  } else send({ orientation: rotation })
+}
+
+setInterval(() => {
+  const r = neededRotation()
+  if (r == null || r === sentRotation) return
+  if (relayMode ? relay?.readyState !== WebSocket.OPEN : !channel) return
+  sentRotation = r
+  sendRotation(r)
+}, 700)
+
+async function askMotionPermission() {
+  // iOS asks before giving motion data; it must be asked from a tap.
+  const DM = window.DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> } | undefined
+  try {
+    await DM?.requestPermission?.()
+  } catch {
+    // Declined: the laptop's Rotate button still works.
+  }
+}
+
 startBtn.onclick = async () => {
   if (!room) return status('Missing pairing code. Scan the QR code on the laptop again.', 'err')
+  void askMotionPermission()
   if (!window.isSecureContext || !navigator.mediaDevices) return status('The camera needs https. Open the exact link from the QR code.', 'err')
   try {
     await openCamera()
@@ -143,7 +253,8 @@ startBtn.onclick = async () => {
   startBtn.hidden = true
   flipBtn.hidden = false
   keepAwake()
-  connect()
+  if (relayMode) connectRelay()
+  else connect()
 }
 
 flipBtn.onclick = async () => {
@@ -162,4 +273,5 @@ window.addEventListener('pagehide', () => {
   void wakeLock?.release()
   channel?.close()
   pc?.close()
+  stopRelay()
 })

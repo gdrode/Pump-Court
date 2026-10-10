@@ -1,4 +1,4 @@
-# Automated Backups & Disaster Recovery
+# Backups & Recovery
 
 > **Module**: `backend/src/leaderboard.rs` and `backend/src/engine.rs`  
 > **Key Types**: `BackupRun`, `Leaderboard::export_backup`  
@@ -7,34 +7,42 @@
 
 ---
 
-## 1. Automated Hourly JSON Snapshots
+## 1. Hourly JSON backups
 
-Live events run for 8–12 hours continuously. To protect tournament results against accidental laptop battery death, accidental OS restarts, or operator errors:
+Events run all day. To protect the board against a dead battery, a crash or a mistake:
 
-- Every 60 minutes (`BACKUP_INTERVAL = 3600s`), the background `pump-court-engine` thread automatically calls `db.export_backup()`.
-- The snapshot exports every run into an unencrypted, human-readable JSON array.
-- Files are saved with ISO timestamps:
-  `app_data_dir/backups/pump_court_backup_2026-10-10_14-00-00.json`
-
----
-
-## 2. Manual Backup Export
-
-Operators can trigger a backup at any time from the Leaderboard screen:
-- Press **L** to open the Leaderboard.
-- Click **Export Backup**.
-- Tauri invokes `commands::export_backup()`, creating an instant snapshot and returning the absolute path to the file.
+- Every hour (`BACKUP_INTERVAL` in `engine.rs`), the engine thread calls `export_backup()`.
+- It writes every stored run to a human-readable JSON file: `[{ "id": 1, "name": "Ana", "mode": "sprint", "reps": 21 }, …]`.
+- Files go to a `backups` folder next to the database, named with the time in milliseconds since 1970:
+  `<app data>/backups/runs-1791640800000.json`
 
 ---
 
-## 3. Disaster Recovery Protocol
+## 2. Backup now
 
-If the SQLite database file (`pump_court.db`) is corrupted or deleted:
-1. Locate the latest JSON backup file in the app data folder:
-   - **macOS**: `~/Library/Application Support/com.pumpcourt.app/backups/`
-   - **Linux**: `~/.local/share/com.pumpcourt.app/backups/`
-   - **Windows**: `%APPDATA%\com.pumpcourt.app\backups\`
-2. The JSON records map directly to the `runs` schema and can be restored using the sqlite3 CLI:
-   ```bash
-   sqlite3 pump_court.db
+On the Leaderboard screen (**L** on Home), press **B** (or click "Backup file"). The app calls `export_backup` and shows "Backup written to …" with the full path.
+
+---
+
+## 3. Recovery
+
+The database is `pump-court.sqlite3` in the app data folder:
+
+- **Windows**: `%APPDATA%\com.pumpcourt.app\`
+- **macOS**: `~/Library/Application Support/com.pumpcourt.app/`
+- **Linux**: `~/.local/share/com.pumpcourt.app/`
+
+If it is lost or damaged:
+1. Quit the app.
+2. Move the damaged `pump-court.sqlite3` (and any `-wal` / `-shm` files next to it) somewhere safe.
+3. Start the app once to create an empty database, then quit it again.
+4. Load the newest `backups/runs-*.json` back in, for example with Python:
+   ```python
+   import json, sqlite3
+   rows = json.load(open("runs-1791640800000.json"))
+   db = sqlite3.connect("pump-court.sqlite3")
+   db.executemany("INSERT INTO runs (id, name, mode, reps) VALUES (:id, :name, :mode, :reps)", rows)
+   db.commit()
    ```
+
+An old database from before the current layout is never lost either: its table is kept as `runs_v1` (see [Leaderboard Overview](README.md#3-migration-from-the-old-layout)).

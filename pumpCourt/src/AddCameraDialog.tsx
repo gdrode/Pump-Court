@@ -3,20 +3,27 @@
 import QRCode from 'qrcode'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { newRoomCode, openPhoneLink, type PhoneLink, type PhoneStatus } from './phoneLink'
+import { openRelayLink } from './relayLink'
 
 interface Props {
   onClose(): void
   /** A phone finished pairing. The link stays open for as long as the camera is in use. */
-  onPhone(phone: { id: string; label: string; stream: MediaStream; link: PhoneLink }): void
+  onPhone(phone: { id: string; label: string; stream: MediaStream; link: PhoneLink; viaInternet?: boolean }): void
   onRefreshDevices(): Promise<void>
   /** Name for the next phone, e.g. "Phone 3". */
   nextLabel: string
 }
 
-type Tab = 'wifi' | 'system' | 'bluetooth'
+type Tab = 'internet' | 'wifi' | 'system'
 
 export function AddCameraDialog({ onClose, onPhone, onRefreshDevices, nextLabel }: Props) {
-  const [tab, setTab] = useState<Tab>('wifi')
+  // Any network is the default: it works on every network. Wi-Fi pairing opens only if picked.
+  const [tab, setTab] = useState<Tab>('internet')
+  const [wifiOpened, setWifiOpened] = useState(false)
+  const pick = (t: Tab) => {
+    if (t === 'wifi') setWifiOpened(true)
+    setTab(t)
+  }
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -30,16 +37,20 @@ export function AddCameraDialog({ onClose, onPhone, onRefreshDevices, nextLabel 
         <button className="small" onClick={onClose} aria-label="Close">✕</button>
       </header>
       <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'wifi'} onClick={() => setTab('wifi')}>Phone over Wi-Fi</button>
-        <button role="tab" aria-selected={tab === 'system'} onClick={() => setTab('system')}>USB / system camera</button>
-        <button role="tab" aria-selected={tab === 'bluetooth'} onClick={() => setTab('bluetooth')}>Bluetooth</button>
+        <button role="tab" aria-selected={tab === 'internet'} onClick={() => pick('internet')}>Phone · any network</button>
+        <button role="tab" aria-selected={tab === 'wifi'} onClick={() => pick('wifi')}>Phone · same Wi-Fi (offline)</button>
+        <button role="tab" aria-selected={tab === 'system'} onClick={() => pick('system')}>USB / system camera</button>
       </div>
       {/* Kept mounted on other tabs, so the pairing code a phone may be scanning stays valid. */}
-      <div hidden={tab !== 'wifi'}>
-        <WifiPairing onPhone={onPhone} label={nextLabel} />
+      <div hidden={tab !== 'internet'}>
+        <InternetPairing onPhone={onPhone} label={nextLabel} />
       </div>
+      {wifiOpened && (
+        <div hidden={tab !== 'wifi'}>
+          <WifiPairing onPhone={onPhone} label={nextLabel} onTryInternet={() => pick('internet')} />
+        </div>
+      )}
       {tab === 'system' && <SystemCameras onRefresh={onRefreshDevices} onClose={onClose} />}
-      {tab === 'bluetooth' && <BluetoothNote />}
     </dialog>
   )
 }
@@ -52,7 +63,7 @@ interface LanInfo {
 /** Seconds without any phone reaching the laptop before the troubleshooting list appears. */
 const NO_VISIT_HINT_S = 12
 
-function WifiPairing({ onPhone, label }: { onPhone: Props['onPhone']; label: string }) {
+function WifiPairing({ onPhone, label, onTryInternet }: { onPhone: Props['onPhone']; label: string; onTryInternet(): void }) {
   const [lan, setLan] = useState<LanInfo | null>(null)
   const [host, setHost] = useState('')
   const [room] = useState(newRoomCode)
@@ -165,13 +176,111 @@ function WifiPairing({ onPhone, label }: { onPhone: Props['onPhone']; label: str
               <li>Using an iPhone hotspot? Turn on <i>Maximize Compatibility</i>, join it from this laptop, wait for the address above to change to one starting with <b>172.20.10.</b>, then scan again.</li>
               {lan?.bonjour && host !== lan.bonjour && <li>Try the <b>by name</b> address in the list above; it doesn't depend on the number.</li>}
               <li>Turn off any VPN on the laptop and the phone.</li>
-              <li>Still nothing: use the <i>USB / system camera</i> tab (Continuity Camera or a webcam app with a cable).</li>
+              <li>Still nothing: <button className="linkish" onClick={onTryInternet}>use the Phone · any network tab</button>, which works on any phone and network, or the <i>USB / system camera</i> tab.</li>
             </ul>
           </div>
         )}
       <p className={status === 'connected' ? 'ok-text' : status === 'failed' ? 'error' : 'hint'}>
         {statusText[status]} {detail}
       </p>
+    </div>
+  )
+}
+
+interface TunnelInfo {
+  status: 'off' | 'starting' | 'on' | 'error' | 'missing'
+  url: string | null
+  error: string | null
+}
+
+/**
+ * Pairing through the internet link (server/tunnel.ts): a public https address
+ * with a real certificate, so any phone on any network can open it, and the
+ * video comes through the relay as JPEG frames.
+ */
+function InternetPairing({ onPhone, label }: { onPhone: Props['onPhone']; label: string }) {
+  const [tunnel, setTunnel] = useState<TunnelInfo>({ status: 'starting', url: null, error: null })
+  const [room] = useState(newRoomCode)
+  const [status, setStatus] = useState<PhoneStatus | 'starting'>('starting')
+  const [detail, setDetail] = useState('')
+  const [visit, setVisit] = useState<string | null>(null)
+  const [qr, setQr] = useState('')
+  const handedOff = useRef(false)
+
+  // Start the tunnel, then poll until it has an address (usually 5–10 s).
+  useEffect(() => {
+    let alive = true
+    let timer = 0
+    const poll = async () => {
+      try {
+        const t = (await (await fetch('/api/tunnel', { cache: 'no-store' })).json()) as TunnelInfo
+        if (!alive) return
+        setTunnel(t)
+        if (t.status === 'starting') timer = window.setTimeout(poll, 1000)
+      } catch {
+        if (alive) setTunnel({ status: 'error', url: null, error: 'Could not reach the dev server.' })
+      }
+    }
+    fetch('/api/tunnel/start', { method: 'POST' }).then(poll, poll)
+    return () => { alive = false; clearTimeout(timer) }
+  }, [])
+
+  useEffect(() => {
+    let stream: MediaStream | null = null
+    const link = openRelayLink(room, {
+      onStatus: (s, d) => {
+        setStatus(s)
+        setDetail(d ?? '')
+        if (s === 'connected' && stream && !handedOff.current) {
+          handedOff.current = true
+          onPhone({ id: room, label, stream, link, viaInternet: true })
+        }
+      },
+      onStream: (s) => { stream = s },
+      onVisit: (from) => setVisit(from || 'a phone'),
+    })
+    return () => { if (!handedOff.current) link.close() }
+  }, [room, label, onPhone])
+
+  const url = tunnel.url ? `${tunnel.url}/phone.html?room=${room}&mode=relay` : ''
+  useEffect(() => {
+    if (!url) return
+    QRCode.toDataURL(url, { margin: 1, width: 240, errorCorrectionLevel: 'M' }).then(setQr, () => setQr(''))
+  }, [url])
+
+  const statusText: Record<typeof status, string> = {
+    starting: 'Opening a pairing code…',
+    waiting: 'Waiting for the phone to scan the code…',
+    connecting: 'Phone found, starting video…',
+    connected: 'Connected. The phone is now your camera.',
+    disconnected: 'Phone disconnected.',
+    failed: 'Could not connect.',
+  }
+
+  return (
+    <div className="dialog-body">
+      <p>Works with <b>any phone on any network</b>, even mobile data. No certificate warning.</p>
+      <p className="hint">The phone's video passes through Cloudflare's tunnel, encrypted and not stored. Use <i>Phone · same Wi-Fi</i> when you want everything to stay on this laptop.</p>
+      {tunnel.status === 'starting' && <p className="hint">Starting the internet link… (about 5–10 seconds)</p>}
+      {tunnel.status === 'missing' && (
+        <p className="error">The internet link needs Cloudflare's free tool. In a terminal run <code>brew install cloudflared</code>, then reopen this tab.</p>
+      )}
+      {tunnel.status === 'error' && <p className="error">{tunnel.error ?? 'The internet link failed.'} Check this laptop is online, then reopen this tab.</p>}
+      {url && (
+        <div className="pair">
+          {qr ? <img src={qr} width={240} height={240} alt={`QR code for ${url}`} /> : <div className="qr-placeholder" />}
+          <div>
+            <p className="pair-url">Scan with the phone's camera, or open:<br /><code>{url}</code></p>
+            <p className="pair-code">Code <b>{room}</b></p>
+          </div>
+        </div>
+      )}
+      {visit && <p className="ok-text">✓ A phone reached this laptop ({visit}). {status === 'waiting' ? 'Now tap Start camera on the phone.' : ''}</p>}
+      {url && (
+        <p className={status === 'connected' ? 'ok-text' : status === 'failed' ? 'error' : 'hint'}>
+          {statusText[status]} {detail}
+        </p>
+      )}
     </div>
   )
 }
@@ -192,18 +301,6 @@ function SystemCameras({ onRefresh, onClose }: { onRefresh(): Promise<void>; onC
           {busy ? 'Refreshing…' : 'Refresh camera list'}
         </button>
       </div>
-    </div>
-  )
-}
-
-function BluetoothNote() {
-  return (
-    <div className="dialog-body">
-      <p>Bluetooth is too slow to carry live video (about 1–2 Mbit/s at best, and browsers can't receive a camera stream over it). Two ways to get the same result:</p>
-      <ul className="steps">
-        <li><b>iPhone + Mac:</b> Continuity Camera uses Bluetooth to find the phone, then sends the video over Wi-Fi. See <i>USB / system camera</i>.</li>
-        <li><b>Any phone:</b> use <i>Phone over Wi-Fi</i>. With no Wi-Fi around, turn on the phone's hotspot and join it from the laptop.</li>
-      </ul>
     </div>
   )
 }

@@ -9,6 +9,8 @@ export interface PhoneLinkHandlers {
   onStream(stream: MediaStream): void
   /** A phone loaded the pairing page, so it can reach this laptop. */
   onVisit?(from: string): void
+  /** The phone says how to turn its picture upright (clockwise degrees). */
+  onOrientation?(rotation: number): void
 }
 
 export interface PhoneLink {
@@ -30,6 +32,8 @@ export function openPhoneLink(room: string, handlers: PhoneLinkHandlers): PhoneL
   let closed = false
   let chain = Promise.resolve()
   let connected = false
+  // Replayed to whoever takes over the link (the pairing dialog hands it to the app).
+  let lastOrientation: number | null = null
   // ICE candidates that arrive before the offer has been applied.
   let pending: RTCIceCandidateInit[] = []
 
@@ -61,6 +65,11 @@ export function openPhoneLink(room: string, handlers: PhoneLinkHandlers): PhoneL
       send({ sdp: peer.localDescription!.toJSON() })
       for (const c of pending) await peer.addIceCandidate(c).catch(() => {})
       pending = []
+    } else if ('orientation' in data) {
+      if ([0, 90, 180, 270].includes(data.orientation)) {
+        lastOrientation = data.orientation
+        h.onOrientation?.(data.orientation)
+      }
     } else if ('candidate' in data) {
       if (!pc?.remoteDescription) pending.push(data.candidate)
       else await pc.addIceCandidate(data.candidate).catch(() => {})
@@ -99,7 +108,10 @@ export function openPhoneLink(room: string, handlers: PhoneLinkHandlers): PhoneL
 
   return {
     room,
-    setHandlers(next) { h = next },
+    setHandlers(next) {
+      h = next
+      if (lastOrientation != null) h.onOrientation?.(lastOrientation)
+    },
     close() {
       closed = true
       clearTimeout(timer)

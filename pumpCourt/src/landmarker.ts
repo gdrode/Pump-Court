@@ -47,9 +47,13 @@ async function create(variant: ModelVariant, cpuOnly: boolean): Promise<LoadedLa
   return { landmarker: await make(variant, 'CPU'), variant, delegate: 'CPU' }
 }
 
-/** Returns the same landmarker for a variant every time, so it is never rebuilt in the frame loop. */
-export function getLandmarker(variant: ModelVariant, cpuOnly = false): Promise<LoadedLandmarker> {
-  const key = `${variant}/${cpuOnly ? 'cpu' : 'auto'}`
+/**
+ * Returns the same landmarker for a variant every time, so it is never rebuilt
+ * in the frame loop. `slot` gives each camera its own instance: VIDEO mode
+ * tracks a body from frame to frame, so two streams must not share one.
+ */
+export function getLandmarker(variant: ModelVariant, cpuOnly = false, slot = 0): Promise<LoadedLandmarker> {
+  const key = `${variant}/${cpuOnly ? 'cpu' : 'auto'}/${slot}`
   let p = cache.get(key)
   if (!p) {
     p = create(variant, cpuOnly)

@@ -1,30 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
 import { backend, errorText } from "../api/backend";
-import type { Category, LeaderboardRow } from "../api/types";
+import type { LeaderboardRow, RoundMode } from "../api/types";
 
-/** Operator leaderboard: tabs, moderation and backups. */
-export function useLeaderboard(initial: Category = "thirtySecond", limit = 50) {
-  const [category, setCategory] = useState<Category>(initial);
-  const [includeTeam, setIncludeTeam] = useState(false);
+/** Operator leaderboard: tabs (all time or one mode), moderation and backups. */
+export function useLeaderboard(initial: RoundMode | null = null, limit = 50) {
+  const [mode, setMode] = useState<RoundMode | null>(initial);
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    backend.getLeaderboard(category, includeTeam, limit).then(setRows).catch((e) => setMessage(errorText(e)));
-  }, [category, includeTeam, limit]);
+    backend.getLeaderboard(mode, limit).then(setRows).catch((e) => setMessage(errorText(e)));
+  }, [mode, limit]);
   useEffect(reload, [reload]);
 
   return {
-    category,
-    setCategory,
-    includeTeam,
-    setIncludeTeam,
+    mode,
+    setMode,
     rows,
     message,
     reload,
     /** Delete one run (the UI should confirm first). */
     remove: async (row: LeaderboardRow) => {
-      await backend.deleteRun(row.runId);
+      try {
+        await backend.deleteRun(row.runId);
+      } catch (e) {
+        setMessage(errorText(e));
+      }
       reload();
     },
     exportBackup: async () => {

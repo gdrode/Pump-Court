@@ -1,77 +1,117 @@
-# Feature 03: Game Engine & Match Session Control
+# Feature 03: Game Engine & Round Control
 
-> **Module**: `backend/src/game/` and `backend/src/engine.rs`  
-> **Key Types**: `Session`, `RoundPhase`, `RoundMode`, `RoundResult`, `SessionSnapshot`  
-> **Related Documents**: [Game Modes](game-modes.md), [Engine Thread Loop](engine-thread-loop.md), [Frontend UI](../frontend-ui/README.md)  
+> **Module**: `backend/src/game/` (`mode.rs`, `session.rs`) and `backend/src/engine.rs`  
+> **Key Types**: `Session`, `RoundPhase`, `RoundMode`, `RepReport`, `RepVerdict`, `RoundResult`, `SessionSnapshot`  
+> **Related Documents**: [Game Modes](game-modes.md), [Engine Thread Loop](engine-thread-loop.md), [Referee Engine](../referee-engine/README.md), [Frontend UI](../frontend-ui/README.md), [Browser Prototype Modes](browser-prototype-modes.md)  
 > **Maintenance Status**: Active / Match Governance  
 
 ---
 
-## 1. Executive Summary
+## 1. Summary
 
-The **Game Engine** coordinates competitive match sessions. It couples the raw output of the referee pipeline with round timers, idle countdowns, athlete identity, and multi-turn duel tournaments.
+The Rust game engine keeps the **clock and the score**. The tracker and referee in the app window tell it two things: whether the player is in position (`set_ready`) and each judged rep (`report_rep`). The `Session` state machine turns that into a round: get ready, a 3-second countdown, the round itself, and the result.
 
-The entire match progression is encapsulated inside the `Session` state machine, which is updated frame-by-frame by the engine thread.
+`Session` is plain logic. All times are milliseconds passed in from outside, so the tests in `session.rs` play a whole round instantly.
 
 ---
 
-## 2. Match Phase State Machine
+## 2. Round phases
+
+`RoundPhase` (sent as `"idle" | "getReady" | "countdown" | "running" | "finished"`):
 
 ```text
-    ┌───────────────────────────┐
-    │           Idle            │ ◀─── Default state; awaiting start_round command
-    └─────────────┬─────────────┘
-                  │ (start_round)
-                  ▼
-    ┌───────────────────────────┐
-    │        ReadyCheck         │ ◀─── Athlete assumes plank position;
-    └─────────────┬─────────────┘      FPS and body framing verified (1s hold)
-                  │ (hold satisfied)
-                  ▼
-    ┌───────────────────────────┐
-    │        Countdown          │ ◀─── 3-second countdown (audio beeps: 3, 2, 1)
-    └─────────────┬─────────────┘
-                  │ (countdown reaches 0)
-                  ▼
-    ┌───────────────────────────┐
-    │         Running           │ ◀─── Clock ticks; reps counted;
-    └─────────────┬─────────────┘      idle timeouts monitored
-                  │ (timer expires OR 5s idle in Max mode OR tracking lost)
-                  ▼
-    ┌───────────────────────────┐
-    │        Finished           │ ─── Results saved to SQLite; emitted to UI
-    └───────────────────────────┘
+    ┌───────────────┐
+    │     Idle      │ ◀── start of the app; cancel_round from any phase
+    └───────┬───────┘
+            │ start_round(mode, player)
+            ▼
+    ┌───────────────┐
+    │   GetReady    │ ◀── waiting for the posture check
+    └───────┬───────┘
+            │ set_ready(true)
+            ▼
+    ┌───────────────┐
+    │   Countdown   │ ◀── COUNTDOWN_MS = 3000 (3, 2, 1); set_ready(false) → back to GetReady
+    └───────┬───────┘
+            │ 3 s passed (checked on tick)
+            ▼
+    ┌───────────────┐
+    │    Running    │ ◀── report_rep counts here and only here
+    └───────┬───────┘
+            │ time up, or Max: 5 s without a valid push-up
+            ▼
+    ┌───────────────┐
+    │   Finished    │ ── engine saves the result, then emits "round-finished"
+    └───────────────┘
 ```
+
+- `set_ready(false)` never moves the phase back. It only updates `inPosition`.
+- Reps reported in any phase other than `running` are ignored (the tracker may still be finishing a rep as the buzzer goes).
+- `start_round` always starts clean, even right after a finished round.
+- A round is never voided. If tracking is lost, the clock runs on and no reps are reported.
 
 ---
 
-## 3. The `SessionSnapshot` Data Contract
+## 3. Data contracts
 
-On every single video frame (~30–60 times per second), `Session::snapshot()` produces a serialized snapshot emitted in the `tick` payload:
+### 3.1 `SessionSnapshot` (the `tick` event)
+
+Sent about 10 times a second while a round is active (get ready, countdown, running), and once after every command.
 
 ```rust
 pub struct SessionSnapshot {
-    pub phase: RoundPhase,             // Idle | ReadyCheck | Countdown | Running | Finished
-    pub mode: Option<RoundMode>,       // Sprint | Minute | Max | Duel
-    pub player: Option<String>,        // Validated athlete / team name
-    pub ready_items: Vec<ReadyItem>,   // Status of ready checklist
-    pub countdown_ms: Option<i64>,     // Remaining countdown time
-    pub elapsed_ms: i64,               // Active match duration
-    pub remaining_ms: Option<i64>,     // Time left on round clock
-    pub idle_remaining_ms: Option<i64>,// Time left before 5s idle cutoff (Max mode)
-    pub clean_reps: u32,               // Total counted reps
-    pub attempts: u32,                 // Total attempts
-    pub last_rep: Option<RepVerdict>,  // Most recent rep details & lights
-    pub lockout_threshold: Option<f32>,// Calibrated lockout angle
-    pub tracking_ok: bool,             // Current tracking health flag
+    pub phase: RoundPhase,
+    pub mode: Option<RoundMode>,         // sprint | minute | max | duel
+    pub player: Option<String>,
+    pub in_position: bool,               // the tracker last said "ready"
+    pub countdown_ms: Option<i64>,       // only in Countdown
+    pub elapsed_ms: i64,                 // only counts while Running
+    pub remaining_ms: Option<i64>,       // while Running; for Max: time to the 3-minute cap
+    pub idle_remaining_ms: Option<i64>,  // Max only: time left to get the next valid push-up
+    pub reps: u32,                       // valid push-ups
+    pub attempts: u32,
+    pub perfect: u32,
+    pub last_rep: Option<RepVerdict>,
 }
 ```
 
+### 3.2 `RepVerdict` (the `rep` event)
+
+```rust
+pub struct RepVerdict {
+    pub attempt: u32,          // 1 for the first attempt of the round
+    pub counted: bool,         // 2 or 3 white lights
+    pub perfect: bool,         // 3 white lights
+    pub lights: Lights,        // { depth, torso, lockout }: true = white
+    pub faults: Vec<String>,
+}
+```
+
+### 3.3 `RoundResult` (the `round-finished` event)
+
+```rust
+pub struct RoundResult {
+    pub mode: RoundMode,
+    pub player: String,
+    pub reps: u32,             // valid push-ups: the score
+    pub attempts: u32,
+    pub perfect: u32,
+    pub no_reps: NoRepCounts,  // red lights per light: { depth, torso, lockout }
+    pub duration_ms: i64,
+    pub run_id: Option<i64>,   // filled in by the engine after saving
+    pub rank: Option<u32>,     // the player's place on this mode's board
+}
+```
+
+Only `player`, `mode` and `reps` are stored in the database. The rest is for the Results screen.
+
 ---
 
-## 4. Match Cancellation and Void Rules
+## 4. Ending a round
 
-A round can terminate cleanly or abnormally:
-- **Operator Abort (`cancel_round`)**: If an operator presses Escape or clicks Cancel, the session reverts immediately to `Idle` without writing to the database.
-- **Tracking Loss Void**: If athlete leaves frame or camera disconnects for longer than `JudgeConfig.tracking_loss_ms` (500ms), the round ends with `voided: Some("Tracking lost")`. Voided rounds are not posted to the public leaderboard.
-- **Idle Timeout**: In Max mode, if 5 seconds elapse without an athlete completing a clean rep, the buzzer sounds and the round ends automatically.
+- **Time up**: `elapsed ≥ mode.duration_ms()`. `durationMs` is capped at the mode's length.
+- **Max idle limit**: in Max, 5 s (`MAX_IDLE_MS`) after the start or the last **valid** push-up. A no-rep does not reset it.
+- **Operator abort** (`cancel_round`, Esc on the Round screen, or leaving the screen): back to `Idle`, nothing saved.
+- **Discard**: after a round, "Discard" (or "Redo turn" in a Duel) calls `delete_run` with the saved `runId`.
+
+The teammate's standalone prototype has its own game rules (`pumpCourt/src/game.ts`: Sprint / Marathon / Max, co-op, failure windows). The app does not use them. See [Browser Prototype Modes](browser-prototype-modes.md).

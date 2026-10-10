@@ -1,104 +1,79 @@
-# Biomechanical Angle Calculations & Signal Smoothing
+# Body Angles & Measurements
 
-> **Module**: `backend/src/judge/angles.rs` and `pumpCourt/src/geometry.ts`  
-> **Key Types**: `BodyAngles`, `Smoother`, `Landmark`  
-> **Related Documents**: [Referee Engine Overview](README.md), [Rep Segmentation](rep-segmentation.md)  
+> **Module**: `pumpCourt/src/geometry.ts`, `pumpCourt/src/pose.ts`  
+> **Key Types**: `Point2`, `Landmark`, `PoseAngles`, `Side`  
+> **Related Documents**: [Referee Engine Overview](README.md), [Rep Segmentation](rep-segmentation.md), [Ready Check](ready-check-calibration.md)  
 > **Maintenance Status**: Active / Mathematical Core  
 
 ---
 
-## 1. Geometric Angle Formula
+## 1. Summary
 
-All joint angles are calculated in 2D Euclidean image space using the vector dot product formula. Given three joint landmarks $A$, $B$ (vertex), and $C$:
+`pose.ts` turns the 33 MediaPipe landmarks of one frame into the numbers the posture check and the referee use: joint angles, a body-line angle at the abdomen, how far the belly sags, and how high the shoulders are. It is plain TypeScript with no camera or drawing code.
 
-$$\vec{u} = A - B = (A_x - B_x, A_y - B_y)$$
-$$\vec{v} = C - B = (C_x - B_x, C_y - B_y)$$
+---
 
-The interior angle $\theta$ in radians is:
+## 2. The angle formula (`geometry.ts`)
 
-$$\theta = \arccos\left( \frac{\vec{u} \cdot \vec{v}}{\|\vec{u}\| \|\vec{v}\|} \right)$$
+All angles are 2D, in the image. For three points $A$, $B$ (the corner) and $C$:
 
-Converted to degrees:
+$$\vec{u} = A - B, \qquad \vec{v} = C - B$$
 
-$$\text{degrees} = \theta \times \frac{180}{\pi}$$
+$$\theta = \arccos\left( \frac{\vec{u} \cdot \vec{v}}{\|\vec{u}\| \|\vec{v}\|} \right) \times \frac{180}{\pi}$$
 
-```rust
-// In backend/src/judge/angles.rs
-pub fn angle(a: &Landmark, b: &Landmark, c: &Landmark) -> f32 {
-    let ux = a.x - b.x;
-    let uy = a.y - b.y;
-    let vx = c.x - b.x;
-    let vy = c.y - b.y;
-    let dot = ux * vx + uy * vy;
-    let len_u = (ux * ux + uy * uy).sqrt();
-    let len_v = (vx * vx + vy * vy).sqrt();
-    if len_u < 1e-4 || len_v < 1e-4 {
-        return 180.0;
-    }
-    let cos = (dot / (len_u * len_v)).clamp(-1.0, 1.0);
-    cos.acos().to_degrees()
+```typescript
+// pumpCourt/src/geometry.ts
+export function angle(a: Point2, b: Point2, c: Point2) {
+  const abx = a.x - b.x, aby = a.y - b.y
+  const cbx = c.x - b.x, cby = c.y - b.y
+  const dot = abx * cbx + aby * cby
+  const mag = Math.hypot(abx, aby) * Math.hypot(cbx, cby)
+  if (mag === 0) return NaN
+  return Math.acos(Math.min(1, Math.max(-1, dot / mag))) * (180 / Math.PI)
 }
 ```
 
----
-
-## 2. Anatomical Angles Evaluated
-
-1. **Elbow Flexion**: Calculated with vertex at Elbow: $A = \text{Shoulder}$, $B = \text{Elbow}$, $C = \text{Wrist}$.
-   - $180^\circ$: Completely straight arm.
-   - $90^\circ$: Right-angle bend (competition depth threshold).
-   - $< 70^\circ$: Deep chest-to-floor touch.
-2. **Hip Alignment (Plank)**: Calculated with vertex at Hip: $A = \text{Shoulder}$, $B = \text{Hip}$, $C = \text{Ankle}$.
-   - $180^\circ$: Perfect linear alignment from shoulder to ankle.
-   - $< 160^\circ$: Sagging pelvis or excessive butt piking.
-3. **Knee Extension**: Calculated with vertex at Knee: $A = \text{Hip}$, $B = \text{Knee}$, $C = \text{Ankle}$.
-   - $180^\circ$: Rigid straight legs.
-   - $< 140^\circ$: Knees touching mat or excessively bent.
+A zero-length segment gives `NaN`, never a fake 180°. Before measuring, `computeAngles` multiplies every `x` by the video's width/height ratio, because landmarks are normalised to the frame and a wide frame would otherwise squash the angles.
 
 ---
 
-## 3. Signal Smoothing (Exponential Moving Average)
+## 3. What `computeAngles` returns (`PoseAngles`)
 
-Camera feeds exhibit micro-jitter and high-frequency noise from sensor gain. Directly judging raw instantaneous angles causes false fault triggers. However, excessive filtering introduces phase lag and blunts sharp bottom reversal points.
+Only the tracked side is used (see [Pose Tracking](../pose-tracking/README.md)).
 
-Pump-Court uses a calibrated **Exponential Moving Average (EMA)**:
+| Field | Points | Used by | Meaning |
+| :--- | :--- | :--- | :--- |
+| `elbow` | shoulder–elbow–wrist | referee (lockout; rep splitting and depth only before a floor line exists) | 180 = straight arm |
+| `abdomen` | shoulder–**abdominal point**–knee | referee (Torso light), passed as `hip` | 180 = trunk in line with the thighs |
+| `knee` | hip–knee–ankle | posture (`knees-down`, < 150°) and referee (Torso light) | catches knee push-ups and bent legs |
+| `bodyOffset` | abdominal point vs the shoulder–ankle line | referee fault text | + = belly sagging below the line, − = hips piked above it, as a fraction of the line's length |
+| `hip` | shoulder–hip–ankle | diagnostics | body line at the hips |
+| `hipFlex` | shoulder–hip–knee | diagnostics | hip flexion |
+| `shoulderY` | shoulder | posture, referee | 0 = top of frame, 1 = bottom; larger = lower |
+| `depth` | wrist and shoulder | posture (ready) | shoulder height above the wrist, in arm lengths: about 1 at lockout, near 0 chest on the floor |
+| `armLength` | shoulder–elbow + elbow–wrist | posture | the unit for all heights |
+| `trunkTilt` | shoulder–hip | posture | degrees from horizontal: about 0–30 in a push-up, near 90 sitting or standing |
+| `bodyTilt` | shoulder–ankle | posture | degrees from horizontal |
+| `wrist`, `wristVisibility`, `shoulderX` | wrist, shoulder | posture | where the hands are planted |
+| `visibility` | the six side points | side tracker | mean visibility, 0..1 |
 
-$$\theta_{\text{smoothed}}^{(t)} = \alpha \cdot \theta_{\text{raw}}^{(t)} + (1 - \alpha) \cdot \theta_{\text{smoothed}}^{(t-1)}$$
+### 3.1 The abdominal point
+MediaPipe has no spine points. The abdominal point is placed `ABDOMEN_FRACTION` = **0.6** of the way from shoulder to hip, over the belly, where the trunk folds when the hips pike or the belly sags. The angle at that point, measured to the knee, catches both a sagging belly and piked hips better than the plain shoulder–hip–ankle angle.
 
-- Default `smoothing_alpha`: **`0.6`**.
-- An $\alpha$ of $0.6$ provides immediate responsiveness during rapid 2-rep-per-second sprints while dampening sensor jitter without clipping the minimum depth spike.
+### 3.2 Depth in arm lengths, not degrees
+The Depth light does not use the elbow angle (unless the hands are hidden). It uses how high the shoulders are above the floor, divided by the arm length. That works for any body size and any distance from the camera. During a round the floor is the planted **floor line** from the posture check, not the wrist point, because a fixed line is steadier (see [Ready Check](ready-check-calibration.md)):
+
+$$\text{height} = \frac{\text{floorY} - \text{shoulderY}}{\text{armLength at the moment of getting ready}}$$
+
+About 1 at the top, about 0.2–0.35 with the chest near the floor. The Depth light compares the bottom with the player's own straight-arm top height: the shoulders must drop at least **30%** of it (`depthDrop`). The same height, × 150, is the drive signal that splits reps (see [Rep Segmentation](rep-segmentation.md#2-the-drive-signal)).
 
 ---
 
-## Browser app (`pumpCourt/`): abdominal point and the Torso light
+## 4. Noise handling
 
-> **Module**: `pumpCourt/src/pose.ts`, `pumpCourt/src/judge.ts`
+There is no moving-average filter on the angles. Noise is handled in the referee instead:
+- a 3-frame rolling **median** on the elbow and depth values, at 20 fps or faster (`SEGMENT.median`, `SEGMENT.medianMaxFrameMs`);
+- the Torso light ignores the worst 10% of frames (`robustLow`, always skipping the single worst frame when there are 3 or more);
+- lockout ignores a one-frame spike (`SEGMENT.peakNeighbourDeg` for the elbow, `SEGMENT.peakHeightNeighbour` for height).
 
-**Why:** the trunk bends at the hips and belly, not at one hip point. Hip
-flexion (piking) and belly sag / crunching were slipping through.
-
-- MediaPipe has no spine points, so an **abdominal point** is placed on the
-  shoulder → hip line, `ABDOMEN_FRACTION` = **0.6** of the way down (over the belly).
-- `abdomen` = angle shoulder → abdomen → knee. 180° = trunk in line with thighs.
-  **This now drives the Torso light** (judge input `hip`).
-- `bodyOffset` = how far the abdominal point sits off the straight shoulder → ankle
-  line, as a fraction of that line. **+ = sagging**, **− = piked**. Only picks the
-  fault wording.
-- `knee` angle also fails Torso when the legs bend (catches knee push-ups).
-- Also new per frame: `trunkTilt`, `bodyTilt`, `wrist`, `armLength`, `shoulderX`
-  (used by the posture gate, see [Ready Check](ready-check-calibration.md)).
-
-| Difficulty | Torso (abdomen) ≥ | Knee ≥ | Lockout elbow ≥ | Depth ≤ (arm lengths) |
-|---|---|---|---|---|
-| Easy | 145° | 140° | 145° | 0.55 |
-| Normal | 155° | 150° | 155° | 0.42 |
-| Hard | 165° | 160° | 165° | 0.30 |
-
-**Known weak spot:** on Normal, sag and pike are lenient. A sag of ~12 % of body
-length can still score perfect; a pike needs the hips ~20 % up to fail. The
-abdomen angle sees only ~⅔ of the bend at the hip. `hipFlex` is computed but
-not used yet.
-
-**Smoothing note:** the judge median-filters elbow and depth only at high frame
-rates. Its buffers now update on every frame, so turning smoothing back on
-never uses stale values (this caused extra reps at ~20 fps).
+See [Rep Segmentation](rep-segmentation.md).

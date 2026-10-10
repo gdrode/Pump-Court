@@ -17,12 +17,8 @@
   --font: 'Patrick Hand', 'Comic Neue', 'Chalkboard SE', 'Comic Sans MS', cursive;
   --r: 14px 22px 12px 20px / 20px 12px 22px 14px; /* uneven corners read as hand-drawn */
 
-  /* Camera view and the skeleton drawn on it (read by PoseView) */
+  /* Behind the camera picture (the skeleton colours are the tracker's own, pumpCourt/src/draw.ts) */
   --video-bg: #2b2620;
-  --skeleton-bone: rgba(255, 250, 240, 0.92);
-  --skeleton-bone-lost: rgba(210, 69, 46, 0.9);
-  --skeleton-joint: #8fd17a;
-  --skeleton-label: #f6e6ab;
 
   /* Phone QR code: keep light, phones scan dark-on-light codes best */
   --qr-bg: #ffffff;

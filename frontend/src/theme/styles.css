@@ -241,7 +241,37 @@ kbd {
 .home__head { display: contents; }
 .home .title { grid-column: 1 / -1; align-self: end; }
 .home .host { grid-column: 1; grid-row: 2; align-self: center; }
-.modes { grid-column: 2; grid-row: 2; align-self: center; display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem 1.3rem; }
+.home__menu { grid-column: 2; grid-row: 2; align-self: center; display: flex; flex-direction: column; gap: 1.4rem; }
+
+/* Step 1: who's playing. A two-way switch across the top. */
+.play-style { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.play-style__btn {
+  cursor: pointer; border: 0; background: var(--card); padding: 0.8rem 1.2rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+  transition: transform 120ms ease, background 120ms ease;
+}
+.play-style__btn:hover, .play-style__btn:focus-visible { background: var(--cream); outline: none; transform: translateY(-2px); }
+.play-style__btn.is-on { background: var(--green-light); }
+.play-style__btn.is-on::before { border-width: 4px; border-color: var(--green); }
+.play-style__label { font-size: 2.1rem; line-height: 1; }
+.play-style__blurb { color: var(--ink-soft); font-size: 1.05rem; }
+
+/* Step 2: game modes, dim until a play style is picked, then they light up. */
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1rem 1.3rem; transition: opacity 200ms ease, filter 200ms ease; }
+.modes.is-dim { opacity: 0.4; filter: grayscale(0.6); }
+.modes.is-dim .mode { cursor: not-allowed; }
+.modes.is-lit .mode { box-shadow: 0 0 0 4px var(--cream); }
+.modes.is-lit .mode--main { box-shadow: 0 0 0 4px var(--green-light); }
+
+/* Placeholder: events will create their own leaderboard. */
+.create-event {
+  cursor: pointer; border: 0; background: transparent; padding: 0.7rem 1.2rem;
+  display: flex; align-items: baseline; justify-content: center; gap: 0.8rem; flex-wrap: wrap;
+}
+.create-event::before { border-style: dashed; border-color: var(--ink-soft); }
+.create-event:hover, .create-event:focus-visible { background: var(--cream); outline: none; }
+.create-event__label { font-size: 1.5rem; }
+.create-event__blurb { color: var(--ink-soft); font-size: 1.05rem; }
 .home > .keys { grid-column: 1 / -1; align-self: end; }
 .mode {
   text-align: left; cursor: pointer; border: 0; background: var(--card);
@@ -251,8 +281,8 @@ kbd {
 }
 .mode:nth-child(odd) { transform: rotate(-0.6deg); }
 .mode:nth-child(even) { transform: rotate(0.5deg); }
-.mode:hover, .mode:focus-visible { transform: rotate(0) translateY(-2px); outline: none; background: var(--cream); }
-.mode:active { transform: translateY(1px); }
+.mode:not(:disabled):hover, .mode:not(:disabled):focus-visible { transform: rotate(0) translateY(-2px); outline: none; background: var(--cream); }
+.mode:not(:disabled):active { transform: translateY(1px); }
 .mode__key {
   position: absolute; left: 1rem; top: 50%; margin-top: -1.15rem;
   width: 2.3rem; height: 2.3rem; display: grid; place-items: center; font-size: 1.4rem;
@@ -356,13 +386,9 @@ kbd {
 .light__lamp--red { background: var(--red); animation: lamp 260ms ease-out; }
 @keyframes lamp { from { transform: scale(0.85); } to { transform: none; } }
 .light__label { font-size: 1.2rem; }
-.light__evidence { font-size: 1.15rem; color: var(--red); line-height: 1.1; }
-.light__evidence span { display: block; font-size: 0.95rem; color: var(--ink-soft); }
 .lights--xl .light__lamp { max-width: 220px; }
 .lights--xl .light__lamp::before { border-width: 5px; }
 .lights--xl .light__label { font-size: 2rem; }
-.lights--xl .light__evidence { font-size: 1.8rem; }
-.lights--xl .light__evidence span { font-size: 1.2rem; }
 
 /* ---- round ------------------------------------------------------------------ */
 
@@ -510,47 +536,96 @@ kbd {
 }
 
 /* ---- additions for this app ---------------------------------------------------
-   Screens the design didn't cover (settings, phone QR, crowd "Recent" and view
-   controls), drawn in the same sketchbook style. */
+   Screens the design didn't cover (camera settings, Add camera dialog), drawn
+   in the same sketchbook style. */
 
 /* three lights in the side panel: a little smaller so the dragon still fits */
 .side-panel .light__lamp { max-width: 84px; }
 .side-panel .score__num { font-size: clamp(4rem, 11vh, 7.5rem); }
+.lights-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
+.lights__faults { margin: 0; padding-left: 1.1rem; color: var(--red); font-size: 1.05rem; line-height: 1.2; }
 
-.camera .pose-view { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
-.camera__banner { position: absolute; left: 1rem; right: 1rem; top: 1rem; z-index: 3; text-align: center; }
+/* the live camera: the tracker's <video> with the skeleton <canvas> on top */
+.camera-view { position: absolute; inset: 0; }
+.camera-view__media video, .camera-view__media canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.camera-view__media [hidden] { display: none; }
+.camera-view__rotate {
+  position: absolute; right: 1rem; bottom: 1rem; z-index: 3;
+  display: flex; gap: 0.4rem; align-items: center;
+}
+.camera-view__rotate span, .camera-view__rotate button { padding: 0.3rem 0.7rem; background: var(--cream); font: inherit; font-size: 1rem; }
+.camera-view__rotate button { cursor: pointer; }
+.camera-view__note {
+  position: absolute; left: 1rem; right: 1rem; top: 1rem; z-index: 3;
+  padding: 0.5rem 0.9rem; background: var(--cream); font-size: 1.15rem; text-align: center;
+}
 
 .banner--bad { background: var(--red-light); }
-.banner--click { cursor: pointer; }
+.banner--click { cursor: pointer; font: inherit; color: inherit; }
 .top-banner { position: fixed; top: 0.6rem; left: 50%; transform: translateX(-50%); z-index: 20; max-width: 90vw; }
-
-/* settings */
-.settings { width: min(1000px, 100%); max-height: 100%; overflow-y: auto; }
-.settings h2 { font-size: 2rem; }
-.config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 2rem; }
-.config-grid label { display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-size: 1.15rem; color: var(--ink-soft); }
-.config-grid input {
-  width: 6.5rem; font: inherit; font-size: 1.2rem; color: var(--ink); background: #fff;
-  border: 2px solid var(--ink); border-radius: 8px 10px 7px 9px; padding: 0.1rem 0.5rem;
-}
 .message { margin: 0; color: var(--ink-soft); font-size: 1.1rem; }
-
-/* phone camera QR panel */
-.phone-link { display: flex; gap: 1.6rem; align-items: flex-start; background: #fff; padding: 1.1rem 1.3rem; }
-.qr { background: var(--qr-bg); padding: 10px; border: 3px solid var(--ink); border-radius: 10px 14px 9px 12px; line-height: 0; flex: none; }
-.qr svg { width: 200px; height: 200px; }
-.phone-info { display: flex; flex-direction: column; gap: 0.5rem; font-size: 1.15rem; }
-.phone-info p { margin: 0; }
-.phone-info .code { font-size: 2rem; letter-spacing: 0.08em; color: var(--ink); }
 .ok-text { color: var(--green); }
 
-/* leaderboard: operator rows and crowd controls */
-.board-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.4rem; }
-.crowd-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.crowd-picker > span { color: var(--ink-soft); font-size: 1.1rem; }
+/* camera screen: same layout as a round (camera left, panel right) */
+.camera-settings { display: contents; }
+.camera-settings__view {
+  grid-area: camera; position: relative; overflow: hidden; min-height: 0;
+  background: var(--video-bg); border: 3px solid var(--ink); border-radius: var(--r);
+}
+.settings { overflow-y: auto; }
+.camera-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.camera-list li { display: flex; align-items: center; gap: 0.5rem; }
+.camera-list .seg__btn { flex: 1; text-align: left; }
+.camera-list small { color: var(--ink-soft); }
+.tracking { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.8rem; margin: 0; font-size: 1.15rem; }
+.tracking dt { color: var(--ink-soft); }
+.tracking dd { margin: 0; }
 
-/* crowd: the "Recent" list */
-.recent__mode { color: var(--ink-soft); }
-.recent__noreps { color: var(--ink-soft); font-size: 1.1rem !important; }
-.board--big .recent__noreps { font-size: 1.4rem !important; }
-.crowd__body--wide { grid-template-columns: auto 1fr; }
+/* Add camera dialog */
+.dialog { width: min(760px, 94vw); max-height: 90vh; overflow-y: auto; color: var(--ink); font: inherit; border: 3px solid var(--ink); }
+.dialog::backdrop { background: rgba(36, 31, 26, 0.45); }
+.dialog__head { display: flex; justify-content: space-between; align-items: center; }
+.dialog__head h2 { font-size: 2.2rem; margin: 0; }
+.dialog__body { display: flex; flex-direction: column; gap: 0.7rem; font-size: 1.15rem; padding-top: 0.6rem; }
+.dialog__body p { margin: 0; }
+.steps { margin: 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.pair { display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; }
+.pair img, .pair__qr-placeholder {
+  width: 240px; height: 240px; background: var(--qr-bg); padding: 8px;
+  border: 3px solid var(--ink); border-radius: 10px 14px 9px 12px; box-sizing: content-box;
+}
+.pair__url code { word-break: break-all; font-size: 1rem; }
+.pair__code b { font-size: 2rem; letter-spacing: 0.08em; }
+.pair__pick select { font: inherit; font-size: 1.05rem; }
+.trouble { background: var(--cream); padding: 0.7rem 1rem; border-radius: var(--r); }
+.linkish { font: inherit; color: var(--green); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+
+/* boards */
+.board__mode { color: var(--ink-soft); }
+.crowd__count-note { margin: 0.6rem 0 0; font-size: 1.3rem; }
+
+/* ---- duel side by side (two cameras) ------------------------------------- */
+
+.duel { width: 100%; height: 100%; display: flex; flex-direction: column; gap: 0.8rem; position: relative; }
+.duel__bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--card); padding: 0.4rem 1rem; }
+.duel__bar .round__clock { font-size: 3rem; line-height: 1; }
+.duel__note { margin: 0; text-align: center; color: var(--ink-soft); font-size: 1.15rem; }
+.duel__sides { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.duel__foot { display: flex; justify-content: center; }
+.duel__foot .add-player { padding: 0.5rem 1.2rem; }
+.duel-side { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; min-height: 0; }
+.duel-side__camera { position: relative; flex: 1; min-height: 0; display: flex; }
+.duel-side__camera .camera-view { flex: 1; min-height: 0; }
+.duel-side__tag { position: absolute; left: 0.7rem; top: 0.7rem; z-index: 3; background: var(--card); padding: 0.1rem 0.7rem; font-size: 1.3rem; }
+.duel-side__banner {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; max-width: 86%;
+  background: var(--card); padding: 0.5rem 1rem; text-align: center; font-size: 1.4rem;
+}
+.duel-side__banner.is-ready { background: var(--green-light); }
+.duel-side__banner.is-warn { background: var(--red-light); color: var(--red); font-size: 2.2rem; }
+.duel-side__banner.is-done { background: var(--cream); }
+.duel-side__score { display: flex; align-items: center; gap: 1rem; }
+.duel-side__score .score { flex: none; min-width: 9rem; }
+.duel-side__pick { display: flex; gap: 0.6rem; align-items: center; }
+.duel-side__pick select { flex: 1; min-width: 0; font: inherit; font-size: 1.1rem; padding: 0.3rem 0.6rem; background: var(--card); border: 0; }
+.duel-side__pick button { font: inherit; font-size: 1.1rem; padding: 0.3rem 0.8rem; background: var(--card); border: 0; cursor: pointer; }

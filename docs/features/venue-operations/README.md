@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-Pump-Court is engineered for real-world competitive fitness tournaments, gym throwdowns, and esports-style stage events. Achieving high-accuracy optical judging requires proper physical staging, correct camera geometry, solid lighting, and reliable local network configuration.
+Pump Court is built for push-up contests at events, in gyms and at school fairs. Good judging needs a camera placed side-on at about knee height, the whole body in view, even light, and (for a phone camera) internet for the default **Phone · any network** link, or a network the phone and laptop share (**Phone · same Wi-Fi**).
 
 ---
 
@@ -19,23 +19,27 @@ Pump-Court is engineered for real-world competitive fitness tournaments, gym thr
                                     ▲
                                     │ (HDMI)
                         [ Operator / Judge Desk ]
-                         (Laptop running Tauri)
+                         (Laptop running Pump Court)
                                     ▲
-                                    │ (Local Wi-Fi / Hotspot)
+                                    │ (any network, or same Wi-Fi / hotspot; or a USB webcam)
                                     ▼
-       1.5m - 2.0m        [ Smartphone on Tripod ]
+       1.5m - 2.0m        [ Phone or webcam on a stand ]
  ◄──────────────────────► (Floor level, landscape)
 ┌────────────────────────────────────────────────────────┐
 │                                                        │
 │                    EXERCISE MAT                        │
-│             [ Athlete in Side-On Profile ]             │
+│             [ Player side-on to the camera ]             │
 │                                                        │
 └────────────────────────────────────────────────────────┘
 ```
 
 ### Critical Physical Parameters:
-1. **Camera Angle**: Strictly **perpendicular side-on** to the athlete. The athlete's head and feet must remain inside the camera frame throughout the entire movement.
-2. **Camera Distance**: Between **1.5 and 2.0 meters** from the edge of the mat.
-3. **Camera Elevation**: **0.2 to 0.4 meters** off the floor (a standard mini-tripod or phone stand). Placing the camera too high (e.g. eye level looking down) distorts elbow flexion angles.
-4. **Lighting**: Ensure even, diffuse lighting. Avoid strong backlight (e.g. bright windows directly behind the athlete) which turns the athlete into a silhouette and impairs landmark visibility.
-5. **Background Contrast**: High contrast between the athlete's clothing and the gym floor/background maximizes landmark detection confidence.
+1. **Camera Angle**: **Side-on** to the player. The tracker follows the side nearer the camera. Head, hands and feet must stay in the picture for the whole round.
+2. **Camera Distance**: About **1.5 to 2.0 meters** from the edge of the mat.
+3. **Camera Height**: **About knee height** (0.2 to 0.5 m off the floor). From higher up, looking down, the angles and the floor line come out wrong.
+4. **Hands visible**: the near hand must be in view. The ready check plants a floor line at the wrists; without it, Depth falls back to the elbow angle.
+5. **Lighting**: Even light. Avoid a bright window behind the player; it turns them into a silhouette.
+6. **Background Contrast**: Clothing that stands out from the floor and the wall helps the pose model.
+7. **One person in view**: the model tracks one person (`numPoses: 1`). Keep the queue out of the picture.
+8. **Phone on its side**: landscape fits a player best. Rotation lock can stay on: the app turns the picture upright using the phone's tilt. If it gets it wrong, press **⟳ Rotate** on the camera picture.
+9. **Legs in view**: the ready check needs straight legs (knee at least 150°), so knees and feet must be visible.

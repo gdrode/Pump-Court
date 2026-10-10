@@ -18,18 +18,20 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # "bundled" compiles SQLite into the app, so nothing has to be installed.
 rusqlite = { version = "0.32", features = ["bundled"] }
-base64 = "0.22"
 
-# Phone camera link: the desktop runs a small HTTPS + WebSocket server on the
-# local network that a phone's browser streams its camera to.
+# Phone cameras: the desktop runs a small HTTPS server on the local network
+# that serves the phone camera page and introduces phone and app (WebRTC).
 axum = { version = "0.7", features = ["ws"] }
 axum-server = { version = "0.7", features = ["tls-rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rcgen = "0.13"
 local-ip-address = "0.6"
-qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rand = "0.8"
-tokio = { version = "1", features = ["rt", "time", "sync"] }
+tokio = { version = "1", features = ["rt", "time", "sync", "macros"] }
+
+# Linux only: lets the window open the laptop camera (the web view keeps it off by default).
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "2.0"
 
 [features]
 # Bakes the built frontend into the executable, so it runs without a dev

@@ -11,6 +11,10 @@
 //     often refuses WebSockets to a self-signed certificate even after the
 //     warning was accepted, while ordinary requests work, so phones use these.
 //
+// A third path, /relay, carries the video itself as JPEG frames over a
+// WebSocket. It is used only with the internet link (server/tunnel.ts), where
+// the phone and laptop can't reach each other directly for WebRTC.
+//
 // GET /api/lan lists this machine's network addresses (best first) and its
 // Bonjour name, so the laptop can show a QR code a phone can reach. Each time
 // a phone opens /phone.html for a room, the laptop is told, so it can show
@@ -36,6 +40,8 @@ const MAX_BODY = 256 * 1024
 const HTTP_PEER_TIMEOUT_MS = 15_000
 /** How long a poll is held open waiting for a message. */
 const POLL_HOLD_MS = 20_000
+/** Largest JPEG frame the relay accepts (a 960-wide frame is ~60 KB). */
+const RELAY_MAX_FRAME = 2 * 1024 * 1024
 
 export interface LanAddress {
   address: string
@@ -172,9 +178,53 @@ function attach(server: ViteDevServer | PreviewServer) {
     ws.on('close', () => { if (room && role) leave(peer, room, role) })
   })
 
+  // --- Video relay (internet link) ------------------------------------------
+  // Rooms of one laptop and one phone; the phone's binary frames go to the laptop as they are.
+  const relayRooms = new Map<string, { host?: WebSocket; phone?: WebSocket }>()
+  const relayWss = new WebSocketServer({ noServer: true, maxPayload: RELAY_MAX_FRAME })
+  relayWss.on('connection', (ws, req: IncomingMessage) => {
+    ws.on('error', () => {})
+    const q = new URL(req.url ?? '', 'http://x').searchParams
+    const room = q.get('room') ?? '', role = q.get('role')
+    const sendText = (to: WebSocket | undefined, msg: unknown) => { if (to?.readyState === WebSocket.OPEN) to.send(JSON.stringify(msg)) }
+    if (!ROOM_RE.test(room) || (role !== 'host' && role !== 'phone')) return ws.close(4001, 'bad join')
+    const r = relayRooms.get(room) ?? {}
+    if (role === 'phone' && !r.host) {
+      sendText(ws, { type: 'error', message: 'This pairing code has expired. Open "Add camera" on the laptop and scan the new code.' })
+      return ws.close(4002, 'expired')
+    }
+    r[role]?.close(4000, 'replaced')
+    r[role] = ws
+    relayRooms.set(room, r)
+    if (r.host && r.phone) { sendText(r.host, { type: 'peer-joined' }); sendText(r.phone, { type: 'peer-joined' }) }
+    ws.on('message', (data, isBinary) => {
+      // Only the phone sends: frames, and small notes such as which way up the phone is.
+      if (role !== 'phone') return
+      const host = relayRooms.get(room)?.host
+      if (host?.readyState !== WebSocket.OPEN) return
+      if (!isBinary) {
+        let msg: { type?: unknown; rotation?: unknown } | null = null
+        try { msg = JSON.parse(String(data)) } catch { return }
+        if (msg && msg.type === 'orientation' && [0, 90, 180, 270].includes(msg.rotation as number)) sendText(host, { type: 'orientation', rotation: msg.rotation })
+        return
+      }
+      // Drop frames if the laptop is still busy with earlier ones.
+      if (host.bufferedAmount < RELAY_MAX_FRAME) host.send(data, { binary: true })
+    })
+    ws.on('close', () => {
+      const cur = relayRooms.get(room)
+      if (!cur || cur[role] !== ws) return
+      delete cur[role]
+      sendText(role === 'host' ? cur.phone : cur.host, { type: 'peer-left' })
+      if (!cur.host && !cur.phone) relayRooms.delete(room)
+    })
+  })
+
   httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
-    if (req.url?.split('?')[0] !== '/signal') return // leave Vite's own HMR socket alone
-    wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
+    const path = req.url?.split('?')[0]
+    if (path === '/signal') wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
+    else if (path === '/relay') relayWss.handleUpgrade(req, socket, head, (ws) => relayWss.emit('connection', ws, req))
+    // anything else is Vite's own HMR socket: leave it alone
   })
 
   // --- HTTP transport (phones) -----------------------------------------------
@@ -283,7 +333,11 @@ function attach(server: ViteDevServer | PreviewServer) {
     const [path, query] = (req.url ?? '').split('?')
     if (path === '/phone.html' && query) {
       const room = new URLSearchParams(query).get('room') ?? ''
-      rooms.get(room)?.host?.send({ type: 'phone-visit', from: req.socket.remoteAddress?.replace(/^::ffff:/, '') ?? '' })
+      const cf = req.headers['cf-connecting-ip']
+      const from = typeof cf === 'string' ? `${cf}, via the internet link` : req.socket.remoteAddress?.replace(/^::ffff:/, '') ?? ''
+      rooms.get(room)?.host?.send({ type: 'phone-visit', from })
+      const relayHost = relayRooms.get(room)?.host
+      if (relayHost?.readyState === WebSocket.OPEN) relayHost.send(JSON.stringify({ type: 'phone-visit', from }))
     }
     next()
   })

@@ -4,20 +4,25 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "postinstall": "node scripts/setup-assets.mjs",
+    "dev": "node scripts/setup-assets.mjs && node scripts/build-phone.mjs && vite",
+    "build": "node scripts/setup-assets.mjs && tsc -b && vite build && node scripts/build-phone.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
     "@fontsource/patrick-hand": "^5.3.0",
+    "@mediapipe/tasks-vision": "1.0.1",
     "@tauri-apps/api": "^2.1.1",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.21.5",
     "typescript": "~5.6.3",
     "vite": "^5.4.11"
   }

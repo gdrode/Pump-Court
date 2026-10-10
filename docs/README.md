@@ -1,99 +1,104 @@
 # Pump-Court Documentation Portal
 
-> **Version**: 2.0  
-> **Target Audience**: Human Software Engineers, Systems Operators, and AI Coding Agents  
+> **Version**: 3.0  
+> **Target Audience**: Software engineers, venue operators, and AI coding agents  
 > **Last Verified**: 2026-10-10  
 
-Welcome to the definitive technical documentation for **Pump-Court**, a high-precision, software-judged push-up competition platform powered by computer vision, biomechanical heuristics, and a dual-screen tournament presentation engine.
+Pump-Court is a push-up contest judged by software. A side-on camera (laptop webcam, USB camera or a phone) films the player. A pose tracker and a three-light referee run in the app window. A small Rust backend keeps the round clock and the score, and saves results to a local SQLite leaderboard. A second window shows the crowd the live count and the all-time top 10.
 
 ---
 
 ## 🗺️ Documentation Directory Map
 
-Every major architectural subsystem and technical feature is split into an isolated, dedicated directory containing standalone explanations, architectural diagrams, data contracts, and maintenance guidelines.
+Each feature has its own folder with a `README.md` overview and deeper pages.
 
 ```text
 docs/
-├── README.md                            # 📍 You are here: Master Portal & Navigation Index
-├── ARCHITECTURE.md                      # System Architecture & End-to-End Data Flow
-├── AGENTS.md                            # AI Agent Operating Manual & Maintenance Protocol
+├── README.md                            # 📍 You are here: portal & index
+├── ARCHITECTURE.md                      # System architecture, data flow, IPC contract
+├── AGENTS.md                            # AI agent operating manual & doc upkeep rules
 ├── CHANGELOG.md                         # Plain-words log of each work session
+├── FRONTEND.md                          # Short guide: swapping in a new design
+├── INTEGRATION.md                       # Short guide: how the tracker is wired in
+├── PHONE_CAMERA.md                      # Short guide: phone cameras
+├── RUST_GUIDE.md                        # Rust for first-timers, using this backend
 └── features/
-    ├── pose-tracking/                   # Feature 1: Vision Pipeline & Pose Ingestion
-    │   ├── README.md                    # Core concepts, coordinate spaces & PoseSource trait
-    │   ├── mediapipe-integration.md     # MediaPipe 33-landmark model, WASM & IPC ingestion
-    │   └── mock-athlete.md              # Scripted kinematic generator for camera-less testing
-    ├── referee-engine/                  # Feature 2: Biomechanical Judging & Rulebook
-    │   ├── README.md                    # The 3-Light referee specification & verdicts
-    │   ├── angles-and-biomechanics.md   # Elbow, hip, knee, and depth geometry calculations
-    │   ├── rep-segmentation.md          # State machine, ascent/descent, anti-cheat hysteresis
-    │   └── ready-check-calibration.md   # Plank hold detection & player-specific lockout tuning
-    ├── game-engine/                     # Feature 3: Match Session State & Thread Loop
-    │   ├── README.md                    # Session lifecycle & execution model
-    │   ├── game-modes.md                # Sprint, Minute, Max, and Duel game modes
-    │   └── engine-thread-loop.md        # Background thread, mpsc channels & 60Hz tick loop
-    ├── phone-camera/                    # Feature 4: Zero-Install Wireless Video Bridge
-    │   ├── README.md                    # Architecture: PhoneHub, Axum server & streaming
-    │   ├── https-and-tls.md             # On-the-fly self-signed TLS & local IP discovery
-    │   ├── pairing-and-websocket.md     # QR code handshake, session tokens & binary JPEGs
-    │   └── mobile-web-client.md         # Embedded HTML5 camera client & WebRTC/WSS behavior
-    ├── leaderboard/                     # Feature 5: Persistence & Scoring Engine
-    │   ├── README.md                    # Embedded SQLite schema & ACID guarantees
-    │   ├── scoring-and-ranking.md       # Category partitions, accuracy tie-breakers & ranks
-    │   ├── name-validation.md           # Unicode normalization, length caps & content filter
-    │   └── backup-and-recovery.md       # Hourly JSON snapshots & disaster recovery
-    ├── frontend-ui/                     # Feature 6: React UI, Logic & Dual-Monitor Engine
-    │   ├── README.md                    # Decoupled UI / Logic design architecture
-    │   ├── state-and-hooks.md           # Custom React hooks (useRound, useGameFlow, etc.)
-    │   ├── crowd-display-sync.md        # Multi-window Tauri broadcast & crowd display modes
-    │   └── styling-and-tokens.md        # Design token system & HTML5 Canvas PoseView
-    ├── venue-operations/                # Feature 7: Tournament Deployment & Runbook
-    │   ├── README.md                    # Physical stage layout, camera geometry & lighting
-    │   ├── operator-runbook.md          # Stage operator playbook, hotkeys & match flow
-    │   └── troubleshooting.md           # Diagnostic matrix, dropped frames & network recovery
-    └── developer-guides/                # Feature 8: Engineering Runbooks & Extensibility
-        ├── README.md                    # Local setup, tooling & test suites
-        ├── rust-backend-guide.md        # Rust idioms, concurrency, ownership & Tauri 2 IPC
-        └── tracker-integration.md       # Route A (WASM/Frontend) vs Route B (Native C++)
+    ├── pose-tracking/                   # Feature 1: Camera → MediaPipe → tracked side
+    │   ├── README.md                    # TrackerProvider, landmarks, side tracker, frames
+    │   └── mediapipe-integration.md     # Pose Landmarker setup, offline assets, GPU/CPU
+    ├── referee-engine/                  # Feature 2: The three-light referee (TypeScript)
+    │   ├── README.md                    # Depth / Torso / Lockout, fixed rules, RepReport
+    │   ├── angles-and-biomechanics.md   # Angles, abdominal point, depth in arm lengths
+    │   ├── rep-segmentation.md          # RepJudge phases and SEGMENT constants
+    │   ├── ready-check-calibration.md   # Posture check (POSTURE) and the floor line
+    │   └── browser-prototype-judge.md   # The standalone pumpCourt app: Hard rules, tests, log replay
+    ├── game-engine/                     # Feature 3: Round clock & score (Rust)
+    │   ├── README.md                    # Session phases, SessionSnapshot, RoundResult
+    │   ├── game-modes.md                # Sprint, Minute, Max, Duel
+    │   ├── engine-thread-loop.md        # Engine thread, commands, 100 ms tick
+    │   └── browser-prototype-modes.md   # The standalone pumpCourt app's modes and co-op (not used by the app)
+    ├── phone-camera/                    # Feature 4: Phones as cameras
+    │   ├── README.md                    # Overview: rooms, any network, same Wi-Fi (WebRTC), rotation
+    │   ├── https-and-tls.md             # Self-signed HTTPS on :47800, address ranking
+    │   ├── pairing-and-websocket.md     # Rooms, HTTP signalling, relay socket, IPC
+    │   ├── internet-link.md             # "Phone · any network": Cloudflare quick tunnel
+    │   ├── mobile-web-client.md         # The phone page: build, WebRTC and relay modes
+    │   └── browser-prototype-pairing.md # How the prototype's pairing was ported to Rust
+    ├── leaderboard/                     # Feature 5: SQLite storage
+    │   ├── README.md                    # runs table, migration, API
+    │   ├── scoring-and-ranking.md       # Best run per player, all-time board, ties
+    │   ├── name-validation.md           # Length cap and blocklist
+    │   └── backup-and-recovery.md       # Hourly JSON backups and recovery
+    ├── frontend-ui/                     # Feature 6: React UI & crowd window
+    │   ├── README.md                    # Layers, screens, two windows
+    │   ├── state-and-hooks.md           # useGameFlow, useRound, useCrowd, …
+    │   ├── crowd-display-sync.md        # The crowd window
+    │   └── styling-and-tokens.md        # Sketchbook theme, tokens, camera view
+    ├── venue-operations/                # Feature 7: Running an event
+    │   ├── README.md                    # Physical layout, camera position, lighting
+    │   ├── operator-runbook.md          # Checklist, match flow, keys
+    │   └── troubleshooting.md           # Symptom → fix table
+    └── developer-guides/                # Feature 8: Building and extending
+        ├── README.md                    # Setup, launch scripts, tests
+        ├── rust-backend-guide.md        # Backend layout, threads, Tauri IPC
+        └── tracker-integration.md       # How the app uses pumpCourt/src (@tracker/*)
 ```
 
 ---
 
 ## 🧭 Fast Reading Paths
 
-Depending on your role or objective, read documents in the following order:
-
 ### For AI Coding Agents
-1. Read [AGENTS.md](AGENTS.md) for reading heuristics, token conservation rules, and documentation update invariants.
-2. Read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the interaction boundaries between Rust and React.
-3. Consult the specific `features/<feature-name>/README.md` corresponding to the files you are modifying.
+1. Read [AGENTS.md](AGENTS.md) for the rules and the doc upkeep checklist.
+2. Read [ARCHITECTURE.md](ARCHITECTURE.md) to see what runs in TypeScript and what runs in Rust.
+3. Read the `features/<feature>/README.md` for the files you are changing.
 
 ### For Game Operators & Venue Staff
-1. Read [Venue Operations: Operator Runbook](features/venue-operations/operator-runbook.md).
-2. Read [Phone Camera Setup](features/phone-camera/README.md) to pair athlete-facing smartphones.
-3. Keep [Troubleshooting Matrix](features/venue-operations/troubleshooting.md) open during live events.
+1. Read the [Operator Runbook](features/venue-operations/operator-runbook.md).
+2. Read [Phone Camera](features/phone-camera/README.md) to pair a phone.
+3. Keep the [Troubleshooting table](features/venue-operations/troubleshooting.md) open during the event.
 
 ### For Frontend & UI Developers
-1. Read [Frontend Architecture Overview](features/frontend-ui/README.md).
-2. Read [State and Hooks Specification](features/frontend-ui/state-and-hooks.md).
-3. Read [Crowd Display Synchronization](features/frontend-ui/crowd-display-sync.md).
+1. Read the [Frontend Overview](features/frontend-ui/README.md).
+2. Read [State and Hooks](features/frontend-ui/state-and-hooks.md).
+3. Read [Crowd Display](features/frontend-ui/crowd-display-sync.md).
 
 ### For Computer Vision & Algorithm Engineers
-1. Read [Pose Tracking System](features/pose-tracking/README.md).
-2. Read [Referee Engine: Angles & Biomechanics](features/referee-engine/angles-and-biomechanics.md).
-3. Read [Rep Segmentation State Machine](features/referee-engine/rep-segmentation.md).
+1. Read [Pose Tracking](features/pose-tracking/README.md).
+2. Read [Angles & Biomechanics](features/referee-engine/angles-and-biomechanics.md).
+3. Read [Rep Segmentation](features/referee-engine/rep-segmentation.md) and [Ready Check](features/referee-engine/ready-check-calibration.md).
 
 ---
 
 ## ⚡ System Snapshot
 
-| Subsystem | Primary Language / Framework | Primary Source Location | Key Responsibility |
+| Subsystem | Language / Framework | Main Source Location | Job |
 | :--- | :--- | :--- | :--- |
-| **Desktop Shell** | Rust / Tauri 2 | `backend/src/lib.rs` | Window lifecycle, permissions, local OS APIs |
-| **Engine Thread** | Rust (`std::thread`, `mpsc`) | `backend/src/engine.rs` | 30–60Hz clock, frame ingestion, judging loop |
-| **Referee Core** | Rust (Pure Maths) | `backend/src/judge/` | Angle calculation, segmentation, 3-light verdict |
-| **Session Control**| Rust | `backend/src/game/` | Match state machine (Sprint, Minute, Max, Duel) |
-| **Phone Gateway** | Rust / Axum / WebSockets | `backend/src/phone/` | Embedded HTTPS server, QR code pairing, binary stream |
-| **Persistence** | Rust / SQLite (`rusqlite`) | `backend/src/leaderboard.rs`| Local database, validation, hourly JSON backups |
-| **Frontend App** | TypeScript / React / Vite | `frontend/src/` | Dual UI: Operator console and Crowd stadium display |
-| **Vision Prototype** | TypeScript / MediaPipe | `pumpCourt/src/` | Standalone browser prototype with MediaPipe WASM |
+| **Pose tracking** | TypeScript, MediaPipe (`@mediapipe/tasks-vision` 1.0.1) | `pumpCourt/src/{landmarker,pose,camera,draw}.ts`, `frontend/src/logic/tracker/TrackerProvider.tsx` | Camera → 33 landmarks → angles of the side nearest the camera |
+| **Ready check** | TypeScript | `pumpCourt/src/posture.ts` | Is the player in the push-up position? Plants the floor line |
+| **Referee** | TypeScript | `pumpCourt/src/judge.ts` | Splits motion into reps, gives Depth / Torso / Lockout lights |
+| **Round clock & score** | Rust (`std::thread`, `mpsc`) | `backend/src/engine.rs`, `backend/src/game/` | Get ready → countdown → running → finished; counts valid push-ups |
+| **Desktop shell** | Rust / Tauri 2 | `backend/src/lib.rs`, `commands.rs` | Windows, commands, camera permission on Linux |
+| **Phone cameras** | Rust (axum, rustls, rcgen) + TypeScript | `backend/src/phone/`, `frontend/src/logic/tracker/` | HTTPS on :47800, pairing rooms, WebRTC signalling, JPEG relay, Cloudflare tunnel |
+| **Leaderboard** | Rust / SQLite (`rusqlite`, bundled) | `backend/src/leaderboard.rs` | `runs(name, mode, reps)`, best run per player, hourly JSON backups |
+| **Frontend** | TypeScript / React 18 / Vite 5 | `frontend/src/` | Operator window and crowd window |

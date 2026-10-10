@@ -38,3 +38,7 @@ replog-*.json
 node_modules/
 dist/
 .DS_Store
+
+# Pose tracker files copied by frontend/scripts/setup-assets.mjs
+frontend/public/wasm/
+frontend/public/models/

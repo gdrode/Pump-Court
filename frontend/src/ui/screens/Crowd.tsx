@@ -1,28 +1,18 @@
-import { CATEGORIES, CROWD_KEYS, CROWD_PAGES } from "../../config/modes";
 import { useCrowd } from "../../logic/useCrowd";
-import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
 import { LeaderboardTable } from "../components/LeaderboardTable";
 import { Lights } from "../components/Lights";
-import { RecentTable } from "../components/RecentTable";
 import { host } from "../host";
 import { hostReaction } from "../hostMood";
 import { TitleLights } from "./Home";
 
 /**
  * The aisle-facing second window. Live round → big count, lights and the
- * dragon. Idle → the three boards and the recent results, cycling or pinned
- * by the operator. Keys here: 1–3 boards, R recent, A cycle.
+ * dragon. Otherwise → the all-time board: each player's best round in any
+ * mode (name, mode, push-ups).
  */
 export function Crowd() {
   const crowd = useCrowd();
-  useKeys({
-    ...Object.fromEntries(
-      CROWD_KEYS.boards.map((key, i) => [key, () => crowd.setView({ kind: "board", category: CATEGORIES[i].id })]),
-    ),
-    [CROWD_KEYS.recent]: () => crowd.setView({ kind: "recent" }),
-    [CROWD_KEYS.auto]: () => crowd.setView({ kind: "auto" }),
-  });
 
   if (crowd.round) {
     const r = crowd.round;
@@ -32,7 +22,7 @@ export function Crowd() {
     const reaction = hostReaction({
       lastRep: r.lastRep,
       lastRepAt: r.lastRepAt,
-      cleanReps: r.cleanReps,
+      reps: r.reps,
       attempts: r.attempts,
       best: r.best,
       urgent,
@@ -46,17 +36,17 @@ export function Crowd() {
         </div>
         {running ? (
           <>
-            <div className="crowd__count" key={r.cleanReps}>
-              {r.cleanReps}
+            <div className="crowd__count" key={r.reps}>
+              {r.reps}
             </div>
             {secondsLeft !== null && <div className={`crowd__clock ${urgent ? "is-urgent" : ""}`}>{secondsLeft}s</div>}
             {r.best && (
-              <div className={`crowd__best ${r.cleanReps > r.best.reps ? "is-beaten" : ""}`}>
-                {r.cleanReps > r.best.reps ? `Passed ${r.best.name}'s ${r.best.reps}!` : `Best: ${r.best.name} ${r.best.reps}`}
+              <div className={`crowd__best ${r.reps > r.best.reps ? "is-beaten" : ""}`}>
+                {r.reps > r.best.reps ? `Passed ${r.best.name}'s ${r.best.reps}!` : `All-time best: ${r.best.name} ${r.best.reps}`}
               </div>
             )}
             <div className="crowd__live-row">
-              <Lights rep={r.lastRep} flashKey={r.attempts} size="xl" />
+              <Lights rep={r.lastRep} flashKey={r.attempts} size="xl" showFaults={false} />
               <Dragon
                 action={reaction.action}
                 beat={reaction.action === "cheer" || reaction.action === "sad" ? reaction.beat : undefined}
@@ -76,13 +66,12 @@ export function Crowd() {
     );
   }
 
-  const page = crowd.page;
   const posted = crowd.posted;
   const says = posted
-    ? host.posted(posted.player, posted.cleanReps, posted.rank)
-    : page.kind === "board"
-      ? host.idle(crowd.leader?.name ?? null, crowd.leader?.cleanReps ?? null) + (crowd.leader ? ` (${page.title})` : "")
-      : `${crowd.playerCount} ${crowd.playerCount === 1 ? "person has" : "people have"} competed so far!`;
+    ? host.posted(posted.player, posted.reps, crowd.rows.find((row) => row.runId === posted.runId)?.rank ?? null)
+    : crowd.leader
+      ? host.idle(crowd.leader.name, crowd.leader.reps)
+      : host.idle(null, null);
 
   return (
     <div className="crowd crowd--idle">
@@ -94,16 +83,13 @@ export function Crowd() {
         <Dragon action={posted ? "hype" : "curl"} size="lg" bubble="top" says={says} mood={posted ? "good" : undefined} />
         <div className="crowd__board">
           <div className="crowd__tabs">
-            {CROWD_PAGES.map((p) => (
-              <span key={p.title} className={`sketch ${p.title === page.title ? "is-on" : ""}`}>
-                {p.title}
-              </span>
-            ))}
+            <span className="sketch is-on">Most push-ups · all time</span>
           </div>
-          {page.kind === "board" ? (
-            <LeaderboardTable rows={crowd.rows} big highlight={posted?.player} />
-          ) : (
-            <RecentTable runs={crowd.recent} big />
+          <LeaderboardTable rows={crowd.rows} big showMode highlight={posted?.player} />
+          {crowd.playerCount > 0 && (
+            <p className="crowd__count-note muted">
+              {crowd.playerCount} {crowd.playerCount === 1 ? "person has" : "people have"} competed so far
+            </p>
           )}
         </div>
       </div>

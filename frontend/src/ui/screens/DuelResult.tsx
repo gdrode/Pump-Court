@@ -1,5 +1,5 @@
 import type { RoundResult } from "../../api/types";
-import { versusOutcome } from "../../logic/results";
+import { duelOutcome } from "../../logic/results";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
@@ -11,11 +11,11 @@ interface Props {
   onDone: () => void;
 }
 
-const ORDINAL = ["1st", "2nd", "3rd", "4th"];
+const ORDINAL = ["1st", "2nd"];
 
-/** Final standings for a Versus game: clean reps first, accuracy breaks ties. */
-export function VersusResult({ results, onRematch, onDone }: Props) {
-  const { ranked, winner, decidedOnAccuracy } = versusOutcome(results);
+/** Who won the Duel: most push-ups; perfect push-ups break a tie. */
+export function DuelResult({ results, onRematch, onDone }: Props) {
+  const { ranked, winner, decidedOnPerfect } = duelOutcome(results);
   useKeys({ Enter: onDone, Escape: onDone, r: onRematch });
 
   return (
@@ -32,12 +32,12 @@ export function VersusResult({ results, onRematch, onDone }: Props) {
           >
             <span className="standing__place">{ORDINAL[i]}</span>
             <span className="standing__name">{r.player}</span>
-            <span className="standing__reps">{r.cleanReps}</span>
-            <span className="standing__acc">{Math.round(r.accuracy * 100)}%</span>
+            <span className="standing__reps">{r.reps}</span>
+            <span className="standing__acc">{r.perfect} perfect</span>
           </li>
         ))}
       </ol>
-      {decidedOnAccuracy && <p className="muted versus__note">Tied on reps, decided on accuracy.</p>}
+      {decidedOnPerfect && <p className="muted versus__note">Tied on push-ups, decided on perfect push-ups.</p>}
       <div className="versus__foot">
         <button type="button" className="start-btn sketch" onClick={onRematch}>
           Rematch!

@@ -5,14 +5,13 @@
 //! maps to snake_case here automatically.
 
 use crate::engine::EngineCommand;
-use crate::game::{Category, RoundMode};
-use crate::judge::JudgeConfig;
-use crate::leaderboard::{self, Leaderboard, LeaderboardRow, RecentRun};
-use crate::phone::{PhoneHub, PhoneLink};
-use crate::pose::inbox::Inbox;
-use crate::pose::sources::PushedPoseFrame;
-use crate::pose::{self, SourceInfo, SourceSpec};
-use serde::{Deserialize, Serialize};
+use crate::game::{RepReport, RoundMode, RoundResult};
+use crate::leaderboard::{self, Leaderboard, LeaderboardRow};
+use crate::phone::net::{self, LanInfo};
+use crate::phone::server::ServerStatus;
+use crate::phone::tunnel::{Tunnel, TunnelStatus};
+use crate::phone::{HostLink, PhoneHub, PORT};
+use serde_json::Value;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use tauri::ipc::{Channel, InvokeResponseBody};
@@ -22,23 +21,9 @@ use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder
 pub struct AppState {
     pub engine: Mutex<Sender<EngineCommand>>,
     pub db: Arc<Mutex<Leaderboard>>,
-    pub config: Mutex<JudgeConfig>,
     pub phone: Arc<PhoneHub>,
-    pub pushed: Arc<Inbox<PushedPoseFrame>>,
-    pub crowd_view: Mutex<CrowdView>,
-}
-
-/// What the crowd screen shows when no round is running.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum CrowdView {
-    /// Cycle through every board and the recent list.
-    #[default]
-    Auto,
-    /// Stay on one leaderboard.
-    Board { category: Category },
-    /// Stay on the latest results.
-    Recent,
+    pub phone_server: Arc<ServerStatus>,
+    pub tunnel: Tunnel,
 }
 
 impl AppState {
@@ -50,20 +35,7 @@ impl AppState {
 /// Commands return `Result<T, String>`: an `Err` becomes a rejected promise in JS.
 type CmdResult<T> = Result<T, String>;
 
-#[tauri::command]
-pub fn list_sources() -> Vec<SourceInfo> {
-    pose::list_sources()
-}
-
-#[tauri::command]
-pub fn start_source(state: State<AppState>, spec: SourceSpec) -> CmdResult<()> {
-    state.send(EngineCommand::SetSource(spec))
-}
-
-#[tauri::command]
-pub fn stop_source(state: State<AppState>) -> CmdResult<()> {
-    state.send(EngineCommand::StopSource)
-}
+// --- Rounds -------------------------------------------------------------------
 
 /// Checks a name before the round (same rules the round uses).
 #[tauri::command]
@@ -71,10 +43,11 @@ pub fn check_name(name: String) -> CmdResult<String> {
     leaderboard::validate_name(&name)
 }
 
+/// Starts a round. It waits for the tracker to say the player is in position.
 #[tauri::command]
-pub fn start_round(state: State<AppState>, mode: RoundMode, player: String, is_team: bool) -> CmdResult<()> {
+pub fn start_round(state: State<AppState>, mode: RoundMode, player: String) -> CmdResult<()> {
     let player = leaderboard::validate_name(&player)?;
-    state.send(EngineCommand::StartRound { mode, player, is_team })
+    state.send(EngineCommand::StartRound { mode, player })
 }
 
 #[tauri::command]
@@ -82,74 +55,38 @@ pub fn cancel_round(state: State<AppState>) -> CmdResult<()> {
     state.send(EngineCommand::CancelRound)
 }
 
+/// The tracker's posture check changed: the player is (or isn't) holding the top of a push-up.
 #[tauri::command]
-pub fn get_judge_config(state: State<AppState>) -> JudgeConfig {
-    state.config.lock().unwrap().clone()
+pub fn set_ready(state: State<AppState>, ready: bool) -> CmdResult<()> {
+    state.send(EngineCommand::SetReady(ready))
 }
 
-/// Change thresholds live, e.g. while tuning on recorded clips.
-/// Takes effect from the next round.
+/// The tracker judged a rep.
 #[tauri::command]
-pub fn set_judge_config(state: State<AppState>, config: JudgeConfig) -> CmdResult<()> {
-    *state.config.lock().unwrap() = config.clone();
-    state.send(EngineCommand::SetConfig(config))
+pub fn report_rep(state: State<AppState>, rep: RepReport) -> CmdResult<()> {
+    state.send(EngineCommand::ReportRep(rep))
 }
 
+/// Saves a round the frontend played itself (a side-by-side Duel) and tells
+/// every window, like the engine does when one of its rounds ends.
 #[tauri::command]
-pub fn get_leaderboard(state: State<AppState>, category: Category, include_team: bool, limit: u32) -> CmdResult<Vec<LeaderboardRow>> {
-    state.db.lock().unwrap().top(category, include_team, limit).map_err(|e| e.to_string())
+pub fn save_round(app: AppHandle, state: State<AppState>, round: leaderboard::FinishedRound) -> CmdResult<RoundResult> {
+    let result = leaderboard::save_finished(&state.db.lock().unwrap(), round)?;
+    let _ = app.emit("round-finished", result.clone());
+    Ok(result)
+}
+
+// --- Leaderboard ----------------------------------------------------------------
+
+/// Each player's best round. `mode: null` = every mode (the all-time board).
+#[tauri::command]
+pub fn get_leaderboard(state: State<AppState>, mode: Option<RoundMode>, limit: u32) -> CmdResult<Vec<LeaderboardRow>> {
+    state.db.lock().unwrap().top(mode, limit).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn get_player_count(state: State<AppState>) -> CmdResult<u32> {
     state.db.lock().unwrap().player_count().map_err(|e| e.to_string())
-}
-
-/// Latest finished runs across all modes (crowd screen "Recent").
-#[tauri::command]
-pub fn get_recent_runs(state: State<AppState>, include_team: bool, limit: u32) -> CmdResult<Vec<RecentRun>> {
-    state.db.lock().unwrap().recent(include_team, limit).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_crowd_view(state: State<AppState>) -> CrowdView {
-    state.crowd_view.lock().unwrap().clone()
-}
-
-/// Switches the crowd screen; every window gets a "crowd-view" event.
-#[tauri::command]
-pub fn set_crowd_view(app: AppHandle, state: State<AppState>, view: CrowdView) -> CmdResult<()> {
-    *state.crowd_view.lock().unwrap() = view.clone();
-    app.emit("crowd-view", view).map_err(|e| e.to_string())
-}
-
-/// QR code, address, pairing code and connection status of the phone link.
-#[tauri::command]
-pub fn get_phone_link(state: State<AppState>) -> PhoneLink {
-    state.phone.link()
-}
-
-/// New pairing code: the old QR code stops working and the phone disconnects.
-#[tauri::command]
-pub fn new_pairing_code(state: State<AppState>) -> PhoneLink {
-    state.phone.new_pairing_code();
-    state.phone.link()
-}
-
-/// Streams every phone camera frame (raw JPEG bytes) to the frontend, for a
-/// tracker that runs there. In TypeScript: `new Channel<ArrayBuffer>()`.
-#[tauri::command]
-pub fn subscribe_phone_frames(state: State<AppState>, on_frame: Channel<InvokeResponseBody>) {
-    state
-        .phone
-        .subscribe(move |frame| on_frame.send(InvokeResponseBody::Raw(frame.jpeg.to_vec())).is_ok());
-}
-
-/// A frontend tracker hands over one frame of landmarks. Used with the
-/// `{ kind: "pushed" }` source.
-#[tauri::command]
-pub fn push_pose_frame(state: State<AppState>, frame: PushedPoseFrame) {
-    state.pushed.put(frame);
 }
 
 #[tauri::command]
@@ -163,16 +100,77 @@ pub fn export_backup(state: State<AppState>) -> CmdResult<String> {
 }
 
 /// Opens the crowd-facing screen as a second window (drag it to the
-/// external monitor). It loads the same frontend at `#/crowd`.
+/// external monitor). It loads the same frontend; the window's label tells
+/// it to show the crowd screen.
+///
+/// Must be `async`: on Windows, building a window inside a plain (sync)
+/// command deadlocks the app, which froze every button and left the crowd
+/// window blank.
 #[tauri::command]
-pub fn open_crowd_window(app: AppHandle) -> CmdResult<()> {
+pub async fn open_crowd_window(app: AppHandle) -> CmdResult<()> {
     if let Some(win) = app.get_webview_window("crowd") {
         return win.set_focus().map_err(|e| e.to_string());
     }
-    WebviewWindowBuilder::new(&app, "crowd", WebviewUrl::App("index.html#/crowd".into()))
+    WebviewWindowBuilder::new(&app, "crowd", WebviewUrl::App("index.html".into()))
         .title("Pump Court — Crowd")
         .inner_size(1280.0, 720.0)
         .build()
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+// --- Phone cameras ----------------------------------------------------------------
+
+/// Opens a pairing room for a phone and returns its code. Messages
+/// (`joined`, `peer-joined`, `peer-left`, `signal`, `phone-visit`) arrive on
+/// `events`; relayed JPEG frames (internet link) on `frames`.
+#[tauri::command]
+pub fn phone_open(state: State<AppState>, events: Channel<Value>, frames: Channel<InvokeResponseBody>) -> String {
+    state.phone.open_room(HostLink {
+        events: Box::new(move |msg| {
+            let _ = events.send(msg);
+        }),
+        frames: Box::new(move |jpeg| {
+            let _ = frames.send(InvokeResponseBody::Raw(jpeg));
+        }),
+    })
+}
+
+/// The app window's WebRTC answer or ICE candidate, for the phone.
+#[tauri::command]
+pub fn phone_signal(state: State<AppState>, room: String, data: Value) {
+    state.phone.host_signal(&room, data);
+}
+
+/// Done with a room: the phone is told and the code stops working.
+#[tauri::command]
+pub fn phone_close(state: State<AppState>, room: String) {
+    state.phone.close_room(&room);
+}
+
+/// This laptop's addresses for the QR code, best first.
+#[tauri::command]
+pub fn phone_lan(state: State<AppState>) -> LanInfo {
+    LanInfo {
+        addresses: net::lan_addresses(),
+        bonjour: net::bonjour_name(),
+        port: PORT,
+        error: state.phone_server.error.lock().unwrap().clone(),
+    }
+}
+
+#[tauri::command]
+pub fn tunnel_status(state: State<AppState>) -> TunnelStatus {
+    state.tunnel.status()
+}
+
+/// Starts the internet link (Cloudflare quick tunnel). Poll `tunnel_status` for its address.
+#[tauri::command]
+pub fn tunnel_start(state: State<AppState>) -> TunnelStatus {
+    state.tunnel.start()
+}
+
+#[tauri::command]
+pub fn tunnel_stop(state: State<AppState>) -> TunnelStatus {
+    state.tunnel.stop()
 }

@@ -212,9 +212,16 @@ describe('sticking point on the way up', () => {
     expect(rs.map(lightsOf)).toEqual(['111'])
   })
 
-  it('a 44° sag at the sticking point (120 -> 76) is still ONE perfect rep', () => {
-    const rs = run(new Track(168, { depth: 'forearm' }).hold(500).to(500, 70).to(300, 120).to(300, 76).to(400, 165).hold(1000).frames)
+  it('a 30° sag at the sticking point (120 -> 90) is still ONE perfect rep', () => {
+    const rs = run(new Track(168, { depth: 'forearm' }).hold(500).to(500, 70).to(300, 120).to(300, 90).to(400, 165).hold(1000).frames)
     expect(rs.map(lightsOf)).toEqual(['111'])
+  })
+
+  it('a 44° sag from halfway up (120 -> 76) drops the shoulders like a new rep: two reps, the first without lockout', () => {
+    // Since reps follow shoulder height, a drop this big counts as a new descent. The first movement came
+    // 64% of the way back up (shoulders), so it is scored, without lockout.
+    const rs = run(new Track(168, { depth: 'forearm' }).hold(500).to(500, 70).to(300, 120).to(300, 76).to(400, 165).hold(1000).frames)
+    expect(rs.map(lightsOf)).toEqual(['110', '111'])
   })
 
   it('oscillating 6 times at the sticking point (125 <-> 98) then locking out is ONE rep', () => {
@@ -228,8 +235,13 @@ describe('sticking point on the way up', () => {
     expect(rs.map(lightsOf)).toEqual(['111'])
   })
 
-  it('pausing 2 s at the sticking point fails lockout (stall timer, 1.5 s) - acceptable', () => {
+  it('pausing 2 s at the sticking point, halfway up, then locking out is one good rep (a grind is not cut off)', () => {
     const rs = run(new Track().hold(500).to(500, 70).to(300, 120).hold(2000).to(500, 168).hold(1000).frames)
+    expect(rs.map(lightsOf)).toEqual(['111'])
+  })
+
+  it('stalling 2 s near the top (most of the way up) ends the rep without lockout', () => {
+    const rs = run(new Track().hold(500).to(500, 70).to(400, 150).hold(2000).to(500, 168).hold(1000).frames)
     expect(rs.map(lightsOf)).toEqual(['110'])
   })
 
@@ -406,11 +418,11 @@ describe('tracked side flips mid-rep', () => {
     expect(rs[0].perfect).toBe(true)
   })
 
-  it('KNOWN: the far side reads 16° more bent for the rest of the rep -> lockout red (152 < 155)', () => {
+  it('the far side reads 16° more bent for the rest of the rep, but the shoulders get back to the top: lockout counts', () => {
     const fr = new Track().hold(500).rep(1200).hold(1000).frames
     const bottom = fr.findIndex(([, a]) => a!.elbow <= 70.01)
     const rs = run(fr.map(([t, a], i) => [t, a && i > bottom + 4 ? { ...a, elbow: a.elbow - 16 } : a] as Frame))
-    expect(rs.map(lightsOf)).toEqual(['110'])
+    expect(rs.map(lightsOf)).toEqual(['111'])
   })
 
   it('a brief flip to the far side (-20° for 3 frames) during a 1.2 s rep is absorbed', () => {
@@ -478,7 +490,8 @@ describe('timestamps', () => {
 
 describe('API edge cases', () => {
   it('setThresholds mid-rep applies to the rep in progress', () => {
-    const fr = new Track(160).hold(500).rep(1000, 70, 160).hold(1000).frames
+    // Body at 160°: straight enough for normal (155°), not for hard (165°).
+    const fr = new Track(168, { hip: 160 }).hold(500).rep(1000, 70, 168).hold(1000).frames
     const j = new RepJudge(DIFFICULTY.normal)
     const out: RepResult[] = []
     fr.forEach(([t, a], i) => {
@@ -489,12 +502,12 @@ describe('API edge cases', () => {
     const last = j.finish()
     if (last) out.push(last)
     expect(out).toHaveLength(1)
-    expect(out[0].lights.lockout).toBe(false) // 160 < hard 165
+    expect(out[0].lights.torso).toBe(false) // 160 < hard 165
   })
 
   it('finish() twice returns null the second time; push after finish works and rep numbers continue', () => {
     const j = new RepJudge(DIFFICULTY.normal)
-    const fr = new Track().hold(500).to(500, 70).to(300, 130).frames
+    const fr = new Track().hold(500).to(500, 70).to(300, 145).frames
     fr.forEach(([t, a]) => j.push(t, a))
     const a = j.finish()
     expect(a?.rep).toBe(1)
@@ -531,8 +544,8 @@ describe('missing measurements', () => {
     expect(r.faults.join()).not.toMatch(/Infinity|NaN/)
   })
 
-  it('depth-fallback thresholds per difficulty: bottom 80° passes easy/normal, fails hard', () => {
-    const fr = noDepth(new Track().hold(500).rep(1000, 80, 170).hold(1000).frames)
+  it('depth-fallback thresholds per difficulty: bottom 92° passes easy/normal, fails hard', () => {
+    const fr = noDepth(new Track().hold(500).rep(1000, 92, 170).hold(1000).frames)
     expect(run(fr, 'easy')[0].lights.depth).toBe(true)
     expect(run(fr, 'normal')[0].lights.depth).toBe(true)
     expect(run(fr, 'hard')[0].lights.depth).toBe(false)
@@ -630,8 +643,9 @@ describe('recent top (2 s window)', () => {
   })
 
   it('lockout only from noise at the start of the descent is not credited (lockout is measured on the way up)', () => {
-    const tr = new Track(150).hold(500)
-    tr.frames.push([tr.t, { elbow: 160, hip: 175, depth: 1 }]); tr.t += tr.dt
+    // Straight-arm top first (sets the top height), then the player settles bent at 150° and repeats from there.
+    const tr = new Track(168).hold(1000).to(400, 150).hold(500)
+    tr.frames.push([tr.t, { elbow: 168, hip: 175, depth: 1 }]); tr.t += tr.dt
     tr.rep(1000, 70, 150).hold(300).rep(1000, 70, 150).hold(1000)
     const rs = run(tr.frames)
     expect(rs).toHaveLength(2)
@@ -702,9 +716,9 @@ describe("reps chained by a 'turn'", () => {
     expect(run(new Track().hold(500).rep(1000, 70, 135).rep(1000, 70, 168).hold(1000).frames).map(lightsOf)).toEqual(['110', '111'])
   })
 
-  it('by design: a failed lockout (135) then a re-descent of < 45° (to 100 or 95) and up MERGES into ONE rep with lockout', () => {
-    // Dip rule: rising back by 20° before dropping 45° below the turn top = same rep.
-    for (const b of [100, 95]) {
+  it('by design: a failed lockout (135) then a small re-descent (to 110 or 105) and up MERGES into ONE rep with lockout', () => {
+    // Dip rule: rising back by 20 units before dropping 45 below the turn top = same rep.
+    for (const b of [110, 105]) {
       const rs = run(new Track().hold(500).rep(1000, 70, 135).rep(1000, b, 168).hold(1000).frames)
       expect(rs.map(lightsOf), `re-descent to ${b}`).toEqual(['111'])
       expect(rs[0].measured.bottomElbow).toBeLessThan(72)
@@ -717,24 +731,24 @@ describe("reps chained by a 'turn'", () => {
   })
 
   it('when a turn becomes a new rep, the next descent is not credited to the previous rep', () => {
-    // Rep 1 only went to 100° (depth 0.45 > 0.42: should be red), but frames down to ~94° from rep 2's descent
-    // are tracked into rep 1 while 'turning', which turns its depth light white.
-    const rs = run(new Track().hold(500).rep(1000, 100, 140).rep(1000, 70, 168).hold(1000).frames)
-    expect(rs.map(lightsOf)).toEqual(['010', '111'])
-    expect(rs[0].measured.bottomElbow).toBeGreaterThanOrEqual(99)
+    // Rep 1 only went to 105° and came up to 150°; frames from rep 2's descent must not count towards it.
+    const rs = run(new Track().hold(500).rep(1000, 105, 150).rep(1000, 70, 168).hold(1000).frames)
+    expect(rs).toHaveLength(2)
+    expect(rs[0].lights.lockout).toBe(false)
+    expect(rs[0].measured.bottomElbow).toBeGreaterThanOrEqual(104)
+    expect(lightsOf(rs[1])).toBe('111')
   })
 
-  it('stall while turning (dip to 92° and stay 2.5 s) scores the rep without lockout, then no extra rep', () => {
+  it('a dip to 92° held 2.5 s halfway up, then a lockout, is still one good rep', () => {
     const rs = run(new Track().hold(500).to(500, 70).to(300, 120).to(250, 92).hold(2500).to(500, 168).hold(1000).frames)
-    expect(rs.map(lightsOf)).toEqual(['110'])
+    expect(rs.map(lightsOf)).toEqual(['111'])
   })
 
-  it('finish() while turning scores the rep (no lockout); a second finish() is null', () => {
+  it('finish() while turning before coming most of the way up scores nothing; a second finish() is null', () => {
     const j = new RepJudge(DIFFICULTY.normal)
     new Track().hold(500).to(500, 70).to(300, 120).to(250, 92).frames.forEach(([t, a]) => j.push(t, a))
     expect(j.currentPhase).toBe('turning')
-    const r = j.finish()
-    expect(r && lightsOf(r)).toBe('110')
+    expect(j.finish()).toBeNull()
     expect(j.finish()).toBeNull()
   })
 
@@ -753,8 +767,8 @@ describe('depth calibration (forearm-vertical model)', () => {
     expect(run(new Track(168, { depth: 'forearm' }).hold(500).rep().hold(1000).frames).map(lightsOf)).toEqual(['111'])
   })
 
-  it('KNOWN?: on hard a 70° bottom fails depth (0.33 > 0.30); needs about 66° or lower', () => {
-    expect(run(new Track(168, { depth: 'forearm' }).hold(500).rep().hold(1000).frames, 'hard').map(lightsOf)).toEqual(['011'])
+  it('on hard a 70° bottom passes depth (0.33 ≤ 0.45): chest near the floor, not through it', () => {
+    expect(run(new Track(168, { depth: 'forearm' }).hold(500).rep().hold(1000).frames, 'hard').map(lightsOf)).toEqual(['111'])
     expect(run(new Track(168, { depth: 'forearm' }).hold(500).rep(1000, 60).hold(1000).frames, 'hard').map(lightsOf)).toEqual(['111'])
   })
 })
