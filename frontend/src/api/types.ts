@@ -41,6 +41,9 @@ export interface NoRepCounts {
   lockout: number;
 }
 
+/** Why a round ended. backend/src/game/session.rs `FinishReason`; same names as the tracker's game.ts. */
+export type FinishReason = "time" | "stopped" | "stuck" | "left" | "ended";
+
 /** A finished round (`round-finished` event). Already saved when it arrives. */
 export interface RoundResult {
   mode: RoundMode;
@@ -51,6 +54,7 @@ export interface RoundResult {
   perfect: number;
   noReps: NoRepCounts;
   durationMs: number;
+  finish: FinishReason;
   /** Database id, or null if saving failed. */
   runId: number | null;
   /** Player's place on this mode's board. */
@@ -66,6 +70,7 @@ export interface FinishedRound {
   perfect: number;
   noReps: NoRepCounts;
   durationMs: number;
+  finish: FinishReason;
 }
 
 /** The round right now (`tick` event, about 10 times a second during a round). */
@@ -77,10 +82,10 @@ export interface SessionSnapshot {
   inPosition: boolean;
   countdownMs: number | null;
   elapsedMs: number;
-  /** Time left (Sprint, Minute, Duel). */
+  /** Time left (Sprint, Minute, Duel); null for Max (no time limit). */
   remainingMs: number | null;
-  /** Max: time left to get the next valid push-up. */
-  idleRemainingMs: number | null;
+  /** While running: time left before the player fails (stuck in a rep, or no push-up in time). */
+  failRemainingMs: number | null;
   reps: number;
   attempts: number;
   perfect: number;

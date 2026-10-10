@@ -4,7 +4,7 @@
 //! push-ups. Survives refreshes and crashes, needs no internet, and writes a
 //! JSON backup file every hour (see the engine).
 
-use crate::game::{NoRepCounts, RoundMode, RoundResult};
+use crate::game::{FinishReason, NoRepCounts, RoundMode, RoundResult};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -218,6 +218,8 @@ pub struct FinishedRound {
     pub perfect: u32,
     pub no_reps: NoRepCounts,
     pub duration_ms: i64,
+    /// Why this player's round ended.
+    pub finish: FinishReason,
 }
 
 /// Checks the name, posts the score and returns the full result with its id
@@ -234,6 +236,7 @@ pub fn save_finished(db: &Leaderboard, round: FinishedRound) -> Result<RoundResu
         perfect: round.perfect,
         no_reps: round.no_reps,
         duration_ms: round.duration_ms.max(0),
+        finish: round.finish,
         run_id: Some(id),
         rank,
     })
@@ -329,6 +332,7 @@ mod tests {
             perfect: 1,
             no_reps: NoRepCounts { depth: 2, torso: 0, lockout: 1 },
             duration_ms: 60_000,
+            finish: FinishReason::Time,
         };
         let a = save_finished(&db, round("Ana", 20)).unwrap();
         let b = save_finished(&db, round("Ben", 25)).unwrap();

@@ -38,17 +38,18 @@ The Rust game engine keeps the **clock and the score**. The tracker and referee 
     ┌───────────────┐
     │    Running    │ ◀── report_rep counts here and only here
     └───────┬───────┘
-            │ time up, or Max: 5 s without a valid push-up
+            │ time up, or the player fails (out of position 2 s, stuck, stopped)
             ▼
     ┌───────────────┐
     │   Finished    │ ── engine saves the result, then emits "round-finished"
     └───────────────┘
 ```
 
-- `set_ready(false)` never moves the phase back. It only updates `inPosition`.
+- Once running, `set_ready(false)` never moves the phase back. It updates `inPosition`, and 2 s out of position ends the round (`left`).
+- `set_ready` also carries `inRep` (the referee is partway through a rep), for the stuck / stopped checks.
 - Reps reported in any phase other than `running` are ignored (the tracker may still be finishing a rep as the buzzer goes).
 - `start_round` always starts clean, even right after a finished round.
-- A round is never voided. If tracking is lost, the clock runs on and no reps are reported.
+- A round is never voided. If tracking is lost for 2 s the posture check says not ready, so the round ends as `left` and the score so far is saved.
 
 ---
 
@@ -66,8 +67,8 @@ pub struct SessionSnapshot {
     pub in_position: bool,               // the tracker last said "ready"
     pub countdown_ms: Option<i64>,       // only in Countdown
     pub elapsed_ms: i64,                 // only counts while Running
-    pub remaining_ms: Option<i64>,       // while Running; for Max: time to the 3-minute cap
-    pub idle_remaining_ms: Option<i64>,  // Max only: time left to get the next valid push-up
+    pub remaining_ms: Option<i64>,       // while Running; None for Max (no time limit)
+    pub fail_remaining_ms: Option<i64>,  // while Running: time left before the player fails
     pub reps: u32,                       // valid push-ups
     pub attempts: u32,
     pub perfect: u32,
@@ -98,6 +99,7 @@ pub struct RoundResult {
     pub perfect: u32,
     pub no_reps: NoRepCounts,  // red lights per light: { depth, torso, lockout }
     pub duration_ms: i64,
+    pub finish: FinishReason,  // time | stopped | stuck | left | ended
     pub run_id: Option<i64>,   // filled in by the engine after saving
     pub rank: Option<u32>,     // the player's place on this mode's board
 }
@@ -109,9 +111,9 @@ Only `player`, `mode` and `reps` are stored in the database. The rest is for the
 
 ## 4. Ending a round
 
-- **Time up**: `elapsed ≥ mode.duration_ms()`. `durationMs` is capped at the mode's length.
-- **Max idle limit**: in Max, 5 s (`MAX_IDLE_MS`) after the start or the last **valid** push-up. A no-rep does not reset it.
+- **Time up**: `elapsed ≥ mode.duration_ms()` (Sprint, Minute, Duel). `durationMs` is capped at the mode's length.
+- **Failure**, every mode: out of position 2 s, stuck in a rep or no rep for the failure window (4 s + 0.25 s per rep, capped at 6 / 8 / 10 s). Checked on each tick by `Session::check_finish`. Details: [Game Modes](game-modes.md#2-failure-when-a-round-ends-early-every-mode).
 - **Operator abort** (`cancel_round`, Esc on the Round screen, or leaving the screen): back to `Idle`, nothing saved.
 - **Discard**: after a round, "Discard" (or "Redo turn" in a Duel) calls `delete_run` with the saved `runId`.
 
-The teammate's standalone prototype has its own game rules (`pumpCourt/src/game.ts`: Sprint / Marathon / Max, co-op, failure windows). The app does not use them. See [Browser Prototype Modes](browser-prototype-modes.md).
+The side-by-side Duel runs the tracker's own game rules (`pumpCourt/src/game.ts`) in the app window, because it needs two players at once. The Rust failure rules match them. See [Browser Prototype Modes](browser-prototype-modes.md).

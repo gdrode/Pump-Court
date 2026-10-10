@@ -48,7 +48,7 @@ Level 3: Detail
 | False or missed rep counts | `features/referee-engine/rep-segmentation.md` | `pumpCourt/src/judge.ts` (`SEGMENT`, `RepJudge`) |
 | Ready check / "get in position" | `features/referee-engine/ready-check-calibration.md` | `pumpCourt/src/posture.ts` (`POSTURE`) |
 | Camera choice, detection loop, model loading | `features/pose-tracking/README.md` | `frontend/src/logic/tracker/TrackerProvider.tsx`, `pumpCourt/src/landmarker.ts` |
-| Round clock, phases, Max idle limit | `features/game-engine/README.md` | `backend/src/game/session.rs`, `mode.rs` |
+| Round clock, phases, failure rules | `features/game-engine/README.md` | `backend/src/game/session.rs`, `mode.rs` |
 | Adding or changing a mode | `features/game-engine/game-modes.md` | `backend/src/game/mode.rs`, `frontend/src/config/modes.ts` |
 | Phone pairing, QR, relay | `features/phone-camera/pairing-and-websocket.md` | `backend/src/phone/mod.rs`, `server.rs`, `frontend/src/logic/tracker/phoneLink.ts` |
 | Cloudflare tunnel | `features/phone-camera/internet-link.md` | `backend/src/phone/tunnel.rs` |

@@ -55,10 +55,11 @@ pub fn cancel_round(state: State<AppState>) -> CmdResult<()> {
     state.send(EngineCommand::CancelRound)
 }
 
-/// The tracker's posture check changed: the player is (or isn't) holding the top of a push-up.
+/// The tracker's posture check changed (the player is, or isn't, in the
+/// push-up position), or its referee started or finished a rep.
 #[tauri::command]
-pub fn set_ready(state: State<AppState>, ready: bool) -> CmdResult<()> {
-    state.send(EngineCommand::SetReady(ready))
+pub fn set_ready(state: State<AppState>, ready: bool, in_rep: Option<bool>) -> CmdResult<()> {
+    state.send(EngineCommand::SetReady { ready, in_rep: in_rep.unwrap_or(false) })
 }
 
 /// The tracker judged a rep.

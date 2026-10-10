@@ -56,7 +56,7 @@ the functions the hooks give them. They never call the backend directly.
    ```tsx
    const round = useRound({ mode, player, onFinished });
    // round.phase, round.posture, round.countdownSeconds, round.reps,
-   // round.perfect, round.remainingMs, round.idleRemainingMs, round.lastRep,
+   // round.perfect, round.remainingMs, round.failRemainingMs, round.lastRep,
    // round.lastRepAt, round.cancel()
    // and somewhere: <CameraView /> to show the camera and skeleton
    ```
@@ -72,7 +72,7 @@ the functions the hooks give them. They never call the backend directly.
 | --- | --- | --- | --- |
 | Home | `MENU_MODES` from config | modes, keys | `onPick`, `onLeaderboard`, `onSettings`, `onCrowd` |
 | Players | `useNameEntry` | `names`, `multi`, `active`, `error`, `maxLength` | `setName`, `setActive`, `enter`, `start` |
-| Round | `useRound` | `phase`, `posture`, `countdownSeconds`, `reps`, `attempts`, `perfect`, `elapsedMs`, `remainingMs`, `idleRemainingMs`, `lastRep`, `lastRepAt` | `cancel`; optional `onRep`, `onCountdown`, `onGo` callbacks for sound and animation |
+| Round | `useRound` | `phase`, `posture`, `countdownSeconds`, `reps`, `attempts`, `perfect`, `elapsedMs`, `remainingMs`, `failRemainingMs`, `lastRep`, `lastRepAt` | `cancel`; optional `onRep`, `onCountdown`, `onGo` callbacks for sound and animation |
 | Results | props from `App.tsx` | `result` (incl. `rank`, `noReps`) | `onPost`, `onDiscard` |
 | Duel result | `duelOutcome` | `ranked`, `winner`, `decidedOnPerfect` | `onRematch`, `onDone` |
 | Leaderboard | `useLeaderboard` | `mode` (`null` = all time), `rows`, `message` | `setMode`, `remove`, `exportBackup` |

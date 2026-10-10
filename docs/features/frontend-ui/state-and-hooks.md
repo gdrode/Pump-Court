@@ -46,7 +46,7 @@ export type FlowState =
 `useRound` starts the round on mount (`backend.startRound(mode, player)`) and cancels it if the screen closes early. It joins the tracker and the backend:
 
 ```text
-tracker posture.ready changes ─▶ backend.setReady(ready) ─▶ backend runs the 3-2-1 countdown
+tracker posture.ready / in-a-rep changes ─▶ backend.setReady(ready, inRep) ─▶ backend runs the 3-2-1 countdown and the failure checks
 RepJudge.push(...) returns a rep ─▶ backend.reportRep(...) ─▶ counted while the clock runs
 backend tick / rep / round-finished ─▶ useRound ─▶ Round screen
 ```
@@ -71,7 +71,7 @@ const round = useRound({
 - `countdownSeconds`: 3, 2, 1 during the countdown, else `null`.
 - `reps` (valid push-ups), `attempts`, `perfect`, `elapsedMs`.
 - `remainingMs`: time left (Sprint, Minute, Duel), else `null`.
-- `idleRemainingMs`: Max only, time left to get the next valid push-up.
+- `failRemainingMs`: while running, time left before the player fails (stuck in a rep, or no push-up in time). The Round screen shows "Keep going! N" in the last 3 s.
 - `lastRep`: the latest `RepVerdict` (lights and faults); `lastRepAt`: when it arrived.
 - `cancel()`: stops the round without saving.
 

@@ -34,8 +34,9 @@ The chosen system camera is remembered for next time. Phones must be paired agai
 
 ```text
 [ HOME ]
-  │ 1 Sprint (30 s), 2 Minute (60 s), 3 Max (ends after 5 s without a valid push-up, 3 min cap),
-  │ 4 Duel (2 players, 30 s each)
+  │ ← Singleplayer / → Duel, then 1 Sprint (30 s), 2 Minute (60 s), 3 Max (no time limit)
+  │ Every mode ends early when the player fails: out of position 2 s, stuck in a rep,
+  │ or no push-up for 4 s (+0.25 s per rep, up to 6 s Sprint / 8 s Minute / 10 s Max)
   ▼
 [ PLAYERS ]
   │ Type the name (max 12 characters). Duel: two names; Enter moves to the next empty one.
@@ -58,11 +59,11 @@ The chosen system camera is remembered for next time. Phones must be paired agai
   │ Red lights list the reason, e.g. "Not deep enough: shoulders dropped 22% of their height (needs 30%)".
   │ Depth = shoulders drop at least 30% of the player's own straight-arm height.
   │ A rep is judged as soon as the arms lock out again; collapsing to the floor is not a rep.
-  │ Clock runs down; beeps in the last 5 s. Max: shows the seconds left to get the next push-up.
+  │ Clock runs down; beeps in the last 5 s. "Keep going! 3…" shows just before a fail.
   │ Esc aborts (nothing saved).
   ▼
 [ RESULTS ]
-  │ Push-ups, attempts, perfect, rank, red lights per referee. Already saved.
+  │ Push-ups, why the round ended, attempts, perfect, rank, red lights per referee. Already saved.
   │ Enter: post (solo → leaderboard with the name highlighted; Duel → next player, then the winner).
   │ Esc: discard the score (Duel: redo this turn).
   ▼
@@ -70,7 +71,9 @@ The chosen system camera is remembered for next time. Phones must be paired agai
   │ Most push-ups wins; perfect push-ups break a tie. R: rematch. Enter/Esc: menu.
 ```
 
-If the player walks out of view during a round, nothing is voided: reps simply stop being judged until they're back. The clock keeps running.
+If the player walks out of view or stands up for 2 s during a round, their round ends ("Got up out of position") and the score so far is saved.
+
+**Duel**: with two cameras, both players go at once on a split screen (player 1 on top). Pick each player's camera on their half (or **+ Add camera** for a phone). The 3-2-1 starts when both are in position; Esc stops the duel and saves both scores. One camera? Press **Only one camera? Take turns instead**: the old turn-by-turn flow (results screen per player, then the winner).
 
 ---
 

@@ -31,7 +31,7 @@ Rust never sees landmarks or video. It only hears two things:
 
 | Call | When | Rust does |
 | --- | --- | --- |
-| `set_ready(ready)` | the posture check's `ready` flag changes | in `getReady`, `true` starts the 3-second countdown |
+| `set_ready(ready, inRep)` | the posture check's `ready` flag, or the referee's "in a rep", changes | in `getReady`, `true` starts the 3-second countdown; while running, feeds the failure checks |
 | `report_rep(rep)` | `RepJudge.push()` returns a finished rep | counts it if the clock is running, emits `rep` |
 
 `rep` is `{ counted, perfect, lights: { depth, torso, lockout }, faults }`,
@@ -40,7 +40,8 @@ copied from the judge's `RepResult`.
 ```ts
 // frontend/src/logic/useRound.ts (simplified)
 useTrackerFrames(({ t, angles, posture }) => {
-  if (posture.ready !== sentReady) backend.setReady(posture.ready);
+  const inRep = judge.currentPhase !== "top";
+  if (posture.ready !== sentReady || inRep !== sentInRep) backend.setReady(posture.ready, inRep);
   const rep = judge?.push(t, angles && {
     elbow: angles.elbow, hip: angles.abdomen, knee: angles.knee,
     bodyOffset: angles.bodyOffset, depth: posture.height,

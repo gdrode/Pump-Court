@@ -24,8 +24,9 @@ use tauri::{AppHandle, Emitter};
 pub enum EngineCommand {
     StartRound { mode: RoundMode, player: String },
     CancelRound,
-    /// The tracker's posture check: is the player in the push-up position?
-    SetReady(bool),
+    /// The tracker's posture check (in the push-up position?) and whether its
+    /// referee is partway through a rep.
+    SetReady { ready: bool, in_rep: bool },
     ReportRep(RepReport),
 }
 
@@ -85,7 +86,7 @@ impl Engine {
         match cmd {
             EngineCommand::StartRound { mode, player } => self.session.start(mode, player, now),
             EngineCommand::CancelRound => self.session.cancel(),
-            EngineCommand::SetReady(ready) => self.session.set_ready(ready, now),
+            EngineCommand::SetReady { ready, in_rep } => self.session.set_ready(ready, in_rep, now),
             EngineCommand::ReportRep(rep) => {
                 if let Some(verdict) = self.session.report_rep(rep, now) {
                     self.emit("rep", verdict);

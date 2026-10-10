@@ -21,7 +21,7 @@ export interface MenuModeInfo {
   key: string;
   title: string;
   blurb: string;
-  /** 2 for a Duel (two turns), 1 for Singleplayer. */
+  /** 2 for a Duel, 1 for Singleplayer. */
   players: 1 | 2;
   /** Small red note under the blurb. */
   note?: string;
@@ -32,7 +32,7 @@ export type PlayStyle = "single" | "duel";
 
 export const PLAY_STYLES: { id: PlayStyle; title: string; blurb: string }[] = [
   { id: "single", title: "Singleplayer", blurb: "One player" },
-  { id: "duel", title: "Duel", blurb: "Two players take turns" },
+  { id: "duel", title: "Duel", blurb: "Two players, two cameras" },
 ];
 
 /** The game modes under the top bar. Each works for Singleplayer and Duel. */
@@ -50,21 +50,22 @@ export interface GameModeInfo {
 }
 
 export const GAME_MODES: GameModeInfo[] = [
-  { id: "sprint", key: "1", title: "Sprint", blurb: "Most push-ups in 30 seconds", duelBlurb: "30 seconds each. Most push-ups wins" },
-  { id: "minute", key: "2", title: "Minute", blurb: "Most push-ups in 60 seconds", duelBlurb: "60 seconds each. Most push-ups wins" },
+  { id: "sprint", key: "1", title: "Sprint", blurb: "Most push-ups in 30 seconds", duelBlurb: "30 seconds, side by side. Most push-ups wins" },
+  { id: "minute", key: "2", title: "Minute", blurb: "Most push-ups in 60 seconds", duelBlurb: "60 seconds, side by side. Most push-ups wins" },
   {
     id: "max",
     key: "3",
     title: "Max",
-    blurb: "Untimed. Ends after 5 s without a valid push-up",
-    duelBlurb: "Untimed, one turn each. Most push-ups wins",
+    blurb: "No time limit. Go until you fail",
+    duelBlurb: "No time limit, side by side. Most push-ups wins",
   },
 ];
 
 /**
- * What gets played for a home-screen pick. A Duel is two turns of the mode.
+ * What gets played for a home-screen pick. A Duel is played side by side on
+ * two cameras (or as two turns on one camera, if the operator picks that).
  * Duel + Sprint keeps the backend's "duel" mode (its own leaderboard); Duel +
- * Minute or Max plays two turns of that mode, saved to that mode's board.
+ * Minute or Max is saved to that mode's board.
  */
 export function menuMode(style: PlayStyle, mode: GameModeInfo): MenuModeInfo {
   if (style === "single") return { id: mode.id, key: mode.key, title: mode.title, blurb: mode.blurb, players: 1, note: mode.note };

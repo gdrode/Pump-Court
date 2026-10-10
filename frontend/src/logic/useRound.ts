@@ -23,6 +23,7 @@ export interface RoundOptions {
  * window; the backend keeps the clock and the score:
  *
  *   tracker posture ready ─▶ setReady  ─▶ backend starts the 3-2-1 countdown
+ *   (and in a rep or not: the backend ends the round if the player fails)
  *   RepJudge result       ─▶ reportRep ─▶ backend counts it while the clock runs
  *   backend `tick`/`rep`/`round-finished` ─▶ this hook ─▶ the round screen
  */
@@ -34,7 +35,8 @@ export function useRound(opts: RoundOptions) {
   /** performance.now() when the latest rep was judged, for "just happened" effects. */
   const [lastRepAt, setLastRepAt] = useState<number | null>(null);
   const judgeRef = useRef<RepJudge | null>(null);
-  const sentReady = useRef<boolean | null>(null);
+  /** Last "ready / in a rep" sent to the backend, e.g. "true/false". */
+  const sentReady = useRef<string | null>(null);
   const done = useRef(false);
 
   // Start on mount. Leaving the screen before the end abandons the round.
@@ -60,10 +62,6 @@ export function useRound(opts: RoundOptions) {
   }, [phase]);
 
   useTrackerFrames(({ t, angles, posture }) => {
-    if (posture.ready !== sentReady.current) {
-      sentReady.current = posture.ready;
-      void backend.setReady(posture.ready);
-    }
     const rep = judgeRef.current?.push(
       t,
       angles && {
@@ -77,6 +75,13 @@ export function useRound(opts: RoundOptions) {
       },
     );
     if (rep) report(rep);
+    // After the rep, so a finished rep is never mistaken for being stuck in one.
+    const inRep = !!judgeRef.current && judgeRef.current.currentPhase !== "top";
+    const live = `${posture.ready}/${inRep}`;
+    if (live !== sentReady.current) {
+      sentReady.current = live;
+      void backend.setReady(posture.ready, inRep);
+    }
   });
 
   useBackendEvent(events.onRep, (rep) => {
@@ -118,8 +123,8 @@ export function useRound(opts: RoundOptions) {
     elapsedMs: session?.elapsedMs ?? 0,
     /** Time left in ms (Sprint, Minute, Duel), else null. */
     remainingMs: opts.mode !== "max" ? (session?.remainingMs ?? null) : null,
-    /** Max mode: ms left to get the next valid push-up, else null. */
-    idleRemainingMs: session?.idleRemainingMs ?? null,
+    /** ms left before the player fails (stuck in a rep, or no push-up in time), else null. */
+    failRemainingMs: session?.failRemainingMs ?? null,
     lastRep: session?.lastRep ?? null,
     lastRepAt,
     /** Stop the round without saving. */

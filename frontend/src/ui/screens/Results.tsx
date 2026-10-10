@@ -1,3 +1,4 @@
+import { FINISH_TEXT } from "@tracker/game";
 import type { RoundResult } from "../../api/types";
 import { MODE_LABELS, REFEREE_LABELS, REFEREES } from "../../config/modes";
 import { useKeys } from "../../logic/useKeys";
@@ -23,6 +24,7 @@ export function Results({ result: r, nextLabel, discardLabel, onPost, onDiscard 
       <div className="results__main sketch">
         <p className="eyebrow">{MODE_LABELS[r.mode]}</p>
         <h1 className="results__name">{r.player}</h1>
+        {r.finish && <p className="results__finish">{FINISH_TEXT[r.finish]}</p>}
         <div className="results__score">
           <span>{r.reps}</span>
           <small>push-ups</small>

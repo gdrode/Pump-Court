@@ -13,6 +13,9 @@ import { host } from "../host";
 import { hostReaction } from "../hostMood";
 import { play } from "../sounds";
 
+/** Show "Keep going!" this long before the player would fail. */
+const WARN_MS = 3000;
+
 /** The score shown in the "best" box. */
 export interface Target {
   label: string;
@@ -83,7 +86,7 @@ export function Round({ mode, player, turn, target, onFinished, onAbort }: Props
   const best = target === undefined ? (record ? { label: "Record", ...record } : null) : target;
   const ahead = best !== null && round.reps > best.reps;
   const urgent =
-    running && (secondsLeft !== null ? secondsLeft <= 5 : round.idleRemainingMs !== null && round.idleRemainingMs < 2500);
+    running && (secondsLeft !== null ? secondsLeft <= 5 : round.failRemainingMs !== null && round.failRemainingMs <= WARN_MS);
   const clock = secondsLeft !== null ? String(secondsLeft) : formatElapsed(round.elapsedMs);
   const reaction = hostReaction({
     lastRep: round.lastRep,
@@ -115,8 +118,8 @@ export function Round({ mode, player, turn, target, onFinished, onAbort }: Props
             <span className="eyebrow">{MODE_LABELS[mode]}</span>
             <span className={`round__clock ${urgent ? "is-urgent" : ""}`}>{clock}</span>
           </div>
-          {round.idleRemainingMs !== null && (
-            <p className="round__hint">{(round.idleRemainingMs / 1000).toFixed(1)} s left to get the next push-up</p>
+          {round.failRemainingMs !== null && round.failRemainingMs <= WARN_MS && (
+            <p className="round__hint">Keep going! {Math.ceil(round.failRemainingMs / 1000)}</p>
           )}
 
           <div className={`scores ${best ? "" : "scores--solo"}`}>

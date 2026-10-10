@@ -144,6 +144,7 @@ export function useDuelMatch(opts: DuelOptions) {
         lockout: p.results.filter((r) => !r.lights.lockout).length,
       },
       durationMs: Math.max(0, (p.finishedAt ?? game.endT ?? 0) - (game.startT ?? game.endT ?? 0)),
+      finish: p.finished ?? "ended",
     }));
     void Promise.all(
       rounds.map((r) => backend.saveRound(r).catch((): RoundResult => ({ ...r, runId: null, rank: null }))),

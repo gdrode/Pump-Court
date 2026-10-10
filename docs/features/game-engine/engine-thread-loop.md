@@ -62,7 +62,7 @@ loop {
 ```
 
 - **`handle(cmd)`** applies the command to the `Session` with the current time, emits `rep` if a reported rep was counted, then emits a `tick` snapshot. So the UI sees every change at once, not only on the next tick.
-- **`tick()`** does nothing while no round is active. During a round it calls `session.tick(now)` (countdown → running, time up, Max idle limit) and emits a `tick`.
+- **`tick()`** does nothing while no round is active. During a round it calls `session.tick(now)` (countdown → running, time up, failure) and emits a `tick`.
 - **When a round ends**, `save()` locks the database, stores `(player, mode, reps)`, sets `run_id` and `rank` (`rank_of` on that mode's board), and only then emits `round-finished`. A failed save leaves both `null`; the result is still shown.
 - **Time** is one steady clock (`Instant`) started with the engine, in milliseconds.
 
@@ -75,8 +75,9 @@ loop {
 | `TICK_INTERVAL` | `engine.rs` | 100 ms |
 | `BACKUP_INTERVAL` | `engine.rs` | 1 hour |
 | `COUNTDOWN_MS` | `game/session.rs` | 3000 ms |
-| `MAX_IDLE_MS` | `game/mode.rs` | 5000 ms |
-| `MAX_CAP_MS` | `game/mode.rs` | 180000 ms (3 minutes) |
+| `OUT_OF_POSITION_MS` | `game/mode.rs` | 2000 ms |
+| `FAIL_BASE_MS` / `FAIL_PER_REP_MS` | `game/mode.rs` | 4000 ms + 250 ms per rep |
+| `fail_cap_ms()` | `game/mode.rs` | 6000 (Sprint, Duel) / 8000 (Minute) / 10000 (Max) ms |
 
 ---
 

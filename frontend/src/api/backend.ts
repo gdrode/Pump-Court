@@ -24,7 +24,7 @@ export const backend = {
   startRound: (mode: RoundMode, player: string) => invoke<void>("start_round", { mode, player }),
   cancelRound: () => invoke<void>("cancel_round"),
   /** The tracker's posture check: holding the top of a push-up (starts the countdown). */
-  setReady: (ready: boolean) => invoke<void>("set_ready", { ready }),
+  setReady: (ready: boolean, inRep: boolean) => invoke<void>("set_ready", { ready, inRep }),
   /** The tracker judged a rep. Counted only while the clock runs. */
   reportRep: (rep: RepReport) => invoke<void>("report_rep", { rep }),
   /**

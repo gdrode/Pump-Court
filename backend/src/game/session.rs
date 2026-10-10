@@ -2,15 +2,18 @@
 //!
 //! The referee itself runs in the app window (the motion tracker in
 //! `pumpCourt/src/judge.ts`). It tells the session two things:
-//! * whether the player is in the push-up position ([`Session::set_ready`]),
+//! * whether the player is in the push-up position, and partway through a rep
+//!   ([`Session::set_ready`]),
 //! * each judged rep ([`Session::report_rep`]).
 //!
-//! The session owns the clock: countdown, round length, Max mode's idle limit.
+//! The session owns the clock: countdown, round length, and failure (the
+//! player gets up, gets stuck in a rep or stops; the window grows with fatigue,
+//! see [`RoundMode::fail_window_ms`]).
 //! [`Session::tick`] is called by the engine thread about ten times a second.
 //! All times are milliseconds on one steady clock, passed in, so tests can
 //! play a whole round instantly.
 
-use super::mode::{RoundMode, MAX_IDLE_MS};
+use super::mode::{RoundMode, OUT_OF_POSITION_MS};
 use serde::{Deserialize, Serialize};
 
 pub const COUNTDOWN_MS: i64 = 3_000;
@@ -60,6 +63,22 @@ pub struct RepVerdict {
     pub faults: Vec<String>,
 }
 
+/// Why a round ended. Same names as the tracker's `FinishReason` (game.ts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FinishReason {
+    /// The clock ran out.
+    Time,
+    /// No push-up within the failure window.
+    Stopped,
+    /// Stuck partway through a rep for the failure window (couldn't press up).
+    Stuck,
+    /// Out of the push-up position (stood up, knees down, walked off) for 2 s.
+    Left,
+    /// The operator stopped it (side-by-side Duel only).
+    Ended,
+}
+
 /// How many red lights each referee gave in a round.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct NoRepCounts {
@@ -81,6 +100,8 @@ pub struct RoundResult {
     pub perfect: u32,
     pub no_reps: NoRepCounts,
     pub duration_ms: i64,
+    /// Why the round ended.
+    pub finish: FinishReason,
     /// Filled in by the engine after saving.
     pub run_id: Option<i64>,
     pub rank: Option<u32>,
@@ -97,10 +118,11 @@ pub struct SessionSnapshot {
     pub in_position: bool,
     pub countdown_ms: Option<i64>,
     pub elapsed_ms: i64,
-    /// Time left on the clock (for Max: before the 3 minute cap).
+    /// Time left on the clock (none for Max).
     pub remaining_ms: Option<i64>,
-    /// Max mode: time left to get the next valid push-up.
-    pub idle_remaining_ms: Option<i64>,
+    /// While running: time left before the player fails (stuck in a rep, or no
+    /// push-up in time).
+    pub fail_remaining_ms: Option<i64>,
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,
@@ -112,6 +134,8 @@ pub struct Session {
     mode: Option<RoundMode>,
     player: Option<String>,
     in_position: bool,
+    /// The tracker's referee is partway through a rep.
+    in_rep: bool,
     /// When the current phase began.
     phase_start: i64,
     now: i64,
@@ -119,8 +143,12 @@ pub struct Session {
     attempts: u32,
     perfect: u32,
     no_reps: NoRepCounts,
-    /// Elapsed time of the last valid push-up (Max mode's idle limit).
-    last_valid_at: i64,
+    /// Elapsed time of the last rep attempt (counted or not), or 0.
+    last_rep_at: i64,
+    /// Elapsed time the player left the push-up position, while out of it.
+    out_since: Option<i64>,
+    /// Elapsed time the player got stuck in a rep, while in one.
+    stuck_since: Option<i64>,
     last_rep: Option<RepVerdict>,
 }
 
@@ -137,13 +165,16 @@ impl Session {
             mode: None,
             player: None,
             in_position: false,
+            in_rep: false,
             phase_start: 0,
             now: 0,
             reps: 0,
             attempts: 0,
             perfect: 0,
             no_reps: NoRepCounts::default(),
-            last_valid_at: 0,
+            last_rep_at: 0,
+            out_since: None,
+            stuck_since: None,
             last_rep: None,
         }
     }
@@ -180,11 +211,13 @@ impl Session {
         self.now - self.phase_start
     }
 
-    /// The tracker's posture check. Holding the top of a push-up starts the
-    /// countdown; leaving the position during the countdown stops it.
-    pub fn set_ready(&mut self, ready: bool, now: i64) {
+    /// The tracker's posture check, and whether its referee is partway through
+    /// a rep. Holding the top of a push-up starts the countdown; leaving the
+    /// position during the countdown stops it.
+    pub fn set_ready(&mut self, ready: bool, in_rep: bool, now: i64) {
         self.now = now.max(self.now);
         self.in_position = ready;
+        self.in_rep = in_rep;
         match self.phase {
             RoundPhase::GetReady if ready => self.set_phase(RoundPhase::Countdown),
             RoundPhase::Countdown if !ready => self.set_phase(RoundPhase::GetReady),
@@ -199,9 +232,10 @@ impl Session {
             return None;
         }
         self.attempts += 1;
+        self.last_rep_at = self.elapsed();
+        self.stuck_since = None;
         if rep.counted {
             self.reps += 1;
-            self.last_valid_at = self.elapsed();
         }
         if rep.perfect {
             self.perfect += 1;
@@ -226,18 +260,14 @@ impl Session {
         match self.phase {
             RoundPhase::Countdown if self.elapsed() >= COUNTDOWN_MS => {
                 self.set_phase(RoundPhase::Running);
-                self.last_valid_at = 0;
+                self.last_rep_at = 0;
                 None
             }
             RoundPhase::Running => {
                 let mode = self.mode?;
                 let elapsed = self.elapsed();
-                let time_up = elapsed >= mode.duration_ms();
-                let idle = mode == RoundMode::Max && elapsed - self.last_valid_at >= MAX_IDLE_MS;
-                if !time_up && !idle {
-                    return None;
-                }
-                let duration_ms = elapsed.min(mode.duration_ms());
+                let finish = self.check_finish(mode, elapsed)?;
+                let duration_ms = mode.duration_ms().map_or(elapsed, |d| elapsed.min(d));
                 self.set_phase(RoundPhase::Finished);
                 Some(RoundResult {
                     mode,
@@ -247,12 +277,41 @@ impl Session {
                     perfect: self.perfect,
                     no_reps: self.no_reps.clone(),
                     duration_ms,
+                    finish,
                     run_id: None,
                     rank: None,
                 })
             }
             _ => None,
         }
+    }
+
+    /// Whether the running round is over at `elapsed`, and why. Same order as
+    /// game.ts: clock, then out of position, stuck, stopped.
+    fn check_finish(&mut self, mode: RoundMode, elapsed: i64) -> Option<FinishReason> {
+        if mode.duration_ms().is_some_and(|d| elapsed >= d) {
+            return Some(FinishReason::Time);
+        }
+        self.out_since = if self.in_position { None } else { Some(self.out_since.unwrap_or(elapsed)) };
+        self.stuck_since =
+            if self.in_position && self.in_rep { Some(self.stuck_since.unwrap_or(elapsed)) } else { None };
+        let window = mode.fail_window_ms(self.attempts);
+        if self.out_since.is_some_and(|t| elapsed - t >= OUT_OF_POSITION_MS) {
+            Some(FinishReason::Left)
+        } else if self.stuck_since.is_some_and(|t| elapsed - t >= window) {
+            Some(FinishReason::Stuck)
+        } else if self.in_position && !self.in_rep && elapsed - self.last_rep_at >= window {
+            Some(FinishReason::Stopped)
+        } else {
+            None
+        }
+    }
+
+    /// ms left before the player fails (stuck, or no push-up in time), while running.
+    fn fail_remaining(&self, elapsed: i64) -> Option<i64> {
+        let mode = self.mode?;
+        let since = if self.in_rep { self.stuck_since? } else { self.last_rep_at };
+        Some((mode.fail_window_ms(self.attempts) - (elapsed - since)).max(0))
     }
 
     pub fn snapshot(&self) -> SessionSnapshot {
@@ -265,9 +324,8 @@ impl Session {
             in_position: self.in_position,
             countdown_ms: (self.phase == RoundPhase::Countdown).then(|| (COUNTDOWN_MS - self.elapsed()).max(0)),
             elapsed_ms: elapsed,
-            remaining_ms: self.mode.filter(|_| running).map(|m| (m.duration_ms() - elapsed).max(0)),
-            idle_remaining_ms: (running && self.mode == Some(RoundMode::Max))
-                .then(|| (MAX_IDLE_MS - (elapsed - self.last_valid_at)).max(0)),
+            remaining_ms: self.mode.filter(|_| running).and_then(|m| m.duration_ms()).map(|d| (d - elapsed).max(0)),
+            fail_remaining_ms: if running { self.fail_remaining(elapsed) } else { None },
             reps: self.reps,
             attempts: self.attempts,
             perfect: self.perfect,
@@ -290,12 +348,22 @@ mod tests {
         s.start(mode, "Ana".into(), 0);
         assert!(s.tick(1_000).is_none());
         assert_eq!(s.phase(), RoundPhase::GetReady, "waits for the player");
-        s.set_ready(true, 2_000);
+        s.set_ready(true, false, 2_000);
         assert_eq!(s.phase(), RoundPhase::Countdown);
         assert!(s.tick(4_000).is_none());
         assert!(s.tick(5_000).is_none());
         assert_eq!(s.phase(), RoundPhase::Running);
         5_000
+    }
+
+    /// Good push-ups every `every` ms from `from` up to (not including) `to`, ticking as it goes.
+    fn keep_going(s: &mut Session, from: i64, to: i64, every: i64) {
+        let mut t = from;
+        while t < to {
+            assert!(s.tick(t).is_none(), "still going at {t}");
+            s.report_rep(rep(true, true, true), t);
+            t += every;
+        }
     }
 
     #[test]
@@ -305,11 +373,11 @@ mod tests {
         assert!(s.report_rep(rep(true, true, true), t0 + 1_000).unwrap().perfect);
         assert!(s.report_rep(rep(false, true, true), t0 + 2_000).unwrap().counted, "2 of 3 counts");
         assert!(!s.report_rep(rep(false, false, true), t0 + 3_000).unwrap().counted);
-        assert!(s.tick(t0 + 29_000).is_none());
+        keep_going(&mut s, t0 + 6_000, t0 + 30_000, 3_000);
         let r = s.tick(t0 + 30_100).expect("time up");
-        assert_eq!((r.reps, r.attempts, r.perfect), (2, 3, 1));
+        assert_eq!((r.reps, r.attempts, r.perfect), (10, 11, 9));
         assert_eq!((r.no_reps.depth, r.no_reps.torso, r.no_reps.lockout), (2, 1, 0));
-        assert_eq!(r.duration_ms, 30_000);
+        assert_eq!((r.duration_ms, r.finish), (30_000, FinishReason::Time));
         assert!(s.tick(t0 + 31_000).is_none(), "the result comes once");
         assert!(s.report_rep(rep(true, true, true), t0 + 31_000).is_none(), "no reps after the buzzer");
     }
@@ -319,7 +387,7 @@ mod tests {
         let mut s = Session::new();
         s.start(RoundMode::Sprint, "Ana".into(), 0);
         assert!(s.report_rep(rep(true, true, true), 100).is_none());
-        s.set_ready(true, 200);
+        s.set_ready(true, false, 200);
         assert!(s.report_rep(rep(true, true, true), 300).is_none(), "not during the countdown");
         assert_eq!(s.snapshot().reps, 0);
     }
@@ -328,29 +396,70 @@ mod tests {
     fn leaving_position_during_the_countdown_stops_it() {
         let mut s = Session::new();
         s.start(RoundMode::Sprint, "Ana".into(), 0);
-        s.set_ready(true, 1_000);
+        s.set_ready(true, false, 1_000);
         s.tick(2_500);
-        s.set_ready(false, 2_600);
+        s.set_ready(false, false, 2_600);
         assert_eq!(s.phase(), RoundPhase::GetReady, "back to get ready");
-        s.set_ready(true, 3_000);
+        s.set_ready(true, false, 3_000);
         assert!(s.tick(5_500).is_none());
         assert_eq!(s.phase(), RoundPhase::Countdown, "the countdown starts again from 3");
         s.tick(6_000);
         assert_eq!(s.phase(), RoundPhase::Running);
-        s.set_ready(false, 7_000);
-        assert_eq!(s.phase(), RoundPhase::Running, "the clock keeps going once started");
     }
 
     #[test]
-    fn max_ends_after_five_seconds_without_a_valid_pushup() {
+    fn getting_up_for_two_seconds_ends_the_round() {
+        let mut s = Session::new();
+        let t0 = running(&mut s, RoundMode::Minute);
+        s.report_rep(rep(true, true, true), t0 + 1_000);
+        s.set_ready(false, false, t0 + 1_500);
+        assert!(s.tick(t0 + 1_500).is_none());
+        assert!(s.tick(t0 + 3_400).is_none(), "a short wobble is fine");
+        let r = s.tick(t0 + 3_500).expect("out of position for 2 s");
+        assert_eq!((r.finish, r.reps), (FinishReason::Left, 1));
+    }
+
+    #[test]
+    fn stopping_ends_the_round_after_the_failure_window() {
+        let mut s = Session::new();
+        let t0 = running(&mut s, RoundMode::Sprint);
+        s.report_rep(rep(true, true, true), t0 + 1_000);
+        s.report_rep(rep(false, false, true), t0 + 2_000); // a no-rep resets the window too
+        // 2 reps attempted: 4 s + 2 × 0.25 s = 4.5 s.
+        assert!(s.tick(t0 + 6_400).is_none());
+        assert_eq!(s.snapshot().fail_remaining_ms, Some(100));
+        let r = s.tick(t0 + 6_500).expect("stopped");
+        assert_eq!((r.finish, r.reps, r.duration_ms), (FinishReason::Stopped, 1, 6_500));
+    }
+
+    #[test]
+    fn getting_stuck_in_a_rep_ends_the_round() {
         let mut s = Session::new();
         let t0 = running(&mut s, RoundMode::Max);
-        s.report_rep(rep(true, true, true), t0 + 4_000);
-        s.report_rep(rep(false, false, true), t0 + 8_000); // a no-rep does not reset the limit
-        assert!(s.tick(t0 + 8_900).is_none());
-        assert_eq!(s.snapshot().idle_remaining_ms, Some(100));
-        let r = s.tick(t0 + 9_000).expect("idle limit");
-        assert_eq!(r.reps, 1);
+        s.set_ready(true, true, t0 + 1_000);
+        assert!(s.tick(t0 + 1_000).is_none());
+        assert!(s.tick(t0 + 4_900).is_none());
+        let r = s.tick(t0 + 5_000).expect("stuck for 4 s");
+        assert_eq!(r.finish, FinishReason::Stuck);
+    }
+
+    #[test]
+    fn the_failure_window_grows_with_fatigue_up_to_the_cap() {
+        assert_eq!(RoundMode::Max.fail_window_ms(0), 4_000);
+        assert_eq!(RoundMode::Max.fail_window_ms(8), 6_000);
+        assert_eq!(RoundMode::Max.fail_window_ms(100), 10_000);
+        assert_eq!(RoundMode::Minute.fail_window_ms(100), 8_000);
+        assert_eq!(RoundMode::Sprint.fail_window_ms(100), 6_000);
+        assert_eq!(RoundMode::Duel.fail_window_ms(100), 6_000);
+    }
+
+    #[test]
+    fn max_has_no_time_limit() {
+        let mut s = Session::new();
+        let t0 = running(&mut s, RoundMode::Max);
+        keep_going(&mut s, t0 + 1_000, t0 + 400_000, 3_000);
+        assert_eq!(s.phase(), RoundPhase::Running, "still going after 6+ minutes");
+        assert_eq!(s.snapshot().remaining_ms, None);
     }
 
     #[test]
@@ -367,7 +476,7 @@ mod tests {
     fn a_new_round_starts_clean_after_a_finished_one() {
         let mut s = Session::new();
         let t0 = running(&mut s, RoundMode::Duel);
-        s.report_rep(rep(true, true, true), t0 + 100);
+        keep_going(&mut s, t0 + 100, t0 + 30_000, 2_000);
         s.tick(t0 + 30_000).unwrap();
         s.start(RoundMode::Duel, "Ben".into(), t0 + 40_000);
         let snap = s.snapshot();

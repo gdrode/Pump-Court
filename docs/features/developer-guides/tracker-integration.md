@@ -19,7 +19,7 @@ camera / phone stream ─▶ <video> ─▶ @tracker/landmarker (MediaPipe pose,
          │ useTrackerFrames({ t, angles, posture })
          ▼
 useRound ─▶ @tracker/judge RepJudge(REFEREE_RULES)
-         │ invoke("set_ready", { ready })     when posture.ready changes
+         │ invoke("set_ready", { ready, inRep }) when posture.ready or "in a rep" changes
          │ invoke("report_rep", { rep })      for every judged rep
          ▼
 Rust engine: countdown, clock, score, save ─▶ tick / rep / round-finished

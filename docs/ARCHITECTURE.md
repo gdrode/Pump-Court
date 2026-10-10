@@ -10,7 +10,7 @@
 Pump-Court is a Tauri 2 desktop app. The work is split in two:
 
 * **The app window (TypeScript)** sees the player. It opens the camera, runs MediaPipe pose tracking, checks the push-up position, and judges each rep with three lights. This code is the teammate's tracker in `pumpCourt/src`, imported by the frontend as `@tracker/*`.
-* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, Max mode's idle limit), counts valid push-ups, saves results to SQLite, and serves phone cameras.
+* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, failure: out of position, stuck, stopped), counts valid push-ups, saves results to SQLite, and serves phone cameras.
 
 ```text
 ┌──────────────────────────── CAMERAS ─────────────────────────────┐
@@ -27,7 +27,7 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 │ TrackerProvider: one <video> ─▶ MediaPipe Pose Landmarker (GPU, else CPU)          │
 │   ─▶ pose.ts side tracker (angles) ─▶ posture.ts (ready? floor line)               │
 │   ─▶ useRound: judge.ts RepJudge (Depth / Torso / Lockout)                         │
-│        │ set_ready(bool)              │ report_rep({counted, perfect, lights, faults})
+│        │ set_ready(ready, inRep)      │ report_rep({counted, perfect, lights, faults})
 └────────┼──────────────────────────────┼─────────────────────────────────────────────┘
          ▼                              ▼
 ┌──────────────────── RUST BACKEND (backend/src) ──────────────────────────────────┐
@@ -96,7 +96,7 @@ Rust structs and their TypeScript mirrors in `frontend/src/api/types.ts` must ma
 
 | Event | When | Payload | Description |
 | :--- | :--- | :--- | :--- |
-| `tick` | about 10 times a second while a round is active, and after every engine command | `SessionSnapshot` | phase, mode, player, `inPosition`, `countdownMs`, `elapsedMs`, `remainingMs`, `idleRemainingMs`, `reps`, `attempts`, `perfect`, `lastRep` |
+| `tick` | about 10 times a second while a round is active, and after every engine command | `SessionSnapshot` | phase, mode, player, `inPosition`, `countdownMs`, `elapsedMs`, `remainingMs`, `failRemainingMs`, `reps`, `attempts`, `perfect`, `lastRep` |
 | `rep` | each rep reported while the clock runs | `RepVerdict` | `attempt`, `counted`, `perfect`, `lights {depth, torso, lockout}`, `faults[]` |
 | `round-finished` | once, at the end of a round (already saved) | `RoundResult` | `mode`, `player`, `reps`, `attempts`, `perfect`, `noReps {depth, torso, lockout}`, `durationMs`, `runId`, `rank` |
 
@@ -109,7 +109,7 @@ Registered in `backend/src/lib.rs`, wrapped in `frontend/src/api/backend.ts`.
 | `check_name` | `name` | cleaned name | Same rules as `start_round` |
 | `start_round` | `mode`, `player` | – | New round, waits in `getReady` |
 | `cancel_round` | – | – | Back to idle, nothing saved |
-| `set_ready` | `ready: bool` | – | Posture check changed; `true` in `getReady` starts the countdown |
+| `set_ready` | `ready: bool`, `inRep: bool` (optional) | – | Posture check or "in a rep" changed; `true` in `getReady` starts the countdown; while running feeds the failure checks |
 | `report_rep` | `rep: RepReport` | – | A judged rep; counted only while running |
 | `get_leaderboard` | `mode: RoundMode \| null`, `limit` | `LeaderboardRow[]` | Best run per player; `null` = all time |
 | `get_player_count` | – | number | Different names that have played |

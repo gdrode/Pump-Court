@@ -70,7 +70,7 @@ There is no per-player lockout calibration. The lockout threshold is the same 15
 
 ```text
 TrackerProvider: posture.update(t, angles) every frame ─▶ TrackerFrame.posture
-useRound: when posture.ready changes ─▶ backend.setReady(ready)
+useRound: when posture.ready (or in-a-rep) changes ─▶ backend.setReady(ready, inRep)
 Rust Session:
   getReady  + set_ready(true)  ─▶ countdown (3 s) ─▶ running
   any phase + set_ready(x)     ─▶ only updates SessionSnapshot.inPosition

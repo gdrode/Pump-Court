@@ -423,6 +423,7 @@ kbd {
 .results { width: min(1150px, 100%); display: grid; grid-template-columns: 1.25fr 1fr; gap: 2.5rem; align-items: start; }
 .results__main { background: var(--card); padding: 1.8rem 2.2rem; transform: rotate(-0.4deg); }
 .results__name { font-size: clamp(2.6rem, 5vw, 3.6rem); }
+.results__finish { margin: 0.2rem 0 0; font-size: 1.3rem; color: var(--ink-soft); }
 .results__score { display: flex; align-items: flex-end; gap: 1rem; margin: 0.4rem 0 1.2rem; }
 .results__score span { font-size: clamp(7rem, 20vh, 11rem); line-height: 0.82; }
 .results__score small { font-size: 1.4rem; color: var(--ink-soft); padding-bottom: 0.7rem; }
