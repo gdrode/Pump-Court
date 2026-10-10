@@ -22,14 +22,18 @@ export interface Thresholds {
   torsoHip: number
   /** Knee angle (degrees) the legs must stay above: catches knee push-ups and bent legs. */
   knee: number
-  /** Shoulder height above the hands, in arm lengths, the rep must get below. 0 = chest on the floor. */
-  depth: number
+  /**
+   * Share of the player's own straight-arm top height the shoulders must drop
+   * (0.4 = down to 60% of it). Relative to the player's top, so it doesn't
+   * depend on where the hands are placed or how the camera sees the arm.
+   */
+  depthDrop: number
 }
 
 export const DIFFICULTY: Record<Difficulty, Thresholds & { label: string; blurb: string }> = {
-  easy: { label: 'Easy', blurb: 'Elbows to about 90°, small sag allowed', lockoutElbow: 145, torsoHip: 145, knee: 140, depth: 0.7, depthElbowFallback: 100 },
-  normal: { label: 'Normal', blurb: 'Chest close to the floor, body mostly straight', lockoutElbow: 155, torsoHip: 155, knee: 150, depth: 0.65, depthElbowFallback: 95 },
-  hard: { label: 'Hard', blurb: 'Chest near the floor, rigid plank, full lockout', lockoutElbow: 165, torsoHip: 165, knee: 160, depth: 0.6, depthElbowFallback: 90 },
+  easy: { label: 'Easy', blurb: 'Elbows to about 90°, small sag allowed', lockoutElbow: 145, torsoHip: 145, knee: 140, depthDrop: 0.25, depthElbowFallback: 100 },
+  normal: { label: 'Normal', blurb: 'Chest close to the floor, body mostly straight', lockoutElbow: 155, torsoHip: 155, knee: 150, depthDrop: 0.3, depthElbowFallback: 95 },
+  hard: { label: 'Hard', blurb: 'Chest near the floor, rigid plank, full lockout', lockoutElbow: 165, torsoHip: 165, knee: 160, depthDrop: 0.35, depthElbowFallback: 90 },
 }
 
 /** The angles the judge needs from one frame. Missing or unreliable frames are passed as null. */
@@ -61,6 +65,8 @@ export interface RepResult {
   measured: {
     /** Lowest shoulder height reached, in arm lengths. NaN when the wrists were never visible. */
     depth: number
+    /** Share of the top height the shoulders dropped (NaN without height). */
+    depthDrop: number
     /** Lowest elbow angle reached. */
     bottomElbow: number
     /** Body angle, ignoring the worst 10% of frames so one bad frame can't fail a rep. */
@@ -107,6 +113,12 @@ export const SEGMENT = {
    * A glitching elbow point alone doesn't move the shoulders, so this rejects phantom reps.
    */
   minDepthDrop: 0.25,
+  /**
+   * With shoulder height known: a movement is an attempt only if the shoulders
+   * drop at least this share of the player's top height. Quarter reps and
+   * adjustments at the top (shifting, settling) are ignored: no lights at all.
+   */
+  minAttemptDrop: 0.25,
   /** Without depth, the shoulder must drop this much of the frame height instead. */
   minShoulderDrop: 0.03,
   /** A real lockout peak has a neighbouring frame within this many degrees; a spike doesn't. */
@@ -181,12 +193,14 @@ interface RepAcc {
   hips: number[]
   knees: number[]
   offsets: number[]
+  /** Smoothed shoulder heights through the rep, for a robust bottom. */
+  depths: number[]
 }
 
 type DriveKind = 'height' | 'elbow'
 
 function newRep(t: number, driveKind: DriveKind, topRef: number, topDepth: number, topShoulder = NaN): RepAcc {
-  return { startT: t, driveKind, topRef, topDepth, minDrive: Infinity, minDriveT: t, minElbow: Infinity, minDepth: Infinity, topShoulder, maxShoulder: -Infinity, upMax: -Infinity, upMaxT: t, upElbow: -Infinity, raw1: -Infinity, raw2: -Infinity, upDepth: -Infinity, upShoulder: Infinity, rawUp1: -Infinity, rawUp2: -Infinity, hips: [], knees: [], offsets: [] }
+  return { startT: t, driveKind, topRef, topDepth, minDrive: Infinity, minDriveT: t, minElbow: Infinity, minDepth: Infinity, topShoulder, maxShoulder: -Infinity, upMax: -Infinity, upMaxT: t, upElbow: -Infinity, raw1: -Infinity, raw2: -Infinity, upDepth: -Infinity, upShoulder: Infinity, rawUp1: -Infinity, rawUp2: -Infinity, hips: [], knees: [], offsets: [], depths: [] }
 }
 
 export class RepJudge {
@@ -343,6 +357,7 @@ export class RepJudge {
           rep.knees.push(...next.knees)
           rep.offsets.push(...next.offsets)
           rep.minDepth = Math.min(rep.minDepth, next.minDepth)
+          rep.depths.push(...next.depths)
           rep.minElbow = Math.min(rep.minElbow, next.minElbow)
           rep.maxShoulder = Math.max(rep.maxShoulder, next.maxShoulder)
           this.next = null
@@ -391,18 +406,23 @@ export class RepJudge {
   /** Scores a finished rep. Returns null if it was too small or short to be an attempt. */
   private score(rep: RepAcc, t: number): RepResult | null {
     const haveDepth = Number.isFinite(rep.minDepth)
-    const depthDrop = rep.topDepth - rep.minDepth
-    const shoulderDrop = rep.maxShoulder - rep.topShoulder
-    // The body must really have moved: a glitching elbow point alone moves neither the shoulder height nor its y.
-    const bodyMoved = haveDepth && Number.isFinite(depthDrop)
-      ? depthDrop >= SEGMENT.minDepthDrop
-      : !Number.isFinite(shoulderDrop) || shoulderDrop >= SEGMENT.minShoulderDrop
-    // ...and it must have come back up: the second half of the movement.
-    const isAttempt =
-      t - rep.startT >= SEGMENT.minRepMs &&
-      (rep.topRef - rep.minDrive >= SEGMENT.minRangeDeg || rep.minDepth <= SEGMENT.minRangeDepth) &&
-      bodyMoved &&
-      ascent(rep) >= SEGMENT.minAscent
+    // Bottom of the rep, ignoring the single lowest reading so one bad frame can't pass depth.
+    const bottom = robustBottom(rep.depths)
+    const topH = Math.max(this.topHeight(), rep.topDepth)
+    /** Share of the straight-arm top height the shoulders dropped. */
+    const drop = haveDepth && topH > 0 ? (topH - bottom) / topH : NaN
+    let isAttempt: boolean
+    if (Number.isFinite(drop)) {
+      // Height known: a real descent (not a quarter rep or an adjustment), and back up again.
+      // The descent must be seen in this rep (from where it started), not just measured against the top.
+      const seen = Number.isFinite(rep.topDepth) ? (rep.topDepth - bottom) / topH : drop
+      isAttempt = t - rep.startT >= SEGMENT.minRepMs && seen >= SEGMENT.minAttemptDrop && ascent(rep) >= SEGMENT.minAscent
+    } else {
+      // Elbow only: enough bend, the shoulders really moved (not an elbow-point glitch), and back up again.
+      const shoulderDrop = rep.maxShoulder - rep.topShoulder
+      const bodyMoved = !Number.isFinite(shoulderDrop) || shoulderDrop >= SEGMENT.minShoulderDrop
+      isAttempt = t - rep.startT >= SEGMENT.minRepMs && rep.topRef - rep.minDrive >= SEGMENT.minRangeDeg && bodyMoved && ascent(rep) >= SEGMENT.minAscent
+    }
     if (!isAttempt) return null
 
     const th = this.thresholds
@@ -411,14 +431,14 @@ export class RepJudge {
     const top = lockout(rep)
     const kneesOk = !Number.isFinite(knee) || knee >= th.knee
     const lights = {
-      depth: haveDepth ? rep.minDepth <= th.depth : rep.minElbow <= th.depthElbowFallback,
+      depth: Number.isFinite(drop) ? drop >= th.depthDrop : rep.minElbow <= th.depthElbowFallback,
       torso: Number.isFinite(hip) && hip >= th.torsoHip && kneesOk,
       lockout: this.lockedOut(rep),
     }
     const faults: string[] = []
     if (!lights.depth) {
       faults.push(haveDepth
-        ? `Not deep enough: shoulder stayed ${rep.minDepth.toFixed(2)} arm lengths up (needs ${th.depth})`
+        ? `Not deep enough: shoulders dropped ${Math.round(drop * 100)}% of their height (needs ${Math.round(th.depthDrop * 100)}%)`
         : `Not deep enough: elbows only bent to ${Math.round(rep.minElbow)}° (needs ${th.depthElbowFallback}°; hands not visible)`)
     }
     if (!lights.torso) {
@@ -441,7 +461,7 @@ export class RepJudge {
       whiteCount,
       counted: whiteCount >= 2,
       perfect: whiteCount === 3,
-      measured: { depth: haveDepth ? rep.minDepth : NaN, bottomElbow: rep.minElbow, hip, knee, lockout: top },
+      measured: { depth: haveDepth ? bottom : NaN, depthDrop: drop, bottomElbow: rep.minElbow, hip, knee, lockout: top },
       faults,
     }
   }
@@ -449,7 +469,7 @@ export class RepJudge {
   private reset() {
     this.phase = 'top'
     this.topHist = []
-    this.topHeights = []
+    // topHeights is kept: the straight-arm reference outlives a lost rep (it expires after topHeightWindowMs).
     this.next = null
     this.rep = newRep(0, 'elbow', 0, NaN)
   }
@@ -459,7 +479,10 @@ function track(rep: RepAcc, a: JudgeInput, t: number, v: number) {
   if (v < rep.minDrive) { rep.minDrive = v; rep.minDriveT = t }
   if (Number.isFinite(a.elbow)) rep.minElbow = Math.min(rep.minElbow, a.elbow)
   if (a.shoulderY != null && Number.isFinite(a.shoulderY)) rep.maxShoulder = Math.max(rep.maxShoulder, a.shoulderY)
-  if (Number.isFinite(a.depth)) rep.minDepth = Math.min(rep.minDepth, a.depth)
+  if (Number.isFinite(a.depth)) {
+    rep.minDepth = Math.min(rep.minDepth, a.depth)
+    rep.depths.push(a.depth)
+  }
   if (Number.isFinite(a.hip)) rep.hips.push(a.hip)
   if (a.knee != null && Number.isFinite(a.knee)) rep.knees.push(a.knee)
   if (a.bodyOffset != null && Number.isFinite(a.bodyOffset)) rep.offsets.push(a.bodyOffset)
@@ -512,6 +535,13 @@ function median(buf: number[], x: number) {
   if (buf.length > SEGMENT.median) buf.shift()
   const s = [...buf].sort((a, b) => a - b)
   return s[Math.floor(s.length / 2)]
+}
+
+/** The lowest value, except the single lowest when there are enough frames to spare one. */
+function robustBottom(values: number[]) {
+  if (!values.length) return NaN
+  const s = [...values].sort((a, b) => a - b)
+  return s.length >= 4 ? s[1] : s[0]
 }
 
 function middle(values: number[]) {

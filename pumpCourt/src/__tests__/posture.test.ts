@@ -168,3 +168,28 @@ describe('torso: abdominal point and knees', () => {
     expect(knees.faults.join()).toMatch(/Knees bent/)
   })
 })
+
+describe('plank only: knees off the floor', () => {
+  it('kneeling in push-up position is never ready', () => {
+    const p = createPostureTracker()
+    const states = seq(90, () => frame({ knee: 105, bodyTilt: 20 })).map(([t, a]) => p.update(t, a))
+    expect(states.some((s) => s.ready)).toBe(false)
+    expect(states.at(-1)!.state).toBe('knees-down')
+  })
+
+  it('dropping to the knees mid-set ends ready after the grace period', () => {
+    const p = createPostureTracker()
+    let t = 0
+    for (; t < 1000; t += 33) p.update(t, frame())
+    expect(p.update(t, frame()).ready).toBe(true)
+    let last = p.update(t, frame())
+    for (let k = 1; k <= 30; k++) last = p.update(t + k * 33, frame({ knee: 100 }))
+    expect(last.ready).toBe(false)
+    expect(last.state).toBe('knees-down')
+  })
+
+  it('slightly soft knees in a plank (155°) are fine', () => {
+    const p = createPostureTracker()
+    expect(seq(40, () => frame({ knee: 155 })).map(([t, a]) => p.update(t, a)).at(-1)!.ready).toBe(true)
+  })
+})

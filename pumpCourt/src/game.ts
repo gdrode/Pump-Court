@@ -10,20 +10,32 @@ export type Players = 1 | 2
 export const MODES: Record<Mode, { label: string; durationMs: number | null; blurb: string }> = {
   sprint: { label: 'Sprint', durationMs: 30_000, blurb: '30 seconds. Most good push-ups wins.' },
   marathon: { label: 'Marathon', durationMs: 60_000, blurb: '60 seconds. Most good push-ups wins.' },
-  max: { label: 'Max', durationMs: null, blurb: 'No time limit. Ends when you stop, can’t press up, or get up.' },
+  max: { label: 'Max', durationMs: null, blurb: 'No time limit. Ends when you can’t keep going or get up.' },
 }
 
 /** The 3-2-1 before the clock starts. */
 export const COUNTDOWN_MS = 3000
 
-/** When a Max round ends for a player. */
-export const MAX_RULES = {
-  /** Out of the push-up position (stood up, sat down, walked off) this long. */
+/**
+ * When a player fails, in every mode. A player's round ends early if they get
+ * up, get stuck in a rep (can't press up), or stop doing push-ups. The window
+ * for "stuck" and "stopped" grows with every rep done, because people slow
+ * down as they tire but can still keep going.
+ */
+export const FAILURE = {
+  /** Out of the push-up position (stood up, knees down, walked off) this long. Not fatigue-based. */
   outOfPositionMs: 2000,
-  /** Stuck in a rep (down, or pushing up without reaching the top) this long: can't press up. */
-  stuckMs: 5000,
-  /** No new rep for this long while in position: stopped. */
-  idleMs: 8000,
+  /** Failure window at the first rep. */
+  baseMs: 4000,
+  /** Added to the window for each rep attempted. */
+  perRepMs: 250,
+  /** The window never grows past this, per mode. Max reaches 10 s after 24 reps. */
+  capMs: { sprint: 6000, marathon: 8000, max: 10_000 } as Record<Mode, number>,
+}
+
+/** How long a player may be stuck in a rep, or go without one, before they've failed. */
+export function failWindow(mode: Mode, repsDone: number) {
+  return Math.min(FAILURE.capMs[mode], FAILURE.baseMs + FAILURE.perRepMs * repsDone)
 }
 
 export type Phase = 'waiting' | 'countdown' | 'running' | 'finished'
@@ -32,7 +44,7 @@ export type FinishReason = 'time' | 'stopped' | 'stuck' | 'left' | 'ended'
 
 export const FINISH_TEXT: Record<FinishReason, string> = {
   time: 'Time!',
-  stopped: 'Stopped: no push-up for 8 seconds',
+  stopped: 'Stopped: no push-up in time',
   stuck: 'Couldn’t press back up',
   left: 'Got up out of position',
   ended: 'Ended by the operator',
@@ -98,17 +110,18 @@ export function tick(g: GameState, now: number, live: PlayerLive[]): GameState {
 
     case 'running': {
       const duration = MODES[g.mode].durationMs
-      if (duration != null) return now - g.startT! >= duration ? finishAll(g, g.startT! + duration, 'time') : g
-      // Max: each player ends on their own; the round ends when all have.
+      if (duration != null && now - g.startT! >= duration) return finishAll(g, g.startT! + duration, 'time')
+      // Every mode: each player can fail on their own; the round ends early when all have.
       const players = g.players.map((p, i): PlayerState => {
         if (p.finished) return p
         const l = live[i] ?? { ready: false, inRep: false }
         const outSince = l.ready ? null : p.outSince ?? now
         const stuckSince = l.ready && l.inRep ? p.stuckSince ?? now : null
+        const window = failWindow(g.mode, p.results.length)
         const end = (reason: FinishReason): PlayerState => ({ ...p, outSince, stuckSince, finished: reason, finishedAt: now })
-        if (outSince != null && now - outSince >= MAX_RULES.outOfPositionMs) return end('left')
-        if (stuckSince != null && now - stuckSince >= MAX_RULES.stuckMs) return end('stuck')
-        if (l.ready && !l.inRep && now - p.lastRepT >= MAX_RULES.idleMs) return end('stopped')
+        if (outSince != null && now - outSince >= FAILURE.outOfPositionMs) return end('left')
+        if (stuckSince != null && now - stuckSince >= window) return end('stuck')
+        if (l.ready && !l.inRep && now - p.lastRepT >= window) return end('stopped')
         return { ...p, outSince, stuckSince }
       })
       const next = { ...g, players }
@@ -118,6 +131,18 @@ export function tick(g: GameState, now: number, live: PlayerLive[]): GameState {
     case 'finished':
       return g
   }
+}
+
+/**
+ * How close a running player is to failing: ms left before "stuck" or
+ * "stopped" ends their round, or null when they're not at risk (or not playing).
+ */
+export function failLeft(g: GameState, player: number, now: number, inRep: boolean): number | null {
+  const p = g.players[player]
+  if (g.phase !== 'running' || !p || p.finished) return null
+  const window = failWindow(g.mode, p.results.length)
+  const since = inRep ? p.stuckSince : p.lastRepT
+  return since == null ? null : Math.max(0, window - (now - since))
 }
 
 /** Records a rep for a player. Ignored unless the round is running and that player is still in it. */

@@ -198,10 +198,18 @@ function attach(server: ViteDevServer | PreviewServer) {
     relayRooms.set(room, r)
     if (r.host && r.phone) { sendText(r.host, { type: 'peer-joined' }); sendText(r.phone, { type: 'peer-joined' }) }
     ws.on('message', (data, isBinary) => {
-      // Only the phone sends frames; drop them if the laptop is still busy with earlier ones.
-      if (role !== 'phone' || !isBinary) return
+      // Only the phone sends: frames, and small notes such as which way up the phone is.
+      if (role !== 'phone') return
       const host = relayRooms.get(room)?.host
-      if (host?.readyState === WebSocket.OPEN && host.bufferedAmount < RELAY_MAX_FRAME) host.send(data, { binary: true })
+      if (host?.readyState !== WebSocket.OPEN) return
+      if (!isBinary) {
+        let msg: { type?: unknown; rotation?: unknown } | null = null
+        try { msg = JSON.parse(String(data)) } catch { return }
+        if (msg && msg.type === 'orientation' && [0, 90, 180, 270].includes(msg.rotation as number)) sendText(host, { type: 'orientation', rotation: msg.rotation })
+        return
+      }
+      // Drop frames if the laptop is still busy with earlier ones.
+      if (host.bufferedAmount < RELAY_MAX_FRAME) host.send(data, { binary: true })
     })
     ws.on('close', () => {
       const cur = relayRooms.get(room)

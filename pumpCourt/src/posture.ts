@@ -13,6 +13,8 @@ export const POSTURE = {
   maxTrunkTilt: 40,
   /** The whole body (shoulder to ankle) must tilt less than this. */
   maxBodyTilt: 35,
+  /** Legs straight: knee angle at least this. Kneeling (knee push-ups) is ~90–120°, a plank ~170°. */
+  minKnee: 150,
   /** The wrist must be at least this visible to find the floor. */
   minWristVisibility: 0.5,
   /** To get ready, the arms must be close to straight: shoulders this many arm lengths above the hands. */
@@ -27,12 +29,13 @@ export const POSTURE = {
   graceMs: 600,
 }
 
-export type PostureState = 'no-player' | 'no-hands' | 'not-down' | 'hands-off-floor' | 'settle' | 'ready'
+export type PostureState = 'no-player' | 'no-hands' | 'not-down' | 'knees-down' | 'hands-off-floor' | 'settle' | 'ready'
 
 export const POSTURE_MESSAGE: Record<PostureState, string> = {
   'no-player': 'Can’t see the player. Get side-on to the camera with the whole body in view.',
   'no-hands': 'Can’t see the hands. Keep the near hand in view.',
   'not-down': 'Get down into the push-up position.',
+  'knees-down': 'Knees off the floor: get into a full plank, legs straight.',
   'hands-off-floor': 'Put the hands on the floor, under the shoulders.',
   settle: 'Hold still at the top, arms straight, to start.',
   ready: 'Ready. Go!',
@@ -71,6 +74,8 @@ export function createPostureTracker() {
     if (!a) return 'no-player'
     if (!(a.wristVisibility >= POSTURE.minWristVisibility)) return 'no-hands'
     if (!(a.trunkTilt <= POSTURE.maxTrunkTilt && a.bodyTilt <= POSTURE.maxBodyTilt)) return 'not-down'
+    // A plank, not a kneeling push-up: the countdown and the judging both need straight legs.
+    if (!(a.knee >= POSTURE.minKnee)) return 'knees-down'
     // Hands on the floor: below the shoulders, and not far out in front of them.
     if (!(a.wrist.y > a.shoulderY) || Math.abs(a.wrist.x - a.shoulderX) > a.armLength) return 'hands-off-floor'
     return null

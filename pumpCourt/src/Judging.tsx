@@ -22,11 +22,18 @@ interface StageProps {
   label: string
   videoRef: RefObject<HTMLVideoElement | null>
   canvasRef: RefObject<HTMLCanvasElement | null>
+  /** Rotated picture, shown instead of the video when `rotated`. */
+  frameRef: RefObject<HTMLCanvasElement | null>
+  rotated: boolean
+  /** Width / height of the picture, so the stage takes its shape (landscape or portrait). */
+  aspect: number
+  /** Optional control shown on the stage (e.g. the rotate button during setup). */
+  control?: ReactNode
   lights: Record<Light, LightState>
   flash: number
   /** Shown over the video: posture prompts, countdown, finish reason. */
   banner: ReactNode
-  bannerKind: 'info' | 'ready' | 'big' | 'done' | null
+  bannerKind: 'info' | 'ready' | 'big' | 'done' | 'warn' | null
   player: PlayerState | null
   noCamera: string | null
   winner?: boolean
@@ -39,9 +46,11 @@ export function PlayerStage(p: StageProps) {
   const noRep = p.player ? p.player.results.length - good : 0
   return (
     <section className={`player ${p.winner ? 'winner' : ''}`}>
-      <div className="stage">
-        <video ref={p.videoRef} autoPlay playsInline muted />
+      <div className="stage" style={{ aspectRatio: String(p.aspect) }}>
+        <video ref={p.videoRef} autoPlay playsInline muted hidden={p.rotated} />
+        <canvas ref={p.frameRef} className="frame" hidden={!p.rotated} />
         <canvas ref={p.canvasRef} />
+        {p.control}
         <Lights states={p.lights} flash={p.flash} />
         <span className="player-tag">{p.label}{p.winner ? ' 🏆' : ''}</span>
         {p.noCamera && <div className="no-camera">{p.noCamera}</div>}

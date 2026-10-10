@@ -15,7 +15,7 @@ Setup: players (Single / Co-op) → mode (Sprint / Marathon / Max) → camera pe
 ```
 
 - Judging is always on **Hard** (`DIFFICULTY.hard`); there is no difficulty toggle.
-- The countdown starts only when **every** player's posture is ready (see the posture gate in the judge doc). If anyone leaves position during the 3-2-1, it goes back to waiting.
+- The countdown starts only when **every** player's posture is ready: a full plank, legs straight (knees off the floor), hands planted, arms straight and still (see the posture gate in the judge doc). If anyone leaves position during the 3-2-1, it goes back to waiting.
 - Each player has their own camera, their own MediaPipe landmarker (`getLandmarker(…, slot)`; VIDEO mode tracks one body across frames, so two streams can't share one) and their own `RepJudge`.
 - Judges are created fresh when the clock starts. Reps before the start or after a player has finished are ignored.
 
@@ -23,11 +23,23 @@ Setup: players (Single / Co-op) → mode (Sprint / Marathon / Max) → camera pe
 
 | Mode | Length | Ends when |
 | --- | --- | --- |
-| Sprint | 30 s | the clock runs out |
-| Marathon | 60 s | the clock runs out |
-| Max | no limit | per player: out of position for 2 s (stood/sat up), stuck in a rep for 5 s (can't press up), or 8 s in position without a rep (stopped). The round ends when every player has finished. |
+| Sprint | 30 s | the clock runs out, or every player has failed |
+| Marathon | 60 s | the clock runs out, or every player has failed |
+| Max | no limit | every player has failed |
 
 All modes have a 3 s countdown (`COUNTDOWN_MS`) with beeps, and the operator can press **Stop** at any time. In timed modes a rep still in progress at the buzzer does not count.
+
+### Failure (all modes, `FAILURE` / `failWindow` in `game.ts`)
+
+A player's round ends early, on their own, when they:
+
+- **get up**: out of the push-up position (stood up, sat down, knees down, walked off) for 2 s;
+- **get stuck**: partway through a rep (can't press back up) longer than the failure window;
+- **stop**: in position but no new rep for longer than the failure window.
+
+The failure window grows with fatigue: **4 s + 0.25 s per rep attempted**, capped at **6 s (Sprint), 8 s (Marathon), 10 s (Max)**. Max reaches its 10 s cap after 24 reps. So a 7 s pause ends the round at the start of a set, but not after 20 reps.
+
+In the last 3 s before failing, the player's stage shows **"Keep going! 3…2…1"**. Leaving position mid-round shows the posture prompt. Added 2026-10-10 (failure used to apply to Max only, with fixed 5 s / 8 s windows).
 
 Score = push-ups with 2 or 3 white lights. Co-op winner: most push-ups, then most perfect (3-light) reps; equal = tie. Results show each player's push-ups, perfect reps, accuracy, light rates and every rep, plus the team total.
 
@@ -37,7 +49,7 @@ Score = push-ups with 2 or 3 white lights. Co-op winner: most push-ups, then mos
 | --- | --- |
 | `waiting` | → `countdown` when every player is ready |
 | `countdown` | → `waiting` if anyone leaves position; → `running` after 3 s |
-| `running` | → `finished` on time (Sprint/Marathon) or when all players finished (Max) |
+| `running` | → `finished` on time (Sprint/Marathon) or when every player has failed (any mode) |
 | `finished` | Play again / Change setup |
 
 `App.tsx` calls `tick(game, now, live)` every 100 ms with each player's `{ready, inRep}` and `addRep(game, player, rep, now)` whenever a judge returns a rep. All functions are pure, so the rules are tested without cameras.

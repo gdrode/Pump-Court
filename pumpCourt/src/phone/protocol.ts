@@ -14,6 +14,8 @@ export type ServerMessage =
 export type SignalData =
   | { sdp: RTCSessionDescriptionInit }
   | { candidate: RTCIceCandidateInit }
+  /** Phone → laptop: clockwise turn (0/90/180/270) that makes the picture upright. */
+  | { orientation: number }
 
 export function signalUrl() {
   return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/signal`

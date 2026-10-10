@@ -191,7 +191,7 @@ describe('difficulty', () => {
     expect(DIFFICULTY.easy.lockoutElbow).toBeLessThan(DIFFICULTY.normal.lockoutElbow)
     expect(DIFFICULTY.normal.lockoutElbow).toBeLessThan(DIFFICULTY.hard.lockoutElbow)
     expect(DIFFICULTY.easy.torsoHip).toBeLessThan(DIFFICULTY.hard.torsoHip)
-    expect(DIFFICULTY.easy.depth).toBeGreaterThan(DIFFICULTY.hard.depth)
+    expect(DIFFICULTY.easy.depthDrop).toBeLessThan(DIFFICULTY.hard.depthDrop)
   })
 })
 
@@ -312,7 +312,7 @@ describe('flared elbows: reps follow the shoulders, not the elbow', () => {
     expect(rs).toHaveLength(5)
   })
 
-  it('a conventional push-up bottom (shoulders 0.6 arm lengths over the hands) passes depth on Hard', () => {
+  it('a conventional push-up bottom (shoulders drop ~38% of their top height) passes depth on Hard', () => {
     const fr: [number, JudgeInput][] = []
     let t = 0
     for (let k = 0; k < 20; k++) fr.push([(t += 33), { elbow: 168, hip: 176, depth: 0.95 }])

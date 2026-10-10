@@ -15,6 +15,8 @@ export function openRelayLink(room: string, handlers: PhoneLinkHandlers): PhoneL
   let decoding = false
   // Frames are arriving from the current phone connection (reset when it drops or reconnects).
   let live = false
+  // Replayed to whoever takes over the link (the pairing dialog hands it to the app).
+  let lastOrientation: number | null = null
 
   const draw = async () => {
     if (decoding || !pending) return
@@ -56,8 +58,12 @@ export function openRelayLink(room: string, handlers: PhoneLinkHandlers): PhoneL
       void draw()
       return
     }
-    const msg = JSON.parse(e.data) as { type: string; from?: string; message?: string }
-    if (msg.type === 'phone-visit') h.onVisit?.(msg.from ?? '')
+    const msg = JSON.parse(e.data) as { type: string; from?: string; message?: string; rotation?: number }
+    if (msg.type === 'orientation' && msg.rotation != null) {
+      lastOrientation = msg.rotation
+      h.onOrientation?.(msg.rotation)
+    }
+    else if (msg.type === 'phone-visit') h.onVisit?.(msg.from ?? '')
     else if (msg.type === 'peer-joined') { live = false; h.onStatus('connecting') }
     else if (msg.type === 'peer-left') { live = false; h.onStatus('disconnected', 'The phone page was closed or lost its connection.') }
   }
@@ -67,7 +73,10 @@ export function openRelayLink(room: string, handlers: PhoneLinkHandlers): PhoneL
 
   return {
     room,
-    setHandlers(next) { h = next },
+    setHandlers(next) {
+      h = next
+      if (lastOrientation != null) h.onOrientation?.(lastOrientation)
+    },
     close() {
       closed = true
       ws.close()

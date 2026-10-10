@@ -73,6 +73,16 @@ Endpoints: `GET /api/tunnel` → `{status: off|starting|on|error|missing, url, e
 
 Measured 2026-10-10: tunnel ready in ~9 s, phone page loads in ~1 s, relay sustains 30 fps (synthetic camera; a real camera is ~25–40 KB per frame, roughly 6–10 Mbit/s upload).
 
+## 4c. Camera on its side (landscape)
+
+Players are easier to fit in frame with the phone on its side. With rotation lock on, the phone keeps sending a portrait picture, so the player appears lying sideways and the pose tracker can't follow them. Fixed on the laptop (`src/useLane.ts`, `rotation`):
+
+- **Automatic**: the phone page reads its tilt from `devicemotion` gravity (works with rotation lock on; iOS asks for motion permission on the Start tap), compares it with its picture's shape, and sends the clockwise turn needed (0/90/180/270): `{orientation}` over the signaling channel (Wi-Fi) or `{type: "orientation", rotation}` on the relay (any network). The links remember the last value and replay it when the app takes over from the pairing dialog.
+- **Manual**: each player's stage has **⟳ Rotate** (turns 90° clockwise) and **auto** (back to the phone's own value) until the clock starts. Use it for USB cameras, or if automatic picks the wrong way (the gravity sign on some phones isn't certain).
+- The laptop draws the turned picture onto a canvas, tracks the pose on that canvas, and shows it instead of the video. The stage reshapes to the picture (portrait or landscape). Changing rotation restarts that player's tracker and floor line.
+
+Tested 2026-10-10 with a simulated phone: upright tilt with a landscape picture → 90° auto, stage portrait; sideways tilt → 0°; manual cycling and auto reset. Not yet tested on a real phone.
+
 ## 5. Running it
 
 ```bash

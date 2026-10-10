@@ -159,7 +159,12 @@ button.linkish { background: none; border: none; padding: 0; color: var(--accent
 .stages.players-2 { grid-template-columns: 1fr 1fr; }
 @media (max-width: 900px) { .stages.players-2 { grid-template-columns: 1fr; } }
 .player { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.player .stage { aspect-ratio: 16 / 9; }
+.player .stage { aspect-ratio: 16 / 9; max-height: 75vh; margin: 0 auto; width: 100%; }
+.stages.players-1 .player .stage { width: auto; max-width: 100%; height: auto; }
+.player .stage canvas.frame { position: static; display: block; width: 100%; height: 100%; object-fit: contain; }
+.player .stage canvas.frame[hidden] { display: none; }
+.stage-control { position: absolute; right: 10px; bottom: 10px; z-index: 4; display: flex; gap: 6px; align-items: center; }
+.stage-control button { background: rgba(0,0,0,.65); font-weight: 600; }
 .player .stage video { width: 100%; height: 100%; max-height: none; object-fit: contain; }
 .player.winner .stage { outline: 3px solid var(--good); }
 .player-tag { position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,.6); padding: 4px 10px; border-radius: 6px; font-weight: 700; z-index: 2; }
@@ -202,3 +207,6 @@ button.linkish { background: none; border: none; padding: 0; color: var(--accent
 .player-report { background: var(--surface-2); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .player-report h3 { margin: 0; }
 .player-report .metric { background: var(--surface); }
+.rot-label { background: rgba(0,0,0,.65); padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--text-2); display: inline-flex; gap: 6px; align-items: center; }
+.stage video[hidden] { display: none; }
+.banner.warn { font-size: clamp(22px, 3vw, 40px); background: rgba(208,59,59,.85); color: #fff; }

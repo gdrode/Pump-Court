@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AddCameraDialog } from './AddCameraDialog'
 import { listCameras, loadSavedCameraId } from './camera'
 import { Diagnostics } from './Diagnostics'
-import { addRep, countdownLeft, createGame, endGame, FINISH_TEXT, tick, winner, type GameState, type Mode, type PlayerLive, type Players } from './game'
+import { addRep, countdownLeft, createGame, endGame, failLeft, FINISH_TEXT, tick, winner, type GameState, type Mode, type PlayerLive, type Players } from './game'
 import { DIFFICULTY, lightStates, RepJudge, type RepResult } from './judge'
 import { GameBar, PlayerStage, Results } from './Judging'
 import type { PhoneLink, PhoneStatus } from './phoneLink'
 import { POSTURE_MESSAGE } from './posture'
 import { Setup, type CameraOption } from './Setup'
 import { beep, buzzer, ding, unlockAudio } from './sfx'
-import { useLane, type Lane, type LaneFrame, type SourceKey } from './useLane'
+import { useLane, type Lane, type LaneFrame, type Rotation, type SourceKey } from './useLane'
 
 interface PhoneCamera {
   id: string
@@ -20,6 +20,8 @@ interface PhoneCamera {
   detail: string
   /** Paired through the internet link (server/tunnel.ts) rather than the local network. */
   viaInternet: boolean
+  /** The phone's own idea of how to turn its picture upright (from its tilt sensor). */
+  rotationHint: Rotation | null
 }
 
 const PHONE_STATUS_TEXT: Record<PhoneStatus, string> = {
@@ -40,6 +42,8 @@ const GO_MS = 800
 const TICK_MS = 100
 
 const NOT_LIVE: PlayerLive = { ready: false, inRep: false }
+/** Show "Keep going!" this long before a player would fail. */
+const FAIL_WARN_MS = 3000
 
 export default function App() {
   // --- Cameras (shared by both players) ----------------------------------------
@@ -60,6 +64,8 @@ export default function App() {
   const [screen, setScreen] = useState<'setup' | 'play'>('setup')
   const [players, setPlayers] = useState<Players>(1)
   const [mode, setMode] = useState<Mode>('sprint')
+  /** Rotation picked with the Rotate button, per player; null = automatic (the phone's hint, else none). */
+  const [manualRotation, setManualRotation] = useState<(Rotation | null)[]>([null, null])
   const [sources, setSources] = useState<(SourceKey | null)[]>(() => {
     const saved = loadSavedCameraId()
     return [saved ? `dev:${saved}` : null, null]
@@ -72,6 +78,8 @@ export default function App() {
   const [now, setNow] = useState(() => performance.now())
   const judges = useRef<(RepJudge | null)[]>([null, null])
   const live = useRef<PlayerLive[]>([NOT_LIVE, NOT_LIVE])
+  /** Copy of live[i].inRep taken on each clock tick, for rendering. */
+  const [liveInRep, setLiveInRep] = useState([false, false])
   const [lastRep, setLastRep] = useState<(RepResult | null)[]>([null, null])
   const [lit, setLit] = useState([false, false])
   const litTimers = useRef([0, 0])
@@ -125,8 +133,9 @@ export default function App() {
   const frame0 = useCallback((f: LaneFrame) => handleFrame(0, f), [handleFrame])
   const frame1 = useCallback((f: LaneFrame) => handleFrame(1, f), [handleFrame])
 
-  const lane0 = useLane({ slot: 0, enabled: true, source: sources[0], openDefault: true, phoneStream: phoneFor(sources[0])?.stream ?? null, onFrame: frame0, onCameraOpened: refreshDevices })
-  const lane1 = useLane({ slot: 1, enabled: players === 2, source: sources[1], openDefault: false, phoneStream: phoneFor(sources[1])?.stream ?? null, onFrame: frame1, onCameraOpened: refreshDevices })
+  const rotationFor = (i: number): Rotation => manualRotation[i] ?? phoneFor(sources[i])?.rotationHint ?? 0
+  const lane0 = useLane({ slot: 0, enabled: true, source: sources[0], openDefault: true, phoneStream: phoneFor(sources[0])?.stream ?? null, onFrame: frame0, onCameraOpened: refreshDevices, rotation: rotationFor(0) })
+  const lane1 = useLane({ slot: 1, enabled: players === 2, source: sources[1], openDefault: false, phoneStream: phoneFor(sources[1])?.stream ?? null, onFrame: frame1, onCameraOpened: refreshDevices, rotation: rotationFor(1) })
   const lanes: Lane[] = [lane0, lane1].slice(0, players)
 
   // --- Clock -------------------------------------------------------------------
@@ -136,6 +145,7 @@ export default function App() {
     const id = setInterval(() => {
       const t = performance.now()
       setNow(t)
+      setLiveInRep(live.current.map((l) => l.inRep))
       setGame((g) => (g ? tick(g, t, g.players.map((_, i) => live.current[i] ?? NOT_LIVE)) : g))
     }, TICK_MS)
     return () => clearInterval(id)
@@ -172,7 +182,15 @@ export default function App() {
     setScreen('setup')
   }
 
-  const chooseSource = (i: number, key: SourceKey | null) => setSources((s) => s.map((x, j): SourceKey | null => (j === i ? key : x)))
+  const chooseSource = (i: number, key: SourceKey | null) => {
+    setSources((s) => s.map((x, j): SourceKey | null => (j === i ? key : x)))
+    setManualRotation((m) => m.map((x, j) => (j === i ? null : x))) // a new camera starts on automatic
+  }
+  const rotate = (i: number) =>
+    setManualRotation((m) => m.map((x, j) => (j === i ? (((rotationFor(i) + 90) % 360) as Rotation) : x)))
+  const autoRotate = (i: number) => setManualRotation((m) => m.map((x, j) => (j === i ? null : x)))
+  // Rotating is allowed until the clock starts (setup and while waiting for players).
+  const canRotate = screen === 'setup' || game?.phase === 'waiting'
 
   const onPhone = useCallback((p: { id: string; label: string; stream: MediaStream; link: PhoneLink; viaInternet?: boolean }) => {
     const setStatus = (status: PhoneStatus, detail?: string) =>
@@ -180,8 +198,10 @@ export default function App() {
     // If the phone page reloads it reconnects with a new stream.
     const setStream = (stream: MediaStream) =>
       setPhones((list) => list.map((x) => (x.id === p.id ? { ...x, stream } : x)))
-    p.link.setHandlers({ onStatus: setStatus, onStream: setStream })
-    setPhones((list) => [...list, { ...p, status: 'connected', detail: '', viaInternet: !!p.viaInternet }])
+    const setHint = (r: number) =>
+      setPhones((list) => list.map((x) => (x.id === p.id ? { ...x, rotationHint: r as Rotation } : x)))
+    setPhones((list) => [...list, { ...p, status: 'connected', detail: '', viaInternet: !!p.viaInternet, rotationHint: null }])
+    p.link.setHandlers({ onStatus: setStatus, onStream: setStream, onOrientation: setHint })
     setPhoneNumber((n) => n + 1)
     // The phone becomes the camera of the player whose "+ Add camera" was pressed.
     const i = addingForRef.current
@@ -226,13 +246,20 @@ export default function App() {
     return devices.find((d) => d.deviceId === lane.activeDeviceId)?.label || 'default camera'
   }
 
-  const stageBanner = (i: number, lane: Lane): { banner: ReactNode; kind: 'info' | 'ready' | 'big' | 'done' | null } => {
+  const stageBanner = (i: number, lane: Lane): { banner: ReactNode; kind: 'info' | 'ready' | 'big' | 'done' | 'warn' | null } => {
     const pos = lane.livePosture
     const p = game?.players[i]
     if (screen === 'play' && game) {
       if (p?.finished) return { banner: FINISH_TEXT[p.finished], kind: 'done' }
       if (game.phase === 'countdown') return { banner: String(cd), kind: 'big' }
-      if (game.phase === 'running') return now - (game.startT ?? 0) < GO_MS ? { banner: 'GO!', kind: 'big' } : { banner: null, kind: null }
+      if (game.phase === 'running') {
+        if (now - (game.startT ?? 0) < GO_MS) return { banner: 'GO!', kind: 'big' }
+        if (pos && !pos.ready) return { banner: POSTURE_MESSAGE[pos.state], kind: 'info' }
+        // Close to failing (stuck in a rep, or no push-up for a while): a last-seconds warning.
+        const left = failLeft(game, i, now, liveInRep[i])
+        if (left != null && left <= FAIL_WARN_MS) return { banner: `Keep going! ${Math.ceil(left / 1000)}`, kind: 'warn' }
+        return { banner: null, kind: null }
+      }
       if (game.phase === 'waiting') return pos?.ready ? { banner: '✓ Ready', kind: 'ready' } : { banner: POSTURE_MESSAGE[pos?.state ?? 'no-player'], kind: 'info' }
     }
     // Setup: help the player find their spot before starting.
@@ -278,6 +305,18 @@ export default function App() {
               label={`Player ${i + 1}`}
               videoRef={lane.videoRef}
               canvasRef={lane.canvasRef}
+              frameRef={lane.frameRef}
+              rotated={lane.rotation !== 0}
+              aspect={lane.aspect}
+              control={canRotate && lane.hasVideo ? (
+                <div className="stage-control">
+                  <button onClick={() => rotate(i)} title="Turn the picture 90° clockwise (use when the camera is on its side)">⟳ Rotate</button>
+                  <span className="rot-label">
+                    {lane.rotation}°{manualRotation[i] == null ? ' auto' : ''}
+                    {manualRotation[i] != null && <button className="small" onClick={() => autoRotate(i)}>auto</button>}
+                  </span>
+                </div>
+              ) : null}
               lights={lightStates(lit[i] ? lastRep[i] : null)}
               flash={lastRep[i]?.rep ?? 0}
               banner={b.banner}

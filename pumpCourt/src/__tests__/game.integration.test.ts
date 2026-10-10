@@ -103,3 +103,54 @@ describe('a full round', () => {
     expect(COUNTDOWN_MS).toBe(3000)
   })
 })
+
+describe('plank required to start', () => {
+  it('a player on their knees never starts the countdown', () => {
+    const { g, countdownAt } = play('sprint', [() => plank({ knee: 100 })], 20_000)
+    expect(countdownAt).toBeNull()
+    expect(g.phase).toBe('waiting')
+  })
+
+  it('co-op: one player kneeling holds the countdown until they get into a plank', () => {
+    const p1: Script = pushups(20_000, 1500)
+    const p2: Script = (t) => (t < 8000 ? plank({ knee: 100 }) : pushups(20_000, 1500)(t))
+    const { countdownAt } = play('sprint', [p1, p2], 15_000)
+    expect(countdownAt).toBeGreaterThan(8000)
+  })
+})
+
+describe('quarter reps and adjustments', () => {
+  /** Shoulders dip by `share` of their height and come back, `n` times. */
+  const dips = (share: number, n: number): Script => (t) => {
+    if (t < 5000) return plank()
+    const k = ((t - 5000) % 1200) / 1000
+    if (t > 5000 + n * 1200 || k >= 1) return plank()
+    const u = Math.sin(Math.PI * k)
+    // Height above the hands' floor line = 0.7 − 0.46 = 0.24 at the top; drop a share of it.
+    return plank({ elbow: 170 - 40 * u * share * 4, shoulderY: 0.46 + 0.24 * share * u })
+  }
+
+  it('quarter reps (shoulders drop ~20%) never count and never light up', () => {
+    const { g } = play('sprint', [dips(0.2, 15)], 40_000)
+    expect(g.players[0].results).toHaveLength(0)
+  })
+
+  it('small adjustments at the top (10%) are ignored', () => {
+    const { g } = play('sprint', [dips(0.1, 15)], 40_000)
+    expect(g.players[0].results).toHaveLength(0)
+  })
+
+  it('a rep to 30% gets judged but fails depth on Hard (needs 35%): not perfect', () => {
+    const { g } = play('sprint', [dips(0.3, 10)], 40_000)
+    const rs = g.players[0].results
+    expect(rs.length).toBeGreaterThan(5)
+    expect(rs.every((r) => !r.lights.depth && !r.perfect)).toBe(true)
+  })
+
+  it('a conventional rep (shoulders drop ~45%) passes depth', () => {
+    const { g } = play('sprint', [dips(0.45, 10)], 40_000)
+    const rs = g.players[0].results
+    expect(rs.length).toBeGreaterThan(5)
+    expect(rs.every((r) => r.lights.depth)).toBe(true)
+  })
+})

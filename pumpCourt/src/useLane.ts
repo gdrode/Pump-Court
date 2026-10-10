@@ -8,6 +8,9 @@ import { getLandmarker, MODEL, type LoadedLandmarker } from './landmarker'
 import { createSideTracker, type Landmark, type PoseAngles } from './pose'
 import { createPostureTracker, type Posture } from './posture'
 
+/** Clockwise rotation applied to the camera picture before tracking and display. */
+export type Rotation = 0 | 90 | 180 | 270
+
 /** Camera choice: a device the OS provides, or a paired phone. */
 export type SourceKey = `dev:${string}` | `phone:${string}`
 
@@ -36,11 +39,28 @@ interface Options {
   onFrame(f: LaneFrame): void
   /** Called after a camera opens, so device labels can be refreshed. */
   onCameraOpened?(): void
+  /**
+   * Turn the picture before tracking: a phone propped on its side with
+   * rotation lock on sends a sideways picture; the person must be upright for
+   * the pose tracker.
+   */
+  rotation?: Rotation
 }
 
-export function useLane({ slot, enabled, source, openDefault, phoneStream, onFrame, onCameraOpened }: Options) {
+export function useLane({ slot, enabled, source, openDefault, phoneStream, onFrame, onCameraOpened, rotation = 0 }: Options) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  /** Shows the rotated picture when rotation isn't 0 (the video element is hidden then). */
+  const frameRef = useRef<HTMLCanvasElement>(null)
+  const rotationRef = useRef<Rotation>(rotation)
+  /** Width / height of the picture as shown (after rotation), for the stage's shape. */
+  const [aspect, setAspect] = useState(16 / 9)
+  useEffect(() => {
+    rotationRef.current = rotation
+    // Reshape the stage straight away, not on the next tracked frame.
+    const v = videoRef.current
+    if (v?.videoWidth) setAspect(rotation % 180 ? v.videoHeight / v.videoWidth : v.videoWidth / v.videoHeight)
+  }, [rotation])
   const streamRef = useRef<MediaStream | null>(null)
   // Count of frames the video element has actually shown. A disconnected phone
   // leaves currentTime ticking over a frozen frame, so this is the honest
@@ -212,9 +232,28 @@ export function useLane({ slot, enabled, source, openDefault, phoneStream, onFra
       lastPresented = presented
       lastFrameAt = performance.now()
       cleared = false
-      if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
+      // Turn the picture if needed: tracking runs on the upright picture.
+      const rot = rotationRef.current
+      const vw = video.videoWidth, vh = video.videoHeight
+      const w = rot % 180 ? vh : vw, h = rot % 180 ? vw : vh
+      let input: HTMLVideoElement | HTMLCanvasElement = video
+      if (rot) {
+        const frame = frameRef.current
+        if (frame) {
+          if (frame.width !== w || frame.height !== h) { frame.width = w; frame.height = h }
+          const fctx = frame.getContext('2d')!
+          fctx.setTransform(1, 0, 0, 1, 0, 0)
+          if (rot === 90) { fctx.translate(w, 0); fctx.rotate(Math.PI / 2) }
+          else if (rot === 180) { fctx.translate(w, h); fctx.rotate(Math.PI) }
+          else { fctx.translate(0, h); fctx.rotate(-Math.PI / 2) }
+          fctx.drawImage(video, 0, 0, vw, vh)
+          input = frame
+        }
+      }
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w
+        canvas.height = h
+        setAspect(w / h)
       }
       // detectForVideo needs strictly increasing timestamps.
       const ts = Math.max(performance.now(), lastTs + 0.001)
@@ -222,7 +261,7 @@ export function useLane({ slot, enabled, source, openDefault, phoneStream, onFra
       const t0 = performance.now()
       let pose: Landmark[] | undefined
       try {
-        pose = model.landmarker.detectForVideo(video, ts).landmarks[0]
+        pose = model.landmarker.detectForVideo(input, ts).landmarks[0]
       } catch (err) {
         if (++failures < 10) return
         cancelAnimationFrame(raf)
@@ -235,7 +274,7 @@ export function useLane({ slot, enabled, source, openDefault, phoneStream, onFra
       detectMsSum += performance.now() - t0
       detections++
 
-      const angles = tracker.update(pose, video.videoWidth / video.videoHeight)
+      const angles = tracker.update(pose, w / h)
       drawOverlay(ctx, pose, angles ? angles.side : null)
       // Only a player in the push-up position, hands planted, is judged. Height is measured from the hands' floor line.
       const pos = posture.update(ts, angles)
@@ -261,10 +300,11 @@ export function useLane({ slot, enabled, source, openDefault, phoneStream, onFra
       cancelAnimationFrame(raf)
       ctx.clearRect(0, 0, canvas.width, canvas.height)
     }
-  }, [model, enabled])
+    // A new rotation means a new picture geometry: start the trackers (and the floor line) fresh.
+  }, [model, enabled, rotation])
 
   return {
-    videoRef, canvasRef, model, modelError, cameraError, deliveredFps, resolution, stats,
+    videoRef, canvasRef, frameRef, aspect, rotation, model, modelError, cameraError, deliveredFps, resolution, stats,
     liveAngles, livePosture, activeDeviceId, hasVideo,
   }
 }

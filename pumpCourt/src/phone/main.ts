@@ -109,6 +109,7 @@ async function onSignal(data: SignalData) {
 }
 
 function connect() {
+  sentRotation = null
   status('Connecting to the laptop…')
   const me = httpSignal(room, 'phone', (msg: ServerMessage) => {
     if (me !== channel) return // torn down on purpose
@@ -152,6 +153,7 @@ function stopRelay() {
 }
 
 function connectRelay() {
+  sentRotation = null
   status('Connecting to the laptop over the internet…')
   const ws = new WebSocket(`wss://${location.host}/relay?room=${encodeURIComponent(room)}&role=phone`)
   relay = ws
@@ -184,8 +186,64 @@ function connectRelay() {
   }
 }
 
+// --- Which way up the phone is --------------------------------------------------
+// Propped on its side with rotation lock on, the phone keeps sending a portrait
+// picture, so the player appears lying sideways. Gravity says how the phone is
+// really held (it works with rotation lock on); the laptop turns the picture.
+let gravity: { x: number; y: number } | null = null
+let sentRotation: number | null = null
+window.addEventListener('devicemotion', (e) => {
+  const g = e.accelerationIncludingGravity
+  if (g?.x != null && g.y != null) gravity = { x: g.x, y: g.y }
+})
+/** iOS reports gravity with the opposite sign to the web standard. */
+const gravitySign = /iPhone|iPad|iPod/.test(navigator.userAgent) ? -1 : 1
+
+/** Clockwise turn that makes the picture upright, or null when unsure. */
+function neededRotation(): number | null {
+  if (!gravity || !preview.videoWidth) return null
+  const x = gravity.x * gravitySign, y = gravity.y * gravitySign
+  const frameLandscape = preview.videoWidth > preview.videoHeight
+  if (Math.abs(x) > Math.abs(y) * 1.3) {
+    // Held sideways. A landscape picture is already upright (rotation not locked).
+    if (frameLandscape) return 0
+    return x > 0 ? 90 : 270
+  }
+  if (Math.abs(y) > Math.abs(x) * 1.3) {
+    // Held upright (or upside down).
+    if (frameLandscape) return y > 0 ? 270 : 90
+    return y > 0 ? 0 : 180
+  }
+  return null // flat on a table or mid-turn: keep the last answer
+}
+
+function sendRotation(rotation: number) {
+  if (relayMode) {
+    if (relay?.readyState === WebSocket.OPEN) relay.send(JSON.stringify({ type: 'orientation', rotation }))
+  } else send({ orientation: rotation })
+}
+
+setInterval(() => {
+  const r = neededRotation()
+  if (r == null || r === sentRotation) return
+  if (relayMode ? relay?.readyState !== WebSocket.OPEN : !channel) return
+  sentRotation = r
+  sendRotation(r)
+}, 700)
+
+async function askMotionPermission() {
+  // iOS asks before giving motion data; it must be asked from a tap.
+  const DM = window.DeviceMotionEvent as unknown as { requestPermission?: () => Promise<string> } | undefined
+  try {
+    await DM?.requestPermission?.()
+  } catch {
+    // Declined: the laptop's Rotate button still works.
+  }
+}
+
 startBtn.onclick = async () => {
   if (!room) return status('Missing pairing code. Scan the QR code on the laptop again.', 'err')
+  void askMotionPermission()
   if (!window.isSecureContext || !navigator.mediaDevices) return status('The camera needs https. Open the exact link from the QR code.', 'err')
   try {
     await openCamera()
