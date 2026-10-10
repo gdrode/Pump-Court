@@ -23,13 +23,22 @@ laptop or phone camera ─▶ tracker (MediaPipe JS, in the app window) ─▶ l
                                                              └─ SQLite leaderboard
 ```
 
-Until the motion tracker is integrated, the backend ships a **mock athlete** that does scripted push-ups (clean, shallow, sagging, no lockout), so the whole game runs on any machine. See [docs/INTEGRATION.md](docs/INTEGRATION.md) for how the tracker plugs in.
+Until the motion tracker is integrated, the backend ships a **mock athlete** that does scripted push-ups (clean, shallow, sagging, no lockout), so the whole game runs on any machine. See [docs/features/developer-guides/tracker-integration.md](docs/features/developer-guides/tracker-integration.md) for how the tracker plugs in.
 
-Using a phone as the camera? Read [docs/PHONE_CAMERA.md](docs/PHONE_CAMERA.md).
+## Documentation
 
-Bringing in a new UI design? Read [docs/FRONTEND.md](docs/FRONTEND.md).
+Full architectural specifications, developer manuals, and AI agent guides are available in [`docs/`](docs/README.md):
 
-New to Rust? Read [docs/RUST_GUIDE.md](docs/RUST_GUIDE.md).
+* 📚 [Documentation Portal & Index](docs/README.md)
+* 🏛️ [System Architecture & Data Flow](docs/ARCHITECTURE.md)
+* 🤖 [AI Agent Operations Guide](docs/AGENTS.md)
+* 📐 [Feature: Referee Engine & 3 Lights](docs/features/referee-engine/README.md)
+* 📱 [Feature: Phone Camera QR Streaming](docs/features/phone-camera/README.md)
+* 🎮 [Feature: Game Engine & Modes](docs/features/game-engine/README.md)
+* 📊 [Feature: Leaderboard & SQLite](docs/features/leaderboard/README.md)
+* 🖥️ [Feature: Dual-Window Frontend UI](docs/features/frontend-ui/README.md)
+* 🏟️ [Feature: Venue Setup & Runbook](docs/features/venue-operations/README.md)
+* 🛠️ [Feature: Developer & Rust Guides](docs/features/developer-guides/README.md)
 
 ## Setup
 
