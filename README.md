@@ -17,7 +17,7 @@ All video is processed live on the game laptop. Nothing is recorded or uploaded.
 | Storage | SQLite (bundled, via `rusqlite`) | app data folder |
 
 ```
-camera ─▶ motion tracker (MediaPipe C++) ─▶ PoseSource ─▶ engine thread (Rust)
+laptop or phone camera ─▶ tracker (MediaPipe JS, in the app window) ─▶ landmarks ─▶ engine thread (Rust)
                                                              │ angles → ready check → rep tracker → 3 referees
                                                              ├─ "tick" / "rep" / "round-finished" events ─▶ React (operator + crowd windows)
                                                              └─ SQLite leaderboard
@@ -45,22 +45,45 @@ You need:
 cd frontend && npm install && cd ..
 ```
 
-## Run
+## Build and launch (one command)
+
+The launch script builds the frontend, compiles the Rust backend with the
+frontend baked in, and opens the app:
+
+```bash
+./scripts/launch.sh          # macOS / Linux
+scripts\launch.cmd           # Windows (double-click works too)
+```
+
+The first build takes a few minutes; later ones only rebuild what changed.
+Add `--no-run` (`-NoRun` on Windows) to build without launching. The result is
+one standalone program: `backend/target/release/pump-court` (`pump-court.exe`
+on Windows). Copy it to the game laptop and run it there; no Rust, Node or
+dev server is needed on that machine, though Windows needs the WebView2
+runtime, which Windows 10/11 already include.
+
+An executable only runs on the operating system it was built on, so build on
+the same kind of machine as the game laptop.
+
+For an installer (`.msi`, `.dmg`, `.deb`/`.AppImage`) instead, run
+`cargo tauri build` in `backend/`; the files land in
+`backend/target/release/bundle/`.
+
+## Develop (hot reload)
 
 ```bash
 cd backend
-cargo tauri dev        # starts the Vite dev server and the app, with hot reload
+cargo tauri dev        # starts the Vite dev server and the app; edits reload live
 ```
 
 Other useful commands, all from `backend/`:
 
 ```bash
-cargo test             # run the Rust unit tests (referees, rounds, leaderboard)
-cargo build            # compile only
-cargo tauri build      # release build + installer in backend/target/release/bundle
+cargo test             # run the Rust unit tests (referees, rounds, leaderboard, phone link)
+cargo build            # compile only (debug)
 ```
 
-Frontend alone (from `frontend/`): `npm run build` type-checks and bundles. The UI needs the Rust backend to show anything, so use `cargo tauri dev` to see it.
+Frontend alone (from `frontend/`): `npm run build` type-checks and bundles.
 
 ## Using it
 

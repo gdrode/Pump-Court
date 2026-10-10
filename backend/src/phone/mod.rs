@@ -11,8 +11,13 @@
 //! ```
 //!
 //! Everything stays on the local network: no internet, no cloud server, no
-//! database. The pairing code lives in memory and changes on request, so
-//! only someone who scanned the operator's QR code can stream.
+//! database; pairing lives in memory.
+//!
+//! **Pairing codes are single-use.** The moment a phone pairs, the 6-digit
+//! code (and the QR code on screen) changes, so the next person must scan the
+//! new one, which takes over from the previous phone. The paired phone gets a
+//! private session token so it can reconnect after a network blip without
+//! the old code.
 
 pub mod server;
 
@@ -49,6 +54,8 @@ pub struct PhoneStatus {
     pub height: u32,
     /// Frames per second actually arriving.
     pub fps: f32,
+    /// How many phones have paired since the app started.
+    pub pairings: u32,
 }
 
 /// The pairing details shown on the settings screen.
@@ -57,23 +64,60 @@ pub struct PhoneStatus {
 pub struct PhoneLink {
     /// The address the QR code encodes.
     pub url: String,
+    /// The current single-use pairing code.
     pub code: String,
     /// QR code as an SVG string, ready to drop into the page.
     pub qr_svg: String,
     pub status: PhoneStatus,
 }
 
+/// How a WebSocket proved it may stream.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Auth {
+    /// Used the current pairing code: a new phone (the code is now spent).
+    NewPairing,
+    /// Used the session token of the phone already paired: a reconnect.
+    Reconnect,
+}
+
+/// Result of a successful connection.
+pub struct Connection {
+    pub id: u64,
+    /// Token the phone keeps for reconnecting.
+    pub token: String,
+}
+
 struct HubState {
     code: String,
+    /// Session token of the currently paired phone.
+    token: Option<String>,
     ip: Option<String>,
     status: PhoneStatus,
-    /// Id of the connection allowed to stream; a newer phone replaces an older one.
+    /// Id of the connection allowed to stream.
     active_conn: u64,
     next_conn: u64,
     last_frame_at: Option<Instant>,
 }
 
-type Listener = Box<dyn Fn(&PhoneStatus) + Send + Sync>;
+impl HubState {
+    fn rotate_code(&mut self) {
+        let mut code = new_code();
+        while code == self.code {
+            code = new_code();
+        }
+        self.code = code;
+    }
+
+    fn drop_phone(&mut self) {
+        self.active_conn = 0;
+        self.status.connected = false;
+        self.status.device = None;
+        self.status.fps = 0.0;
+        self.last_frame_at = None;
+    }
+}
+
+type Listener = Box<dyn Fn(PhoneLink) + Send + Sync>;
 type FrameSubscriber = Box<dyn Fn(&PhoneFrame) -> bool + Send + Sync>;
 
 /// Shared between the network server, the engine and the Tauri commands.
@@ -81,7 +125,7 @@ pub struct PhoneHub {
     state: Mutex<HubState>,
     /// Newest frame for the engine thread.
     pub frames: Inbox<PhoneFrame>,
-    on_status: Mutex<Option<Listener>>,
+    on_change: Mutex<Option<Listener>>,
     subscribers: Mutex<Vec<FrameSubscriber>>,
 }
 
@@ -89,11 +133,16 @@ fn new_code() -> String {
     format!("{:06}", rand::random::<u32>() % 1_000_000)
 }
 
+fn new_token() -> String {
+    format!("{:032x}", rand::random::<u128>())
+}
+
 impl PhoneHub {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             state: Mutex::new(HubState {
                 code: new_code(),
+                token: None,
                 ip: None,
                 status: PhoneStatus::default(),
                 active_conn: 0,
@@ -101,14 +150,15 @@ impl PhoneHub {
                 last_frame_at: None,
             }),
             frames: Inbox::new(),
-            on_status: Mutex::new(None),
+            on_change: Mutex::new(None),
             subscribers: Mutex::new(Vec::new()),
         })
     }
 
-    /// Called whenever the status changes (used to emit a Tauri event).
-    pub fn set_status_listener(&self, f: impl Fn(&PhoneStatus) + Send + Sync + 'static) {
-        *self.on_status.lock().unwrap() = Some(Box::new(f));
+    /// Called with the new link whenever the code or status changes
+    /// (used to emit the "phone-link" Tauri event, which redraws the QR).
+    pub fn set_change_listener(&self, f: impl Fn(PhoneLink) + Send + Sync + 'static) {
+        *self.on_change.lock().unwrap() = Some(Box::new(f));
     }
 
     /// Receive every frame (e.g. to forward to the frontend). The callback
@@ -118,32 +168,30 @@ impl PhoneHub {
     }
 
     fn update(&self, f: impl FnOnce(&mut HubState)) {
-        let status = {
-            let mut s = self.state.lock().unwrap();
-            f(&mut s);
-            s.status.clone()
-        };
-        if let Some(listener) = self.on_status.lock().unwrap().as_ref() {
-            listener(&status);
+        f(&mut self.state.lock().unwrap());
+        if let Some(listener) = self.on_change.lock().unwrap().as_ref() {
+            listener(self.link());
         }
     }
 
-    pub fn code_matches(&self, code: &str) -> bool {
-        self.state.lock().unwrap().code == code
+    /// Checks a WebSocket's credentials without using them up.
+    pub fn check(&self, code: Option<&str>, token: Option<&str>) -> Option<Auth> {
+        let s = self.state.lock().unwrap();
+        if token.is_some() && token == s.token.as_deref() {
+            Some(Auth::Reconnect)
+        } else if code == Some(s.code.as_str()) {
+            Some(Auth::NewPairing)
+        } else {
+            None
+        }
     }
 
     /// Makes a new pairing code and disconnects the current phone.
     pub fn new_pairing_code(&self) {
         self.update(|s| {
-            let mut code = new_code();
-            while code == s.code {
-                code = new_code();
-            }
-            s.code = code;
-            s.active_conn = 0;
-            s.status.connected = false;
-            s.status.device = None;
-            s.status.fps = 0.0;
+            s.rotate_code();
+            s.token = None;
+            s.drop_phone();
         });
     }
 
@@ -155,30 +203,42 @@ impl PhoneHub {
         });
     }
 
-    /// A phone opened the WebSocket. Returns its connection id.
-    pub fn connect(&self, device: String) -> u64 {
-        let mut id = 0;
+    /// A phone opened the WebSocket. Credentials are checked again here, so
+    /// two phones racing for one code can't both win. A new pairing spends
+    /// the code (a fresh one is shown) and replaces any previous phone.
+    pub fn connect(&self, code: Option<&str>, token: Option<&str>, device: String) -> Option<Connection> {
+        let mut result = None;
         self.update(|s| {
-            id = s.next_conn;
+            let reconnect = token.is_some() && token == s.token.as_deref();
+            let pairing = !reconnect && code == Some(s.code.as_str());
+            if !reconnect && !pairing {
+                return;
+            }
+            if pairing {
+                s.rotate_code();
+                s.token = Some(new_token());
+                s.status.pairings += 1;
+            }
+            s.drop_phone();
+            let id = s.next_conn;
             s.next_conn += 1;
             s.active_conn = id;
             s.status.connected = true;
             s.status.device = Some(device);
-            s.status.fps = 0.0;
-            s.last_frame_at = None;
+            result = Some(Connection { id, token: s.token.clone().unwrap_or_default() });
         });
-        id
+        result
     }
 
     pub fn disconnect(&self, conn: u64) {
-        self.update(|s| {
-            if s.active_conn == conn {
-                s.active_conn = 0;
-                s.status.connected = false;
-                s.status.device = None;
-                s.status.fps = 0.0;
-            }
-        });
+        let is_active = self.state.lock().unwrap().active_conn == conn;
+        if is_active {
+            self.update(|s| {
+                if s.active_conn == conn {
+                    s.drop_phone();
+                }
+            });
+        }
     }
 
     /// Accepts a JPEG from connection `conn`. Returns `false` if that
@@ -263,25 +323,48 @@ mod tests {
     }
 
     #[test]
-    fn newer_phone_replaces_older() {
+    fn code_is_single_use() {
         let hub = PhoneHub::new();
-        let first = hub.connect("old phone".into());
-        let second = hub.connect("new phone".into());
-        assert!(!hub.push_frame(first, tiny_jpeg()), "old connection must hang up");
-        assert!(hub.push_frame(second, tiny_jpeg()));
-        let link = hub.link();
-        assert_eq!(link.status.device.as_deref(), Some("new phone"));
-        assert_eq!((link.status.width, link.status.height), (640, 360));
-        assert!(link.qr_svg.starts_with("<?xml") || link.qr_svg.starts_with("<svg"));
+        let code = hub.link().code;
+        let first = hub.connect(Some(&code), None, "phone A".into()).expect("fresh code pairs");
+        assert_ne!(hub.link().code, code, "pairing must change the code");
+        assert!(hub.connect(Some(&code), None, "phone B".into()).is_none(), "a used code is refused");
+        assert_eq!(hub.link().status.pairings, 1);
+        assert!(hub.push_frame(first.id, tiny_jpeg()));
     }
 
     #[test]
-    fn new_code_disconnects() {
+    fn next_person_scans_new_code_and_takes_over() {
         let hub = PhoneHub::new();
-        let old_code = hub.link().code;
-        let conn = hub.connect("phone".into());
+        let a = hub.connect(Some(&hub.link().code), None, "phone A".into()).unwrap();
+        let b = hub.connect(Some(&hub.link().code), None, "phone B".into()).unwrap();
+        assert!(!hub.push_frame(a.id, tiny_jpeg()), "the old phone must hang up");
+        assert!(hub.push_frame(b.id, tiny_jpeg()));
+        assert!(hub.check(None, Some(&a.token)).is_none(), "the old phone's token is revoked");
+        let link = hub.link();
+        assert_eq!(link.status.device.as_deref(), Some("phone B"));
+        assert_eq!((link.status.width, link.status.height), (640, 360));
+        assert!(link.qr_svg.contains("<svg"));
+    }
+
+    #[test]
+    fn paired_phone_reconnects_with_its_token() {
+        let hub = PhoneHub::new();
+        let a = hub.connect(Some(&hub.link().code), None, "phone A".into()).unwrap();
+        let code_after = hub.link().code;
+        hub.disconnect(a.id);
+        assert_eq!(hub.check(None, Some(&a.token)), Some(Auth::Reconnect));
+        let again = hub.connect(None, Some(&a.token), "phone A".into()).unwrap();
+        assert_eq!(again.token, a.token);
+        assert_eq!(hub.link().code, code_after, "a reconnect does not spend the code");
+    }
+
+    #[test]
+    fn new_code_disconnects_and_revokes() {
+        let hub = PhoneHub::new();
+        let a = hub.connect(Some(&hub.link().code), None, "phone".into()).unwrap();
         hub.new_pairing_code();
-        assert_ne!(hub.link().code, old_code);
-        assert!(!hub.push_frame(conn, tiny_jpeg()));
+        assert!(!hub.push_frame(a.id, tiny_jpeg()));
+        assert!(hub.check(None, Some(&a.token)).is_none());
     }
 }

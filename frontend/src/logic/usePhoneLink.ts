@@ -3,7 +3,10 @@ import { backend, errorText, events } from "../api/backend";
 import type { PhoneLink } from "../api/types";
 import { useBackendEvent } from "./events";
 
-/** Phone camera link: the QR code to scan and the live connection status. */
+/**
+ * Phone camera link: the QR code to scan and the live connection status.
+ * The code is single-use, so the QR redraws the moment a phone pairs.
+ */
 export function usePhoneLink() {
   const [link, setLink] = useState<PhoneLink | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +17,7 @@ export function usePhoneLink() {
     const poll = setInterval(() => backend.getPhoneLink().then(setLink).catch(() => {}), 2000);
     return () => clearInterval(poll);
   }, []);
-  useBackendEvent(events.onPhoneStatus, (status) => setLink((l) => (l ? { ...l, status } : l)));
+  useBackendEvent(events.onPhoneLink, setLink);
 
   return {
     link,

@@ -2,12 +2,12 @@
 
 > 💡 **Notice for AI Agents and Developers**: This guide has been incorporated into the comprehensive documentation suite. See the full feature documentation in [`docs/features/developer-guides/tracker-integration.md`](features/developer-guides/tracker-integration.md) and [`docs/features/pose-tracking/`](features/pose-tracking/README.md).
 
-The camera engine in `pumpCourt/` runs **MediaPipe Pose Landmarker in the
-browser** (`@mediapipe/tasks-vision`). That fits the Tauri app well, because
-the app's screens are a browser too. The backend accepts landmarks from either
-side, so a tracker can plug in from the frontend (JavaScript) or the backend
-(Rust/C++). Nothing after `backend/src/pose/` (angles, referees, rounds,
-leaderboard) changes either way.
+The tracker is the camera engine in `pumpCourt/`: **MediaPipe Pose Landmarker
+running in the browser** (`@mediapipe/tasks-vision`). That fits the Tauri app
+well, because the app's screens are a browser too. The backend accepts landmarks from either
+side, so the tracker can run in the frontend (JavaScript) or native backend (Rust/C++),
+sending each frame's landmarks to the backend. Nothing after `backend/src/pose/` (angles,
+referees, rounds, leaderboard) needs to change either way.
 
 ## The contract
 
@@ -20,9 +20,12 @@ Each frame, the backend needs:
 
 Run the landmarker with `numPoses: 1` in `VIDEO` mode.
 
-## Route A: tracker in the frontend (the pumpCourt engine)
+## Steps
 
-1. Select the pushed source once: `backend.startSource({ kind: "pushed" })`.
+1. Laptop camera: select the pushed source with `backend.startSource({ kind: "pushed" })`
+   (and add it to `list_sources` in `backend/src/pose/mod.rs`, marked `TODO(tracker)`).
+   Phone camera: keep the `{ kind: "phone" }` source; it pairs the phone video
+   with the landmarks you push.
 2. Each video frame, run MediaPipe and send the result:
 
    ```ts
@@ -52,17 +55,6 @@ Good places for this code: a hook in `frontend/src/logic/` (e.g.
 `useTracker.ts`) started by `App.tsx`, with `pumpCourt/src/landmarker.ts` and
 `camera.ts` moved under `frontend/src/tracker/`. The MediaPipe wasm and model
 files go in `frontend/public/` as they do in `pumpCourt/public/`.
-
-## Route B: tracker in the backend (native / C++)
-
-* **Phone camera:** implement `PoseEstimator` (`backend/src/pose/mod.rs`): it
-  gets one JPEG and returns the 33 landmarks. Swap `NoEstimator` for it in
-  `open_source` (marked `TODO(tracker)`).
-* **Its own camera:** implement `PoseSource` (one `next_frame()` that blocks
-  until a frame is ready) and return it for `SourceSpec::Camera` / `File`.
-* Link a C/C++ library from `backend/build.rs` with
-  `cargo:rustc-link-lib` / `cargo:rustc-link-search`, declare its functions in
-  an `extern "C" { … }` block, and wrap the raw pointer in a struct with `Drop`.
 
 ## If the tracker already judges reps
 

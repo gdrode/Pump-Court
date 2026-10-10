@@ -58,10 +58,16 @@ the demo and beyond (it is a single file on the laptop; `rusqlite` with the
 authority has signed it (that is impossible for a local address), so the phone
 warns once. The traffic is still encrypted.
 
-**What stops someone else streaming?** The pairing code in the QR code. Without
-it the server answers 403. **New code** invalidates the old QR code and
-disconnects the current phone. Only one phone streams at a time; a newer one
-replaces the older.
+**What stops someone else streaming?** The pairing code in the QR code, and it
+is **single-use**: the moment a phone pairs, the laptop makes a new 6-digit code
+and redraws the QR code. Anyone else who wants to be the camera scans the new
+code, which takes over from the previous phone (that phone is told to rescan).
+A used or wrong code is refused. **New code** also resets it by hand and
+disconnects the current phone. Only one phone streams at a time.
+
+The paired phone gets a private session token, so if Wi-Fi drops for a moment
+it reconnects by itself without needing the spent code. A phone that has been
+replaced stops and asks for a rescan.
 
 **Why not Bluetooth?** Bluetooth Classic manages roughly 2 Mbps in practice; a
 30 fps video stream that pose tracking can use needs about 7–12 Mbps, and fast
@@ -85,18 +91,24 @@ hotspot is the recommended setup.
 ## Protocol (for anyone writing a native phone app later)
 
 * Connect a WebSocket to `wss://<laptop-ip>:47800/ws?code=<pairing code>`.
+  A used or wrong code gets HTTP 403.
 * First message (text): `{"type":"hello","device":"<any label>"}`.
-  The server answers `{"type":"welcome"}`.
+  The server answers `{"type":"welcome","token":"<session token>"}`, or
+  `{"type":"refused"}` if another phone used the code first.
+* To reconnect later, use `wss://<laptop-ip>:47800/ws?token=<session token>`
+  instead of the code.
 * Then send each frame as one **binary JPEG** message (max 2 MB). Width and
   height are read from the JPEG itself.
-* If the server sends `{"type":"replaced"}`, another phone or a new code took
-  over; stop and rescan.
+* If the server sends `{"type":"replaced"}`, another phone scanned the new
+  code or the operator reset it; stop and rescan.
 
 ## Where frames go on the laptop
 
-* `PhoneSource` (Rust) gives each frame to a `PoseEstimator`, then to the
-  referees. Until a native tracker is plugged in, it uses `NoEstimator`: the
-  video shows, but nobody is found, so the ready check does not pass.
 * `backend.subscribePhoneFrames(cb)` (TypeScript) hands every JPEG to the
-  frontend, so a tracker running there (the MediaPipe JavaScript engine in
-  `pumpCourt/`) can use the phone feed. See docs/INTEGRATION.md.
+  frontend, where the tracker (the MediaPipe JavaScript engine from
+  `pumpCourt/`) finds the body and sends the landmarks back with
+  `backend.pushPoseFrame`. See docs/INTEGRATION.md.
+* `PhoneSource` (Rust) shows the phone video on the round screen and pairs
+  each frame with the newest landmarks from the tracker. Until the tracker is
+  plugged in, the video shows but nobody is found, so the ready check does not
+  pass.

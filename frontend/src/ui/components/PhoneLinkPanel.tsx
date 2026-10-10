@@ -17,7 +17,8 @@ export function PhoneLinkPanel({ onUsePhone, usingPhone }: { onUsePhone: () => v
           <p className="muted">
             {phone.link.url}
             <br />
-            Pairing code <b>{phone.link.code}</b>
+            Pairing code <b>{phone.link.code}</b> · single-use: it changes as soon as a phone pairs, so the
+            next person scans the new code (and takes over the camera).
           </p>
         )}
         {phone.error ? (

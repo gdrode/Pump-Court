@@ -1,15 +1,17 @@
 //! Where pose data comes from.
 //!
-//! **This is the integration point for the motion tracker**, which is being
-//! built separately. Everything after this module (angles, referees, rounds,
-//! leaderboard) only ever sees [`PoseFrame`]s. See docs/INTEGRATION.md.
+//! The motion tracker is the MediaPipe JavaScript engine (`pumpCourt/` on
+//! main). It runs in the app's window and sends each frame's landmarks here
+//! with the `push_pose_frame` command. Everything after this module (angles,
+//! referees, rounds, leaderboard) only ever sees [`PoseFrame`]s.
+//! See docs/INTEGRATION.md.
 //!
 //! Sources:
 //! * [`mock::MockSource`]       – synthetic athlete, no camera needed
-//! * [`sources::PhoneSource`]   – phone camera over the QR link, landmarks
-//!                                from a native [`PoseEstimator`]
-//! * [`sources::PushedSource`]  – landmarks computed by a tracker running in
-//!                                the frontend and sent with `push_pose_frame`
+//! * [`sources::PhoneSource`]   – phone camera over the QR link: video from the
+//!                                phone, landmarks from the frontend tracker
+//! * [`sources::PushedSource`]  – laptop camera: the frontend tracker owns the
+//!                                camera and pushes landmarks
 
 pub mod inbox;
 pub mod mock;
@@ -71,24 +73,6 @@ pub trait PoseSource: Send {
     fn next_frame(&mut self) -> Result<PoseFrame, String>;
 }
 
-/// Turns one camera image into landmarks. A native (Rust/C++) tracker
-/// implements this to work on phone frames inside the backend.
-pub trait PoseEstimator: Send {
-    /// `jpeg` is one encoded frame. Return the 33 landmarks, or `None` if
-    /// nobody was found.
-    fn estimate(&mut self, jpeg: &[u8], width: u32, height: u32) -> Option<Vec<Landmark>>;
-}
-
-/// Used until a native tracker exists: finds nobody, so the phone feed shows
-/// on screen but no reps are judged. A frontend tracker uses `Pushed` instead.
-pub struct NoEstimator;
-
-impl PoseEstimator for NoEstimator {
-    fn estimate(&mut self, _: &[u8], _: u32, _: u32) -> Option<Vec<Landmark>> {
-        None
-    }
-}
-
 /// Which source the operator picked in the camera picker.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -97,12 +81,8 @@ pub enum SourceSpec {
     Mock,
     /// The phone camera, connected by scanning the QR code.
     Phone,
-    /// Landmarks pushed by a tracker running in the frontend.
+    /// Laptop camera: landmarks pushed by the tracker running in the frontend.
     Pushed,
-    /// A webcam by its OS index (served by the motion tracker).
-    Camera { index: u32 },
-    /// A recorded clip played through the same pipeline (the demo fallback).
-    File { path: String },
 }
 
 /// What sources need from the rest of the app.
@@ -122,7 +102,8 @@ pub struct SourceInfo {
 
 /// Lists what the operator can choose from.
 pub fn list_sources() -> Vec<SourceInfo> {
-    // TODO(tracker): add one entry per camera the motion tracker can see.
+    // TODO(tracker): add the laptop camera (`SourceSpec::Pushed`) once the
+    // frontend tracker is integrated.
     vec![
         SourceInfo { label: "Mock athlete (no camera)".into(), spec: SourceSpec::Mock },
         SourceInfo { label: "Phone camera (QR link)".into(), spec: SourceSpec::Phone },
@@ -131,14 +112,9 @@ pub fn list_sources() -> Vec<SourceInfo> {
 
 /// Creates the source the operator picked.
 pub fn open_source(spec: &SourceSpec, deps: &SourceDeps) -> Result<Box<dyn PoseSource>, String> {
-    match spec {
-        SourceSpec::Mock => Ok(Box::new(mock::MockSource::new())),
-        // TODO(tracker): swap NoEstimator for the native tracker, if there is one.
-        SourceSpec::Phone => Ok(Box::new(sources::PhoneSource::new(deps.phone.clone(), Box::new(NoEstimator)))),
-        SourceSpec::Pushed => Ok(Box::new(sources::PushedSource::new(deps.pushed.clone()))),
-        // TODO(tracker): return the motion tracker's PoseSource here.
-        SourceSpec::Camera { .. } | SourceSpec::File { .. } => {
-            Err("The motion tracker is not integrated yet. See docs/INTEGRATION.md.".into())
-        }
-    }
+    Ok(match spec {
+        SourceSpec::Mock => Box::new(mock::MockSource::new()),
+        SourceSpec::Phone => Box::new(sources::PhoneSource::new(deps.phone.clone(), deps.pushed.clone())),
+        SourceSpec::Pushed => Box::new(sources::PushedSource::new(deps.pushed.clone())),
+    })
 }

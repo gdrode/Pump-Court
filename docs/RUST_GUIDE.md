@@ -148,10 +148,10 @@ each marked `#[test]`. `cargo test` runs them all. Look at
 
 ## `unsafe` and FFI
 
-Calling C/C++ code (like the MediaPipe tracker) is done with an
+This project doesn't use it, but you may meet it elsewhere: calling C/C++ code is done with an
 `extern "C" { ... }` block and requires `unsafe { ... }` around each call,
 because the compiler can't check the C++ side. Keep that code small and
-wrap it in a safe struct; see docs/INTEGRATION.md.
+wrap it in a safe struct.
 
 ## Reading compiler errors
 
