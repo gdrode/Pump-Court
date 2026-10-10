@@ -14,7 +14,9 @@ frontend/src/
 │   ├── useNameEntry.ts  names, team flag, validation, submit
 │   ├── results.ts       results summary (latest turn, duel winner, next player)
 │   ├── useLeaderboard.ts  tabs, rows, delete, backup
-│   ├── useCrowd.ts      crowd screen: live round or cycling boards
+│   ├── useCrowd.ts      crowd screen: live round, boards or recent results
+│   ├── useCrowdControl.ts  operator: what the crowd screen shows
+│   ├── usePhoneLink.ts  phone camera QR code and connection status
 │   ├── useSettings.ts   camera picker, referee thresholds
 │   ├── useKeys.ts       keyboard shortcuts helper
 │   └── events.ts        backend event subscriptions (useTick, useBackendEvent)
@@ -22,7 +24,8 @@ frontend/src/
 │   └── modes.ts    Menu modes, titles, blurbs, key bindings, tab names.  Edit freely.
 ├── ui/         The design. Replace freely.
 │   ├── screens/    one component per screen
-│   ├── components/ PoseView (video + skeleton), RefereeLights, ReadyChecklist, LeaderboardTable
+│   ├── components/ PoseView (video + skeleton), RefereeLights, ReadyChecklist, LeaderboardTable,
+│   │               RecentTable, CrowdViewPicker, PhoneLinkPanel
 │   └── sounds.ts   placeholder beeps
 ├── theme/
 │   ├── tokens.css  every colour, font, radius and key size
@@ -62,8 +65,10 @@ the functions the hooks give them. They never call the backend directly.
 | Round | `useRound` | `phase`, `readyItems`, `countdownSeconds`, `cleanReps`, `attempts`, `remainingMs`, `idleRemainingMs`, `lastRep`, `trackingLost`, `tick` | `cancel`; optional `onRep`, `onCountdown`, `onGo` callbacks for sound and animation |
 | Results | `summarizeResults` | `latest`, `all`, `nextPlayer`, `duelWinner` | `onNext`, `onAgain`, `onLeaderboard`, `onHome` |
 | Leaderboard | `useLeaderboard` | `category`, `rows`, `includeTeam`, `message` | `setCategory`, `setIncludeTeam`, `remove`, `exportBackup` |
-| Crowd | `useCrowd` | `live`, `round`, `category`, `rows`, `leader`, `playerCount` | none (display only) |
+| Crowd | `useCrowd` | `live`, `round` (incl. `modeLabel`), `view`, `page` (a board or recent), `rows`, `leader`, `recent`, `playerCount` | `setView` (keys 1–3, R, A) |
+| Crowd control (operator) | `useCrowdControl` | `view` | `setView`, `isActive`, `openWindow` |
 | Settings | `useSettings` | `sources`, `config`, `message` | `pickSource`, `setConfigField`, `applyConfig` |
+| Phone camera panel | `usePhoneLink` | `link` (`url`, `code`, `qrSvg`), `status` (`connected`, `fps`, size), `error` | `newCode` |
 
 `lastRep.lights` is always `[depth, lockout, plank]`, each with `pass`,
 `measured` and `needed`; `lastRep.reasons` has ready-made text like
@@ -77,3 +82,7 @@ the functions the hooks give them. They never call the backend directly.
   shortcuts and stops the key typing into the next screen's input.
 * Add a new mode label or change a key in `config/modes.ts`, not in a screen.
 * The crowd window is the same app loaded at `#/crowd` (see `App.tsx`).
+* Crowd pages (the three boards and Recent) are listed in `CROWD_PAGES` in
+  `config/modes.ts`; add a page there and render it in the crowd screen.
+* `CrowdView` is stored in the backend and broadcast to every window, so the
+  operator's buttons and the crowd window's keys always agree.

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CONFIG_FIELDS, useSettings } from "../../logic/useSettings";
 import { useKeys } from "../../logic/useKeys";
+import { PhoneLinkPanel } from "../components/PhoneLinkPanel";
 
 /** Camera picker and referee thresholds. */
 export function Settings({ onBack }: { onBack: () => void }) {
@@ -22,6 +23,9 @@ export function Settings({ onBack }: { onBack: () => void }) {
         <input placeholder="Path to a recorded clip" value={path} onChange={(e) => setPath(e.target.value)} />
         <button disabled={!path} onClick={() => settings.pickSource({ kind: "file", path })}>Play clip</button>
       </div>
+
+      <h2>Phone camera</h2>
+      <PhoneLinkPanel usingPhone={settings.isCurrent({ kind: "phone" })} onUsePhone={() => settings.pickSource({ kind: "phone" })} />
 
       <h2>Referee thresholds</h2>
       {settings.config && (

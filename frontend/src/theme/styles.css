@@ -79,3 +79,10 @@ input { background: var(--panel); color: var(--text); border: 1px solid var(--bo
 .crowd-live { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 1.5rem; }
 .crowd-live .player { font-size: 3rem; }
 .challenge { font-size: 1.8rem; }
+
+/* Phone camera link */
+.phone-link { display: flex; gap: 1.5rem; align-items: flex-start; background: var(--panel); padding: 1rem; border-radius: var(--radius-lg); }
+.qr { background: var(--qr-bg); padding: 10px; border-radius: var(--radius); line-height: 0; flex-shrink: 0; }
+.qr svg { width: 220px; height: 220px; }
+.phone-info p { margin: 0 0 0.6rem; }
+.ok-text { color: var(--accent); }

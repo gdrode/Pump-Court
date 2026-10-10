@@ -14,7 +14,7 @@
 use crate::game::{RoundMode, RoundResult, Session, SessionSnapshot};
 use crate::judge::{BodyAngles, JudgeConfig, RepVerdict};
 use crate::leaderboard::Leaderboard;
-use crate::pose::{open_source, Landmark, PoseSource, SourceSpec};
+use crate::pose::{open_source, Landmark, PoseSource, SourceDeps, SourceSpec};
 use base64::Engine as _;
 use serde::Serialize;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
@@ -56,11 +56,11 @@ const PREVIEW_INTERVAL: Duration = Duration::from_millis(66);
 const BACKUP_INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 /// Starts the engine thread and returns the channel to talk to it.
-pub fn spawn(app: AppHandle, db: Arc<Mutex<Leaderboard>>, config: JudgeConfig) -> Sender<EngineCommand> {
+pub fn spawn(app: AppHandle, db: Arc<Mutex<Leaderboard>>, config: JudgeConfig, deps: SourceDeps) -> Sender<EngineCommand> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::Builder::new()
         .name("pump-court-engine".into())
-        .spawn(move || Engine::new(app, db, config).run(rx))
+        .spawn(move || Engine::new(app, db, config, deps).run(rx))
         .expect("failed to start engine thread");
     tx
 }
@@ -69,6 +69,7 @@ struct Engine {
     app: AppHandle,
     db: Arc<Mutex<Leaderboard>>,
     config: JudgeConfig,
+    deps: SourceDeps,
     source: Option<Box<dyn PoseSource>>,
     session: Session,
     fps: f32,
@@ -78,12 +79,13 @@ struct Engine {
 }
 
 impl Engine {
-    fn new(app: AppHandle, db: Arc<Mutex<Leaderboard>>, config: JudgeConfig) -> Self {
+    fn new(app: AppHandle, db: Arc<Mutex<Leaderboard>>, config: JudgeConfig, deps: SourceDeps) -> Self {
         Self {
             app,
             db,
             session: Session::new(config.clone()),
             config,
+            deps,
             source: None,
             fps: 0.0,
             last_frame_at: None,
@@ -132,7 +134,7 @@ impl Engine {
                 self.session.cancel();
                 self.fps = 0.0;
                 self.last_frame_at = None;
-                match open_source(&spec) {
+                match open_source(&spec, &self.deps) {
                     Ok(source) => {
                         self.source = Some(source);
                         self.emit("source-status", SourceStatus { running: true, error: None });

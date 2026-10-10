@@ -7,17 +7,38 @@
 use crate::engine::EngineCommand;
 use crate::game::{Category, RoundMode};
 use crate::judge::JudgeConfig;
-use crate::leaderboard::{self, Leaderboard, LeaderboardRow};
+use crate::leaderboard::{self, Leaderboard, LeaderboardRow, RecentRun};
+use crate::phone::{PhoneHub, PhoneLink};
+use crate::pose::inbox::Inbox;
+use crate::pose::sources::PushedPoseFrame;
 use crate::pose::{self, SourceInfo, SourceSpec};
+use serde::{Deserialize, Serialize};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::ipc::{Channel, InvokeResponseBody};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 /// Shared state handed to every command by Tauri.
 pub struct AppState {
     pub engine: Mutex<Sender<EngineCommand>>,
     pub db: Arc<Mutex<Leaderboard>>,
     pub config: Mutex<JudgeConfig>,
+    pub phone: Arc<PhoneHub>,
+    pub pushed: Arc<Inbox<PushedPoseFrame>>,
+    pub crowd_view: Mutex<CrowdView>,
+}
+
+/// What the crowd screen shows when no round is running.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum CrowdView {
+    /// Cycle through every board and the recent list.
+    #[default]
+    Auto,
+    /// Stay on one leaderboard.
+    Board { category: Category },
+    /// Stay on the latest results.
+    Recent,
 }
 
 impl AppState {
@@ -82,6 +103,53 @@ pub fn get_leaderboard(state: State<AppState>, category: Category, include_team:
 #[tauri::command]
 pub fn get_player_count(state: State<AppState>) -> CmdResult<u32> {
     state.db.lock().unwrap().player_count().map_err(|e| e.to_string())
+}
+
+/// Latest finished runs across all modes (crowd screen "Recent").
+#[tauri::command]
+pub fn get_recent_runs(state: State<AppState>, include_team: bool, limit: u32) -> CmdResult<Vec<RecentRun>> {
+    state.db.lock().unwrap().recent(include_team, limit).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_crowd_view(state: State<AppState>) -> CrowdView {
+    state.crowd_view.lock().unwrap().clone()
+}
+
+/// Switches the crowd screen; every window gets a "crowd-view" event.
+#[tauri::command]
+pub fn set_crowd_view(app: AppHandle, state: State<AppState>, view: CrowdView) -> CmdResult<()> {
+    *state.crowd_view.lock().unwrap() = view.clone();
+    app.emit("crowd-view", view).map_err(|e| e.to_string())
+}
+
+/// QR code, address, pairing code and connection status of the phone link.
+#[tauri::command]
+pub fn get_phone_link(state: State<AppState>) -> PhoneLink {
+    state.phone.link()
+}
+
+/// New pairing code: the old QR code stops working and the phone disconnects.
+#[tauri::command]
+pub fn new_pairing_code(state: State<AppState>) -> PhoneLink {
+    state.phone.new_pairing_code();
+    state.phone.link()
+}
+
+/// Streams every phone camera frame (raw JPEG bytes) to the frontend, for a
+/// tracker that runs there. In TypeScript: `new Channel<ArrayBuffer>()`.
+#[tauri::command]
+pub fn subscribe_phone_frames(state: State<AppState>, on_frame: Channel<InvokeResponseBody>) {
+    state
+        .phone
+        .subscribe(move |frame| on_frame.send(InvokeResponseBody::Raw(frame.jpeg.to_vec())).is_ok());
+}
+
+/// A frontend tracker hands over one frame of landmarks. Used with the
+/// `{ kind: "pushed" }` source.
+#[tauri::command]
+pub fn push_pose_frame(state: State<AppState>, frame: PushedPoseFrame) {
+    state.pushed.put(frame);
 }
 
 #[tauri::command]

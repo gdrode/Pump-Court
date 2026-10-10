@@ -1,13 +1,15 @@
 // TypeScript mirrors of the Rust types the backend sends.
 // If you change a struct in backend/src, change it here too.
 
-export type RoundMode = "sprint" | "minute" | "max";
+export type RoundMode = "sprint" | "minute" | "max" | "duel";
 export type Category = "thirtySecond" | "oneMinute" | "most";
 export type RoundPhase = "idle" | "readyCheck" | "countdown" | "running" | "finished";
 export type Referee = "depth" | "lockout" | "plank";
 
 export type SourceSpec =
   | { kind: "mock" }
+  | { kind: "phone" }
+  | { kind: "pushed" }
   | { kind: "camera"; index: number }
   | { kind: "file"; path: string };
 
@@ -108,6 +110,47 @@ export interface LeaderboardRow {
   attempts: number;
   accuracy: number;
   postedAt: number;
+}
+
+/** A finished run for the crowd screen's "Recent" list. */
+export interface RecentRun {
+  runId: number;
+  name: string;
+  mode: RoundMode;
+  cleanReps: number;
+  attempts: number;
+  accuracy: number;
+  noReps: NoRepCounts;
+  postedAt: number;
+}
+
+/** What the crowd screen shows when no round is running. */
+export type CrowdView = { kind: "auto" } | { kind: "board"; category: Category } | { kind: "recent" };
+
+export interface PhoneStatus {
+  listening: boolean;
+  error: string | null;
+  connected: boolean;
+  device: string | null;
+  width: number;
+  height: number;
+  fps: number;
+}
+
+export interface PhoneLink {
+  /** Address the QR code encodes. */
+  url: string;
+  code: string;
+  /** QR code as an SVG string. */
+  qrSvg: string;
+  status: PhoneStatus;
+}
+
+/** Landmarks from a frontend tracker, sent with pushPoseFrame. */
+export interface PushedPoseFrame {
+  width: number;
+  height: number;
+  landmarks: Landmark[] | null;
 }
 
 export interface SourceStatus {

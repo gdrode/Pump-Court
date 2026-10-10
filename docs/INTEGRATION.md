@@ -1,86 +1,69 @@
 # Plugging in the motion tracker
 
-The MediaPipe C++ Pose Landmarker tracker is being built separately. The
-backend is written so it plugs in at **one place**: `backend/src/pose/`.
-Nothing else (referees, rounds, leaderboard, UI) needs to change.
+The camera engine in `pumpCourt/` runs **MediaPipe Pose Landmarker in the
+browser** (`@mediapipe/tasks-vision`). That fits the Tauri app well, because
+the app's screens are a browser too. The backend accepts landmarks from either
+side, so a tracker can plug in from the frontend (JavaScript) or the backend
+(Rust/C++). Nothing after `backend/src/pose/` (angles, referees, rounds,
+leaderboard) changes either way.
 
 ## The contract
 
-Each frame, the tracker must give the backend a `PoseFrame`
-(`backend/src/pose/mod.rs`):
+Each frame, the backend needs:
 
 | Field | Meaning |
 | --- | --- |
-| `timestamp_ms` | ms since the source started; must increase every frame |
-| `width`, `height` | image size in pixels (angles are measured in pixels, so this matters) |
-| `landmarks` | `Some(vec of 33 Landmark)` for the tracked person, or `None` if nobody was found |
-| `preview_jpeg` | optional JPEG bytes of the camera image, drawn behind the skeleton |
+| `width`, `height` | image size in pixels (angles are measured in pixels) |
+| `landmarks` | the 33 MediaPipe landmarks `{ x, y, z, visibility }` in MediaPipe's order, `x`/`y` normalised 0..1, or `null` if nobody was found |
 
-A `Landmark` is `{ x, y, z, visibility }`, exactly MediaPipe's
-`NormalizedLandmark` (`x`/`y` normalised 0..1, `visibility` 0..1) in
-MediaPipe's standard 33-point order. Run the landmarker with `num_poses = 1`
-and the `VIDEO` (or `LIVE_STREAM`) running mode. Ask the camera for 60 fps
-where possible; the ready check needs at least 24.
+Run the landmarker with `numPoses: 1` in `VIDEO` mode.
 
-The tracker is wrapped in anything that implements:
+## Route A: tracker in the frontend (the pumpCourt engine)
 
-```rust
-pub trait PoseSource: Send {
-    /// Block until the next frame is ready.
-    fn next_frame(&mut self) -> Result<PoseFrame, String>;
-}
-```
+1. Select the pushed source once: `backend.startSource({ kind: "pushed" })`.
+2. Each video frame, run MediaPipe and send the result:
 
-The engine thread calls `next_frame` in a loop, so the call should block until
-a frame is available (a camera read naturally does).
+   ```ts
+   const result = landmarker.detectForVideo(video, performance.now());
+   backend.pushPoseFrame({
+     width: video.videoWidth,
+     height: video.videoHeight,
+     landmarks: result.landmarks[0] ?? null,
+   });
+   ```
 
-## Steps
+   The engine judges reps from these exactly as it does for the mock athlete.
+   If frames stop for more than 0.25 s, the engine counts "nobody in view", and
+   a running round is voided after the tracking-loss limit.
+3. **Laptop webcam:** use `getUserMedia` as `pumpCourt/src/camera.ts` already does.
+   **Phone camera:** subscribe to the phone frames instead and draw each one:
 
-1. Add a file such as `backend/src/pose/tracker.rs` with a struct that
-   implements `PoseSource`, and `pub mod tracker;` in `pose/mod.rs`.
-2. In `pose/mod.rs`, fill in the two `TODO(tracker)` spots:
-   * `list_sources()` – add one `SourceInfo` per camera.
-   * `open_source()` – return `Box::new(tracker::YourSource::open(...)?)` for
-     `SourceSpec::Camera { index }` and `SourceSpec::File { path }`.
-3. Link the tracker (see options below) and run `cargo tauri dev`. The camera
-   picker (key **S**) will show the cameras; the mock stays available as a
-   fallback.
+   ```ts
+   backend.subscribePhoneFrames(async (jpeg) => {
+     const bitmap = await createImageBitmap(new Blob([jpeg], { type: "image/jpeg" }));
+     const result = landmarker.detectForVideo(bitmap, performance.now());
+     backend.pushPoseFrame({ width: bitmap.width, height: bitmap.height, landmarks: result.landmarks[0] ?? null });
+   });
+   ```
 
-## Linking options
+Good places for this code: a hook in `frontend/src/logic/` (e.g.
+`useTracker.ts`) started by `App.tsx`, with `pumpCourt/src/landmarker.ts` and
+`camera.ts` moved under `frontend/src/tracker/`. The MediaPipe wasm and model
+files go in `frontend/public/` as they do in `pumpCourt/public/`.
 
-Pick whichever matches how the tracker is built.
+## Route B: tracker in the backend (native / C++)
 
-**A. C/C++ library (recommended).** Expose a small `extern "C"` API from the
-tracker, e.g.
-
-```c
-typedef struct Tracker Tracker;
-Tracker* tracker_open(const char* model_path, const char* source /* "0" or a file path */);
-int      tracker_next(Tracker*, PcFrame* out);   /* 0 = ok */
-void     tracker_close(Tracker*);
-```
-
-then in Rust declare it in an `extern "C" { ... }` block with matching
-`#[repr(C)]` structs, wrap the raw pointer in a struct that implements
-`PoseSource` and `Drop` (which calls `tracker_close`). Tell Cargo where the
-library is from `backend/build.rs`:
-
-```rust
-println!("cargo:rustc-link-search=native=/path/to/tracker/lib");
-println!("cargo:rustc-link-lib=dylib=tracker");
-```
-
-MediaPipe's C++ build uses Bazel; build the tracker as a shared library
-(`cc_binary(name = "libtracker.so", linkshared = 1, ...)`) and ship the
-library and the `.task` model file next to the app.
-
-**B. Separate process.** If the tracker stays its own executable, have it
-write one JSON line per frame to stdout (or a local socket), and write a
-`PoseSource` that spawns it with `std::process::Command` and parses each line
-with `serde_json`. Slightly more latency, but no linking at all.
+* **Phone camera:** implement `PoseEstimator` (`backend/src/pose/mod.rs`): it
+  gets one JPEG and returns the 33 landmarks. Swap `NoEstimator` for it in
+  `open_source` (marked `TODO(tracker)`).
+* **Its own camera:** implement `PoseSource` (one `next_frame()` that blocks
+  until a frame is ready) and return it for `SourceSpec::Camera` / `File`.
+* Link a C/C++ library from `backend/build.rs` with
+  `cargo:rustc-link-lib` / `cargo:rustc-link-search`, declare its functions in
+  an `extern "C" { … }` block, and wrap the raw pointer in a struct with `Drop`.
 
 ## If the tracker already judges reps
 
-The referees live in `backend/src/judge/`. If the tracker ends up producing
-its own angles or rep calls, the `Session` in `backend/src/game/session.rs` is
-the place to consume them instead.
+The referees live in `backend/src/judge/`. If the tracker produces its own
+angles or rep calls, `Session` in `backend/src/game/session.rs` is the place to
+consume them instead.

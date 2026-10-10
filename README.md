@@ -12,7 +12,8 @@ All video is processed live on the game laptop. Nothing is recorded or uploaded.
 | --- | --- | --- |
 | Desktop app + backend | Rust, [Tauri 2](https://tauri.app) | `backend/` |
 | Frontend | React + TypeScript (Vite) | `frontend/` |
-| Pose tracking | MediaPipe Pose Landmarker (C++), built separately | plugs into `backend/src/pose/` |
+| Pose tracking | MediaPipe Pose Landmarker, built separately | `pumpCourt/`; plugs in per [docs/INTEGRATION.md](docs/INTEGRATION.md) |
+| Phone camera | QR code link to a built-in local HTTPS server | `backend/src/phone/` |
 | Storage | SQLite (bundled, via `rusqlite`) | app data folder |
 
 ```
@@ -23,6 +24,8 @@ camera ─▶ motion tracker (MediaPipe C++) ─▶ PoseSource ─▶ engine thr
 ```
 
 Until the motion tracker is integrated, the backend ships a **mock athlete** that does scripted push-ups (clean, shallow, sagging, no lockout), so the whole game runs on any machine. See [docs/INTEGRATION.md](docs/INTEGRATION.md) for how the tracker plugs in.
+
+Using a phone as the camera? Read [docs/PHONE_CAMERA.md](docs/PHONE_CAMERA.md).
 
 Bringing in a new UI design? Read [docs/FRONTEND.md](docs/FRONTEND.md).
 
@@ -61,7 +64,7 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles. The 
 
 ## Using it
 
-Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera & thresholds, **C** opens the crowd screen as a second window (drag it to the external monitor). **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera & thresholds, **C** opens the crowd screen as a second window (drag it to the external monitor). Between rounds the crowd screen cycles the three boards and a **Recent** list (name, mode, results); pin one view from the Leaderboard screen, or press 1–3 / R / A on the crowd window. **Enter** / **Esc** move through screens.
 
 Modes: Sprint (30 s), Minute (60 s), Max (until 5 s without a clean rep, 3 min cap) and Duel (two Sprint turns).
 

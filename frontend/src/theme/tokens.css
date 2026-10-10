@@ -18,6 +18,7 @@
   --hint: #fde68a;
   --overlay: rgba(0, 0, 0, 0.55);
   --video-bg: #111318;
+  --qr-bg: #ffffff; /* keep light: phones scan dark-on-light codes best */
 
   /* Referee lights */
   --light-idle: #1f2937;

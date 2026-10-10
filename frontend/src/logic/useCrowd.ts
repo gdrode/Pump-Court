@@ -1,25 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
 import { backend, events } from "../api/backend";
-import type { LeaderboardRow } from "../api/types";
-import { CATEGORIES, CROWD_CYCLE_MS } from "../config/modes";
+import type { CrowdView, LeaderboardRow, RecentRun } from "../api/types";
+import { CATEGORIES, CROWD_CYCLE_MS, CROWD_PAGES, MODE_LABELS, type CrowdPage } from "../config/modes";
 import { useBackendEvent, useTick } from "./events";
 
-/** Crowd screen data: the live round when one is on, otherwise cycling boards. */
+/** Index into CROWD_PAGES that a pinned view points at, or null for auto. */
+function pinnedPage(view: CrowdView): number | null {
+  if (view.kind === "recent") return CROWD_PAGES.findIndex((p) => p.kind === "recent");
+  if (view.kind === "board") return CROWD_PAGES.findIndex((p) => p.kind === "board" && p.category === view.category);
+  return null;
+}
+
+/**
+ * Crowd screen data: the live round when one is on; otherwise a leaderboard
+ * or the recent results, either cycling (auto) or pinned by the operator.
+ */
 export function useCrowd(rowsPerBoard = 10) {
   const tick = useTick();
   const s = tick?.session;
-  const [tab, setTab] = useState(0);
+  const [view, setView] = useState<CrowdView>({ kind: "auto" });
+  const [autoIndex, setAutoIndex] = useState(0);
   const [boards, setBoards] = useState<LeaderboardRow[][]>(CATEGORIES.map(() => []));
+  const [recent, setRecent] = useState<RecentRun[]>([]);
   const [playerCount, setPlayerCount] = useState(0);
 
   const refresh = useCallback(() => {
     Promise.all(CATEGORIES.map((c) => backend.getLeaderboard(c.id, false, rowsPerBoard))).then(setBoards);
+    backend.getRecentRuns(false, rowsPerBoard).then(setRecent);
     backend.getPlayerCount().then(setPlayerCount);
   }, [rowsPerBoard]);
 
   useEffect(() => {
     refresh();
-    const cycle = setInterval(() => setTab((t) => (t + 1) % CATEGORIES.length), CROWD_CYCLE_MS);
+    backend.getCrowdView().then(setView);
+    const cycle = setInterval(() => setAutoIndex((i) => (i + 1) % CROWD_PAGES.length), CROWD_CYCLE_MS);
     const poll = setInterval(refresh, 30_000);
     return () => {
       clearInterval(cycle);
@@ -27,6 +41,11 @@ export function useCrowd(rowsPerBoard = 10) {
     };
   }, [refresh]);
   useBackendEvent(events.onRoundFinished, refresh);
+  useBackendEvent(events.onCrowdView, setView);
+
+  const pageIndex = pinnedPage(view) ?? autoIndex;
+  const page: CrowdPage = CROWD_PAGES[pageIndex];
+  const rows = page.kind === "board" ? boards[CATEGORIES.findIndex((c) => c.id === page.category)] : [];
 
   const live = !!s && (s.phase === "readyCheck" || s.phase === "countdown" || s.phase === "running");
   return {
@@ -35,6 +54,7 @@ export function useCrowd(rowsPerBoard = 10) {
     round: live
       ? {
           player: s.player,
+          modeLabel: s.mode ? MODE_LABELS[s.mode] : "",
           phase: s.phase,
           countdownSeconds: s.phase === "countdown" ? Math.max(1, Math.ceil((s.countdownMs ?? 0) / 1000)) : null,
           cleanReps: s.cleanReps,
@@ -42,9 +62,17 @@ export function useCrowd(rowsPerBoard = 10) {
           remainingMs: s.mode !== "max" ? s.remainingMs : null,
         }
       : null,
-    category: CATEGORIES[tab],
-    rows: boards[tab],
-    leader: boards[tab][0] ?? null,
+    /** Current view setting (auto or pinned). */
+    view,
+    /** Page being shown now: a board or the recent list. */
+    page,
+    /** Rows for a board page. */
+    rows,
+    leader: rows[0] ?? null,
+    /** Rows for the recent page, newest first. */
+    recent,
     playerCount,
+    /** Switch views from the crowd window itself (keys); syncs to the operator. */
+    setView: (v: CrowdView) => backend.setCrowdView(v),
   };
 }

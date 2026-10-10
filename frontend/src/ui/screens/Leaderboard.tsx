@@ -1,6 +1,7 @@
 import { CATEGORIES } from "../../config/modes";
 import { useKeys } from "../../logic/useKeys";
 import { useLeaderboard } from "../../logic/useLeaderboard";
+import { CrowdViewPicker } from "../components/CrowdViewPicker";
 import { LeaderboardTable } from "../components/LeaderboardTable";
 
 /** Operator view: tabs, moderation (delete) and backup export. */
@@ -42,6 +43,7 @@ export function Leaderboard({ onBack }: { onBack: () => void }) {
         <button onClick={onBack}>Back (Esc)</button>
       </div>
       {board.message && <p className="muted">{board.message}</p>}
+      <CrowdViewPicker />
     </div>
   );
 }
