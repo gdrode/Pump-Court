@@ -96,8 +96,8 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles.
 
 ## Using it
 
-Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera & thresholds, **C** opens the crowd screen as a second window (drag it to the external monitor). Between rounds the crowd screen cycles the three boards and a **Recent** list (name, mode, results); pin one view from the Leaderboard screen, or press 1–3 / R / A on the crowd window. **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera & thresholds, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. Between rounds the crowd screen cycles the three boards and a **Recent** list (name, mode, results); pin one view from the Leaderboard screen, or press 1–3 / R / A on the crowd window. **Enter** / **Esc** move through screens.
 
-Modes: Sprint (30 s), Minute (60 s), Max (until 5 s without a clean rep, 3 min cap) and Duel (two Sprint turns).
+Modes: Sprint (30 s), Minute (60 s), Max (until 5 s without a clean rep, 3 min cap) and Versus (2–4 players take 30 s turns; standings rank on reps, then accuracy).
 
 The referee thresholds (90° depth, 160° lockout, 160° plank, …) are editable live under **S** and documented in `backend/src/judge/config.rs`.

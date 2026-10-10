@@ -25,7 +25,7 @@ backend/src/
 ├── leaderboard.rs  Embedded SQLite storage, migrations & queries
 ├── pose/           PoseSource traits, Inbox, Mock athlete, phone frames
 ├── judge/          Euclidean angle math, ready check calibration, rep tracker
-├── game/           Round modes (Sprint/Minute/Max/Duel) & session state machine
+├── game/           Round modes (Sprint/Minute/Max/Duel = Versus turn) & session state machine
 └── phone/          Axum HTTPS daemon, self-signed TLS, WebSockets & PhoneHub
 ```
 

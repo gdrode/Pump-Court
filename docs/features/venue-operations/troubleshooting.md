@@ -17,8 +17,10 @@
 | **Ready check fails: "Frame rate too low (< 24 FPS)"** | Wi-Fi congestion or phone battery-saver mode. | On phone web page, switch resolution to **640 px**; plug phone into charger; move closer to router. |
 | **Round was unexpectedly voided mid-match** | Athlete moved out of frame for > 500ms (`tracking_loss_ms`). | Ensure camera frame includes head-to-toe buffer; reposition mat 20cm back if athlete creeps forward. |
 | **Reps not counting: Red Depth Light on deep reps** | Camera is elevated too high looking downward, distorting elbow angle. | Lower phone camera tripod to 0.2m–0.3m off ground, parallel with the athlete's chest level. |
-| **Crowd screen is black or out of sync** | Window lost focus or route unmounted. | Press **Esc** on operator screen, re-press **C** to spawn fresh crowd window. |
-| **Accidental or corrupted score submitted** | Operator error or athlete foul. | Press **L** (Leaderboard), locate row, and click **Delete** (trash icon). |
+| **Crowd screen is black or out of sync** | Window lost focus or route unmounted. | Press **Esc** on operator screen, re-press **W** to spawn fresh crowd window. |
+| **Accidental or corrupted score submitted** | Operator error or athlete foul. | On the Results screen press **Esc** (discard). Later: press **L**, select the row with **↑↓**, press **Delete** twice. |
+| **Build fails: `Rollup failed to resolve import "@fontsource/patrick-hand"`** (or any other package) | A pull or patch added a package that isn't installed yet. | Run `npm install` in `frontend/`. The launch scripts now do this automatically when `package-lock.json` changes. |
+| **`./scripts/launch.sh: Permission denied`** (macOS/Linux) | The file lost its executable bit (committed from Windows). | `chmod +x scripts/launch.sh`; commit with `git update-index --chmod=+x scripts/launch.sh`. |
 
 ---
 

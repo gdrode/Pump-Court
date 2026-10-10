@@ -14,7 +14,7 @@ The leaderboard partitions records into three distinct competitive categories:
 - **`minute`**: 60-second endurance push-ups.
 - **`max`**: Sudden-death unbroken push-ups.
 
-*(Duel mode matches record their individual Sprint turns into the Sprint category while declaring a direct match winner on stage).*
+*(Versus games (stored mode `duel`) record each player's 30s turn into the 30-second category; the Versus standings screen declares the winner on stage).*
 
 ---
 

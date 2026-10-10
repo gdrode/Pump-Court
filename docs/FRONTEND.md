@@ -3,7 +3,7 @@
 > 💡 **Notice for AI Agents and Developers**: This guide has been incorporated into the comprehensive documentation suite. See the full feature documentation in [`docs/features/frontend-ui/`](features/frontend-ui/README.md), including [State & Hooks](features/frontend-ui/state-and-hooks.md), [Crowd Display Synchronization](features/frontend-ui/crowd-display-sync.md), and [Styling & Design Tokens](features/frontend-ui/styling-and-tokens.md).
 
 The frontend is split so that the **look** can be replaced without touching
-the **game logic**. The current screens are a working placeholder UI.
+the **game logic**. The current screens are the team's sketchbook design with the dragon host.
 
 ```
 frontend/src/
@@ -11,27 +11,31 @@ frontend/src/
 │   ├── backend.ts   every invoke()/listen() call
 │   └── types.ts     TypeScript mirrors of the Rust structs
 ├── logic/      All state, backend calls and flow.       Keep; reuse from any UI.
-│   ├── useGameFlow.ts   which screen is showing + actions to move between them
-│   ├── useRound.ts      a live round: timer, count, lights, ready check, cancel
-│   ├── useNameEntry.ts  names, team flag, validation, submit
-│   ├── results.ts       results summary (latest turn, duel winner, next player)
+│   ├── useGameFlow.ts   which screen is showing + actions (post, discard, next turn, rematch…)
+│   ├── useRound.ts      a live round: phase, ready rows, clock, count, lights, void, cancel
+│   ├── useNameEntry.ts  1–4 names, team flag, validation (backend has the final say)
+│   ├── results.ts       Versus standings and "best so far"
 │   ├── useLeaderboard.ts  tabs, rows, delete, backup
-│   ├── useCrowd.ts      crowd screen: live round, boards or recent results
+│   ├── useCrowd.ts      crowd screen: live round, boards, recent results, new-score flash
 │   ├── useCrowdControl.ts  operator: what the crowd screen shows
 │   ├── usePhoneLink.ts  phone camera QR code and connection status
 │   ├── useSettings.ts   camera picker, referee thresholds
-│   ├── useKeys.ts       keyboard shortcuts helper
+│   ├── useKeys.ts       keyboard shortcuts helper (Alt+ combos, ignores typing)
 │   └── events.ts        backend event subscriptions (useTick, useBackendEvent)
 ├── config/
-│   └── modes.ts    Menu modes, titles, blurbs, key bindings, tab names.  Edit freely.
-├── ui/         The design. Replace freely.
-│   ├── screens/    one component per screen
-│   ├── components/ PoseView (video + skeleton), RefereeLights, ReadyChecklist, LeaderboardTable,
+│   └── modes.ts    Menu modes, labels, key bindings, tab names.  Edit freely.
+├── ui/         The design (the team's sketchbook art). Replace freely.
+│   ├── screens/    Home, Players, Round (ready check + countdown + round),
+│   │               Results, VersusResult, Leaderboard, Crowd, Settings
+│   ├── components/ Dragon (the animated host), Lights, KeyHints, SketchDefs (hand-drawn
+│   │               border filter), PoseView (video + skeleton), LeaderboardTable,
 │   │               RecentTable, CrowdViewPicker, PhoneLinkPanel
-│   └── sounds.ts   placeholder beeps
+│   ├── host.ts     everything the dragon says
+│   ├── hostMood.ts what the dragon does during a round (shared by Round and Crowd)
+│   └── sounds.ts   mp3s from public/sounds/, synthesised tones until then
 ├── theme/
-│   ├── tokens.css  every colour, font, radius and key size
-│   └── styles.css  layout, using only the tokens
+│   ├── tokens.css  every colour, font, radius and key size (paper, ink, green, red)
+│   └── styles.css  layout and animations, using only the tokens
 └── App.tsx     Maps each flow state to a screen component.
 ```
 
@@ -48,9 +52,9 @@ the functions the hooks give them. They never call the backend directly.
    new round screen is:
 
    ```tsx
-   const round = useRound({ mode, player, isTeam, onFinished, onCancel });
+   const round = useRound({ mode, player, isTeam, onFinished });
    // round.cleanReps, round.remainingMs, round.lastRep, round.readyItems,
-   // round.countdownSeconds, round.trackingLost, round.tick, round.cancel()
+   // round.countdownSeconds, round.trackingLost, round.voided, round.tick, round.cancel()
    ```
 3. **Replace the whole UI:** build your components however you want (any
    CSS approach or component library), then point the imports in `App.tsx` at
@@ -63,9 +67,10 @@ the functions the hooks give them. They never call the backend directly.
 | Screen | Hook | Main data | Actions |
 | --- | --- | --- | --- |
 | Home | `MENU_MODES` from config | modes, keys | `onPick`, `onLeaderboard`, `onSettings`, `onCrowd` |
-| Name entry | `useNameEntry` | `names`, `isTeam`, `error` | `setName`, `setIsTeam`, `submit` |
-| Round | `useRound` | `phase`, `readyItems`, `countdownSeconds`, `cleanReps`, `attempts`, `remainingMs`, `idleRemainingMs`, `lastRep`, `trackingLost`, `tick` | `cancel`; optional `onRep`, `onCountdown`, `onGo` callbacks for sound and animation |
-| Results | `summarizeResults` | `latest`, `all`, `nextPlayer`, `duelWinner` | `onNext`, `onAgain`, `onLeaderboard`, `onHome` |
+| Players | `useNameEntry` | `names`, `multi`, `active`, `isTeam`, `error`, `canAdd`, `canRemove` | `setName`, `addPlayer`, `removePlayer`, `toggleTeam`, `enter`, `start` |
+| Round | `useRound` | `phase`, `readyItems`, `countdownSeconds`, `cleanReps`, `attempts`, `elapsedMs`, `remainingMs`, `idleRemainingMs`, `lastRep`, `lastRepAt`, `trackingLost`, `voided`, `tick` | `cancel`; optional `onRep`, `onCountdown`, `onGo`, `onVoided` callbacks for sound and animation |
+| Results | props from `App.tsx` | `result` (incl. `rank`, `noReps`) | `onPost`, `onDiscard` |
+| Versus standings | `versusOutcome` | `ranked`, `winner`, `decidedOnAccuracy` | `onRematch`, `onDone` |
 | Leaderboard | `useLeaderboard` | `category`, `rows`, `includeTeam`, `message` | `setCategory`, `setIncludeTeam`, `remove`, `exportBackup` |
 | Crowd | `useCrowd` | `live`, `round` (incl. `modeLabel`), `view`, `page` (a board or recent), `rows`, `leader`, `recent`, `playerCount` | `setView` (keys 1–3, R, A) |
 | Crowd control (operator) | `useCrowdControl` | `view` | `setView`, `isActive`, `openWindow` |

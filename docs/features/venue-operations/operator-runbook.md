@@ -1,7 +1,7 @@
 # Stage Operator Tournament Playbook
 
 > **Role**: Tournament Operator & Lead Referee  
-> **Key Shortcuts**: `1`–`4` (Modes), `Enter` (Advance), `Esc` (Back/Cancel), `L` (Board), `S` (Settings), `C` (Crowd)  
+> **Key Shortcuts**: `1`–`4` (Modes), `Enter` (Advance), `Esc` (Back/Cancel), `L` (Board), `S` (Settings), `W` (Crowd)  
 > **Related Documents**: [Venue Operations Overview](README.md), [Troubleshooting Matrix](troubleshooting.md)  
 > **Maintenance Status**: Active / Match Day Runbook  
 
@@ -12,8 +12,8 @@
 1. **Power & Displays**:
    - Plug tournament laptop into AC power (disable OS sleep / screen savers).
    - Connect HDMI cable to crowd display / projector.
-   - Boot desktop app: `cargo tauri dev` or launch installed binary.
-   - Press **C** on Home screen to spawn the Crowd window. Drag it onto the external projector and press Fullscreen (F11 / Cmd+Ctrl+F).
+   - Boot desktop app: `scripts/launch.cmd` (Windows), `./scripts/launch.sh` (macOS/Linux), or the built `pump-court` program.
+   - Press **W** on Home screen to spawn the Crowd window. Drag it onto the external projector and press Fullscreen (F11 / Cmd+Ctrl+F).
 2. **Camera Link**:
    - Turn on the smartphone's **Wi-Fi Hotspot** or connect laptop and phone to venue router.
    - On the laptop, press **S** ➔ **Phone Camera**.
@@ -30,11 +30,11 @@
 
 ```text
 [ HOME SCREEN ]
-  │ Operator presses 1 (Sprint), 2 (Minute), 3 (Max), or 4 (Duel)
+  │ Operator presses 1 (Sprint), 2 (Minute), 3 (Max), or 4 (Versus)
   ▼
-[ NAME ENTRY ]
-  │ Operator types athlete's name (max 12 chars). Toggle 'Team' if applicable.
-  │ Operator presses Enter.
+[ PLAYERS ]
+  │ Operator types athlete's name (max 12 chars). Versus: 2–4 names, Alt+N adds one.
+  │ Toggle 'Team' (Alt+T) if applicable. Operator presses Enter.
   ▼
 [ READY CHECK ]
   │ Athlete steps onto mat, assumes side-on top plank position.
@@ -46,13 +46,16 @@
   ▼
 [ LIVE MATCH ]
   │ Athlete performs push-ups.
-  │ Three referee lights fire on every rep (Ding for 2-3 white, Buzzer for no-rep).
+  │ Three referee lights fire on every rep (chime for a clean rep, buzzer for a no-rep).
+  │ The dragon host cheers clean reps and calls out no-reps.
   │ Clock runs down to zero (or 5s idle in Max mode).
+  │ Tracking lost > 0.5 s: run voided, nothing saved. Press R to restart, Esc for menu.
   ▼
 [ RESULTS SCREEN ]
-  │ Final score, accuracy, and fault breakdown displayed on both screens.
-  │ Score saved automatically to SQLite leaderboard.
-  │ Operator presses Enter to return to Home, or L to view updated leaderboard.
+  │ Final score, accuracy, rank and no-reps per referee.
+  │ Score already saved to the SQLite leaderboard.
+  │ Enter: post (solo → leaderboard; Versus → next player or standings).
+  │ Esc: discard the score (Versus: redo the turn).
 ```
 
 ---
@@ -64,10 +67,13 @@
 | **`1`** | Home Screen | Select Sprint Mode (30s) |
 | **`2`** | Home Screen | Select Minute Mode (60s) |
 | **`3`** | Home Screen | Select Max Reps Mode (Sudden Death) |
-| **`4`** | Home Screen | Select Duel Mode (1v1 Head-to-Head) |
-| **`Enter`** | Any Screen | Advance / Submit / Start next stage |
-| **`Escape`** | Any Screen | Cancel active round / Back to Home |
-| **`L`** | Any Screen | Toggle Leaderboard view |
-| **`S`** | Any Screen | Toggle Settings / Phone QR view |
-| **`C`** | Home Screen | Spawn secondary Crowd display window |
+| **`4`** | Home Screen | Select Versus Mode (2–4 players take turns) |
+| **`Enter`** | Any Screen | Advance / Submit / Post score |
+| **`Escape`** | Any Screen | Back / Cancel round / Discard score |
+| **`L`** | Home, Results | Leaderboard |
+| **`S`** | Home Screen | Settings / Phone QR |
+| **`W`** | Home Screen | Spawn secondary Crowd display window |
+| **`Alt+N`**, **`Alt+T`** | Players | Add a Versus player, toggle team run |
+| **`R`** | Voided round / Versus standings | Restart the run / Rematch |
+| **`1`–`3`, `←→`, `↑↓`, `Del` ×2, `B`, `T`** | Leaderboard | Board, select row, delete run, backup file, show team runs |
 | **`1`–`3`, `R`, `A`** | Crowd Window | Pin Sprint, Minute, Max, Recent, or Auto carousel |

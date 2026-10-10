@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-The **Game Engine** coordinates competitive match sessions. It couples the raw output of the referee pipeline with round timers, idle countdowns, athlete identity, and multi-turn duel tournaments.
+The **Game Engine** coordinates competitive match sessions. It couples the raw output of the referee pipeline with round timers, idle countdowns, athlete identity, and multi-turn Versus games (2–4 players).
 
 The entire match progression is encapsulated inside the `Session` state machine, which is updated frame-by-frame by the engine thread.
 
@@ -52,7 +52,7 @@ On every single video frame (~30–60 times per second), `Session::snapshot()` p
 ```rust
 pub struct SessionSnapshot {
     pub phase: RoundPhase,             // Idle | ReadyCheck | Countdown | Running | Finished
-    pub mode: Option<RoundMode>,       // Sprint | Minute | Max | Duel
+    pub mode: Option<RoundMode>,       // Sprint | Minute | Max | Duel (one Versus turn)
     pub player: Option<String>,        // Validated athlete / team name
     pub ready_items: Vec<ReadyItem>,   // Status of ready checklist
     pub countdown_ms: Option<i64>,     // Remaining countdown time

@@ -15,7 +15,8 @@ Player names are projected in 72pt typography onto large crowd displays and reco
 pub const MAX_NAME_LEN: usize = 12;
 
 const BLOCKLIST: &[&str] = &[
-    "admin", "fuck", "shit", "cunt", "nigg", "fag", "rape", "nazi"
+    "admin", "fuck", "shit", "cunt", "nigg", "fag", "bitch", "dick", "cock", "pussy", "nazi", "hitler", "rape",
+    "slut", "whore",
 ];
 ```
 
@@ -35,11 +36,15 @@ The `validate_name` function executes the following sequence:
    - Caps names at **12 characters**. If exceeded: `"Names are 12 characters at most"`.
    - Ensures names render cleanly across mobile and stadium resolutions without clipping or wrapping.
 4. **Keyword Blocklist Check**:
-   - Lowercases string and performs substring matches against `BLOCKLIST`.
-   - Rejects matches with user-friendly error: `"Please pick another name"`.
+   - `normalise(name)` lowercases the name, drops spaces, `.`, `_` and `-`, and undoes common swaps: `0→o`, `1→i`, `3→e`, `4→a`, `5→s`, `$→s`.
+   - So `"sh1t"`, `"F.u_c-k"` and `"$lut"` are caught.
+   - Substring match against `BLOCKLIST`; rejects with `"Please pick another name"`.
+   - Substring matching can also catch real names (e.g. "Dick"). Remove a word from the list if that becomes a problem at the event.
 
 ---
 
 ## 3. Real-Time Preflight Validation
 
-Before round entry, `frontend/src/logic/useNameEntry.ts` calls `backend.checkName(name)` on every keystroke/blur, displaying validation errors to the operator before the match begins.
+- While typing, `cleanName` in `frontend/src/logic/useNameEntry.ts` drops characters other than letters, digits, spaces and `. _ -`, and caps the length at 12.
+- When the operator presses Start, the frontend rejects empty and duplicate names, then calls `backend.checkName(name)` for each player. The first rejected name gets focus and the error is shown.
+- `start_round` validates the name again in the backend.

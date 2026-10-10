@@ -28,7 +28,18 @@ To build, run, and test Pump-Court locally:
 cd frontend && npm install && cd ..
 ```
 
-### Step 2: Launch Tauri Desktop Development Environment
+### Step 2a: Build and Launch the App (One Command)
+```bash
+./scripts/launch.sh          # macOS / Linux
+scripts\launch.cmd           # Windows (double-click works too)
+```
+- Builds the frontend, compiles the Rust backend in release mode with the frontend baked in, then opens the app.
+- Runs `npm install` first when `frontend/node_modules` is missing, or when `frontend/package-lock.json` is newer than the last install (`frontend/node_modules/.package-lock.json`). This picks up packages added by a pull or patch.
+- First build: 5–15 minutes. Later builds: about a minute.
+- `--no-run` (`-NoRun` on Windows) builds without launching.
+- **macOS / Linux**: `launch.sh` must be executable. If you get "Permission denied", run `chmod +x scripts/launch.sh`. Commit the bit with `git update-index --chmod=+x scripts/launch.sh` (needed when committing from Windows).
+
+### Step 2b: Launch Tauri Desktop Development Environment (Hot Reload)
 From the repository root:
 ```bash
 cd backend
