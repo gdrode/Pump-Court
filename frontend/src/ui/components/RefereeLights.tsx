@@ -1,6 +1,5 @@
-import type { RepVerdict } from "../api/types";
-
-const LABELS = { depth: "Depth", lockout: "Lockout", plank: "Plank" };
+import type { RepVerdict } from "../../api/types";
+import { REFEREE_LABELS } from "../../config/modes";
 
 /** Three referee lights. White = pass, red = fail, grey = waiting. */
 export function RefereeLights({ rep, big = false }: { rep: RepVerdict | null; big?: boolean }) {
@@ -12,7 +11,7 @@ export function RefereeLights({ rep, big = false }: { rep: RepVerdict | null; bi
         return (
           <div key={ref} className="light-wrap">
             <div className={`light light-${state}`} />
-            <span>{LABELS[ref]}</span>
+            <span>{REFEREE_LABELS[ref]}</span>
           </div>
         );
       })}

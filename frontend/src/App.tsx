@@ -1,31 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
-import { backend, errorText, events } from "./api/backend";
-import type { GhostRun, RoundResult } from "./api/types";
-import { categoryOf, type MenuModeInfo } from "./game/modes";
-import { useBackendEvent } from "./hooks/useBackend";
-import { Crowd } from "./screens/Crowd";
-import { Home } from "./screens/Home";
-import { Leaderboard } from "./screens/Leaderboard";
-import { NameEntry } from "./screens/NameEntry";
-import { Results } from "./screens/Results";
-import { RoundScreen } from "./screens/RoundScreen";
-import { savedSource, Settings } from "./screens/Settings";
+// The one place that decides which screen component shows for each state.
+// To use a new design, point these imports at your own components; the
+// logic hooks (src/logic) and backend calls (src/api) stay as they are.
 
-/** Everything needed to play one menu choice (1 or 2 turns). */
-interface Plan {
-  mode: MenuModeInfo;
-  players: string[];
-  isTeam: boolean;
-  ghost: GhostRun | null;
-}
-
-type Screen =
-  | { name: "home" }
-  | { name: "names"; mode: MenuModeInfo }
-  | { name: "round"; plan: Plan; results: RoundResult[] }
-  | { name: "results"; plan: Plan; results: RoundResult[] }
-  | { name: "leaderboard" }
-  | { name: "settings" };
+import { useGameFlow } from "./logic/useGameFlow";
+import { Crowd } from "./ui/screens/Crowd";
+import { Home } from "./ui/screens/Home";
+import { Leaderboard } from "./ui/screens/Leaderboard";
+import { NameEntry } from "./ui/screens/NameEntry";
+import { Results } from "./ui/screens/Results";
+import { RoundScreen } from "./ui/screens/RoundScreen";
+import { Settings } from "./ui/screens/Settings";
 
 export default function App() {
   // The second window loads the same app at #/crowd.
@@ -34,83 +18,59 @@ export default function App() {
 }
 
 function Operator() {
-  const [screen, setScreen] = useState<Screen>({ name: "home" });
-  const [sourceError, setSourceError] = useState<string | null>(null);
-  const home = useCallback(() => setScreen({ name: "home" }), []);
+  const flow = useGameFlow();
+  const { state } = flow;
 
-  // Start the remembered camera (or the mock athlete) on launch.
-  useEffect(() => {
-    backend.startSource(savedSource()).catch((e) => setSourceError(errorText(e)));
-  }, []);
-  useBackendEvent(events.onSourceStatus, (s) => setSourceError(s.error));
-
-  async function start(mode: MenuModeInfo, players: string[], isTeam: boolean) {
-    const category = categoryOf(mode.round);
-    const ghost = mode.id === "ghost" && category ? await backend.getGhostRun(category) : null;
-    setScreen({ name: "round", plan: { mode, players, isTeam, ghost }, results: [] });
-  }
-
-  let body: React.ReactNode;
-  switch (screen.name) {
+  let screen: React.ReactNode = null;
+  switch (state.screen) {
     case "home":
-      body = (
-        <Home
-          onPick={(mode) => setScreen({ name: "names", mode })}
-          onLeaderboard={() => setScreen({ name: "leaderboard" })}
-          onSettings={() => setScreen({ name: "settings" })}
-          onCrowd={() => backend.openCrowdWindow()}
-        />
+      screen = (
+        <Home onPick={flow.pickMode} onLeaderboard={flow.leaderboard} onSettings={flow.settings} onCrowd={flow.openCrowd} />
       );
       break;
     case "names":
-      body = <NameEntry mode={screen.mode} onBack={home} onStart={(p, team) => start(screen.mode, p, team)} />;
+      screen = <NameEntry mode={state.mode} onStart={flow.start} onBack={flow.home} />;
       break;
-    case "round": {
-      const { plan, results } = screen;
-      const turn = results.length;
-      body = (
+    case "round":
+      screen = (
         <RoundScreen
-          key={turn} // remount for each duel turn
-          mode={plan.mode.round}
-          player={plan.players[turn]}
-          isTeam={plan.isTeam}
-          ghost={plan.ghost}
-          onCancel={home}
-          onFinished={(r) => setScreen({ name: "results", plan, results: [...results, r] })}
+          key={state.results.length} // fresh screen for each duel turn
+          mode={state.plan.mode.round}
+          player={state.plan.players[state.results.length]}
+          isTeam={state.plan.isTeam}
+          onFinished={flow.finishRound}
+          onCancel={flow.home}
         />
       );
       break;
-    }
-    case "results": {
-      const { plan, results } = screen;
-      body = (
+    case "results":
+      screen = (
         <Results
-          results={results}
-          nextPlayer={plan.players[results.length] ?? null}
-          onNext={() => setScreen({ name: "round", plan, results })}
-          onAgain={() => setScreen({ name: "round", plan, results: [] })}
-          onLeaderboard={() => setScreen({ name: "leaderboard" })}
-          onHome={home}
+          results={state.results}
+          players={state.plan.players}
+          onNext={flow.nextTurn}
+          onAgain={flow.playAgain}
+          onLeaderboard={flow.leaderboard}
+          onHome={flow.home}
         />
       );
       break;
-    }
     case "leaderboard":
-      body = <Leaderboard onBack={home} />;
+      screen = <Leaderboard onBack={flow.home} />;
       break;
     case "settings":
-      body = <Settings onBack={home} />;
+      screen = <Settings onBack={flow.home} />;
       break;
   }
 
   return (
     <>
-      {sourceError && (
-        <div className="banner bad" onClick={() => setScreen({ name: "settings" })}>
-          Camera: {sourceError} (click for settings)
+      {flow.sourceError && (
+        <div className="banner bad" onClick={flow.settings}>
+          Camera: {flow.sourceError} (click for settings)
         </div>
       )}
-      {body}
+      {screen}
     </>
   );
 }

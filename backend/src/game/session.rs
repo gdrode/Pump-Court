@@ -42,8 +42,6 @@ pub struct RoundResult {
     /// Clean reps / attempts, 0..1. Breaks ties on the leaderboard.
     pub accuracy: f32,
     pub no_reps: NoRepCounts,
-    /// When each clean rep finished, in ms from the start. Used by ghost races.
-    pub rep_times_ms: Vec<i64>,
     pub duration_ms: i64,
     /// Set when the round did not count, e.g. tracking was lost.
     pub voided: Option<String>,
@@ -94,7 +92,6 @@ pub struct Session {
     smoother: Smoother,
     clean_reps: u32,
     no_reps: NoRepCounts,
-    rep_times_ms: Vec<i64>,
     last_clean_ms: i64,
     last_rep: Option<RepVerdict>,
     last_tracked_ms: Option<i64>,
@@ -118,7 +115,6 @@ impl Session {
             calibrated: None,
             clean_reps: 0,
             no_reps: NoRepCounts::default(),
-            rep_times_ms: Vec::new(),
             last_clean_ms: 0,
             last_rep: None,
             last_tracked_ms: None,
@@ -131,13 +127,13 @@ impl Session {
         self.phase
     }
 
-    /// Start a new round. Practice goes straight to running.
+    /// Start a new round, beginning with the ready check.
     pub fn start(&mut self, mode: RoundMode, player: String, is_team: bool, cfg: JudgeConfig) {
         *self = Session::new(cfg);
         self.mode = Some(mode);
         self.player = Some(player);
         self.is_team = is_team;
-        self.set_phase(if mode.is_practice() { RoundPhase::Running } else { RoundPhase::ReadyCheck });
+        self.set_phase(RoundPhase::ReadyCheck);
     }
 
     /// Abandon the round without posting anything.
@@ -203,7 +199,6 @@ impl Session {
     fn record(&mut self, v: &RepVerdict, elapsed: i64) {
         if v.clean {
             self.clean_reps += 1;
-            self.rep_times_ms.push(elapsed);
             self.last_clean_ms = elapsed;
         }
         for light in v.lights.iter().filter(|l| !l.pass) {
@@ -219,28 +214,27 @@ impl Session {
     fn check_end(&mut self, elapsed: i64) -> Option<RoundResult> {
         let mode = self.mode?;
         let lost_for = self.now_ms - self.last_tracked_ms.unwrap_or(self.now_ms);
-        let voided = (!mode.is_practice() && lost_for > self.cfg.tracking_loss_ms as i64)
+        let voided = (lost_for > self.cfg.tracking_loss_ms as i64)
             .then(|| "Tracking lost: stay in frame and try again".to_string());
-        let time_up = mode.duration_ms().map_or(false, |d| elapsed >= d as i64);
+        let time_up = elapsed >= mode.duration_ms() as i64;
         let max_idle = mode == RoundMode::Max && elapsed - self.last_clean_ms >= MAX_IDLE_MS as i64;
         if voided.is_none() && !time_up && !max_idle {
             return None;
         }
         self.set_phase(RoundPhase::Finished);
-        Some(self.result(elapsed, voided))
+        Some(self.result(mode, elapsed, voided))
     }
 
-    fn result(&self, duration_ms: i64, voided: Option<String>) -> RoundResult {
+    fn result(&self, mode: RoundMode, duration_ms: i64, voided: Option<String>) -> RoundResult {
         let attempts = self.tracker.attempts();
         RoundResult {
-            mode: self.mode.unwrap_or(RoundMode::Practice),
+            mode,
             player: self.player.clone().unwrap_or_default(),
             is_team: self.is_team,
             clean_reps: self.clean_reps,
             attempts,
             accuracy: if attempts == 0 { 0.0 } else { self.clean_reps as f32 / attempts as f32 },
             no_reps: self.no_reps.clone(),
-            rep_times_ms: self.rep_times_ms.clone(),
             duration_ms,
             voided,
             run_id: None,
@@ -267,9 +261,8 @@ impl Session {
             elapsed_ms: elapsed,
             remaining_ms: self
                 .mode
-                .and_then(|m| m.duration_ms())
                 .filter(|_| running)
-                .map(|d| (d as i64 - elapsed).max(0)),
+                .map(|m| (m.duration_ms() as i64 - elapsed).max(0)),
             idle_remaining_ms: (running && self.mode == Some(RoundMode::Max))
                 .then(|| (MAX_IDLE_MS as i64 - (elapsed - self.last_clean_ms)).max(0)),
             clean_reps: self.clean_reps,
@@ -285,7 +278,6 @@ impl Session {
 mod tests {
     use super::*;
     use crate::pose::mock::MockSource;
-    use crate::pose::PoseSource;
 
     /// Plays the mock athlete through a full Sprint, without the real-time
     /// sleeps, by rewriting timestamps.

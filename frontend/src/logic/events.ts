@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { events } from "../api/backend";
 import type { Tick } from "../api/types";
@@ -8,10 +8,13 @@ export function useBackendEvent<T>(
   subscribe: (cb: (payload: T) => void) => Promise<UnlistenFn>,
   handler: (payload: T) => void,
 ) {
+  // Always call the latest handler without resubscribing.
+  const latest = useRef(handler);
+  latest.current = handler;
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
     let cancelled = false;
-    subscribe(handler).then((fn) => {
+    subscribe((p) => latest.current(p)).then((fn) => {
       if (cancelled) fn();
       else unlisten = fn;
     });
@@ -19,8 +22,7 @@ export function useBackendEvent<T>(
       cancelled = true;
       unlisten?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [subscribe]);
 }
 
 /** The most recent frame from the engine (skeleton, angles, round state). */

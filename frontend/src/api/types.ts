@@ -1,7 +1,7 @@
 // TypeScript mirrors of the Rust types the backend sends.
 // If you change a struct in backend/src, change it here too.
 
-export type RoundMode = "sprint" | "minute" | "max" | "practice";
+export type RoundMode = "sprint" | "minute" | "max";
 export type Category = "thirtySecond" | "oneMinute" | "most";
 export type RoundPhase = "idle" | "readyCheck" | "countdown" | "running" | "finished";
 export type Referee = "depth" | "lockout" | "plank";
@@ -94,7 +94,6 @@ export interface RoundResult {
   attempts: number;
   accuracy: number;
   noReps: NoRepCounts;
-  repTimesMs: number[];
   durationMs: number;
   voided: string | null;
   runId: number | null;
@@ -109,12 +108,6 @@ export interface LeaderboardRow {
   attempts: number;
   accuracy: number;
   postedAt: number;
-}
-
-export interface GhostRun {
-  name: string;
-  cleanReps: number;
-  repTimesMs: number[];
 }
 
 export interface SourceStatus {

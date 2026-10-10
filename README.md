@@ -24,6 +24,8 @@ camera ─▶ motion tracker (MediaPipe C++) ─▶ PoseSource ─▶ engine thr
 
 Until the motion tracker is integrated, the backend ships a **mock athlete** that does scripted push-ups (clean, shallow, sagging, no lockout), so the whole game runs on any machine. See [docs/INTEGRATION.md](docs/INTEGRATION.md) for how the tracker plugs in.
 
+Bringing in a new UI design? Read [docs/FRONTEND.md](docs/FRONTEND.md).
+
 New to Rust? Read [docs/RUST_GUIDE.md](docs/RUST_GUIDE.md).
 
 ## Setup
@@ -59,8 +61,8 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles. The 
 
 ## Using it
 
-Operator keys on the home screen: **1–6** pick a mode, **L** leaderboard, **S** camera & thresholds, **C** opens the crowd screen as a second window (drag it to the external monitor). **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera & thresholds, **C** opens the crowd screen as a second window (drag it to the external monitor). **Enter** / **Esc** move through screens.
 
-Modes: Sprint (30 s), Minute (60 s), Max (until 5 s without a clean rep, 3 min cap), Duel (two Sprint turns), Ghost race (race the Sprint leader's saved run), Practice (no clock, live angles).
+Modes: Sprint (30 s), Minute (60 s), Max (until 5 s without a clean rep, 3 min cap) and Duel (two Sprint turns).
 
 The referee thresholds (90° depth, 160° lockout, 160° plank, …) are editable live under **S** and documented in `backend/src/judge/config.rs`.

@@ -4,7 +4,7 @@
 //! backup file every hour (see the engine).
 
 use crate::game::{Category, RoundResult};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,15 +27,6 @@ pub struct LeaderboardRow {
     pub posted_at: i64,
 }
 
-/// A saved run to race against.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GhostRun {
-    pub name: String,
-    pub clean_reps: u32,
-    pub rep_times_ms: Vec<i64>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BackupRun {
@@ -45,7 +36,6 @@ struct BackupRun {
     clean_reps: u32,
     attempts: u32,
     accuracy: f32,
-    rep_times_ms: String,
     is_team: bool,
     created_at: i64,
 }
@@ -89,7 +79,6 @@ impl Leaderboard {
                  clean_reps   INTEGER NOT NULL,
                  attempts     INTEGER NOT NULL,
                  accuracy     REAL    NOT NULL,
-                 rep_times_ms TEXT    NOT NULL,
                  is_team      INTEGER NOT NULL DEFAULT 0,
                  created_at   INTEGER NOT NULL
              );
@@ -107,11 +96,10 @@ impl Leaderboard {
 
     /// Saves a finished round. Returns the new run id.
     pub fn save_run(&self, category: Category, r: &RoundResult) -> rusqlite::Result<i64> {
-        let times = serde_json::to_string(&r.rep_times_ms).unwrap_or_else(|_| "[]".into());
         self.conn.execute(
-            "INSERT INTO runs (name, category, clean_reps, attempts, accuracy, rep_times_ms, is_team, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![r.player, category.as_str(), r.clean_reps, r.attempts, r.accuracy, times, r.is_team, now_ms()],
+            "INSERT INTO runs (name, category, clean_reps, attempts, accuracy, is_team, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![r.player, category.as_str(), r.clean_reps, r.attempts, r.accuracy, r.is_team, now_ms()],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
@@ -159,22 +147,6 @@ impl Leaderboard {
             .map(|r| r.rank))
     }
 
-    /// The current leader's run, for a ghost race.
-    pub fn ghost(&self, category: Category) -> rusqlite::Result<Option<GhostRun>> {
-        let Some(leader) = self.top(category, false, 1)?.into_iter().next() else {
-            return Ok(None);
-        };
-        let times: Option<String> = self
-            .conn
-            .query_row("SELECT rep_times_ms FROM runs WHERE id = ?1", [leader.run_id], |r| r.get(0))
-            .optional()?;
-        Ok(Some(GhostRun {
-            name: leader.name,
-            clean_reps: leader.clean_reps,
-            rep_times_ms: times.and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default(),
-        }))
-    }
-
     /// Moderation: the operator's delete key.
     pub fn delete_run(&self, run_id: i64) -> rusqlite::Result<()> {
         self.conn.execute("DELETE FROM runs WHERE id = ?1", [run_id])?;
@@ -190,7 +162,7 @@ impl Leaderboard {
     pub fn export_backup(&self) -> Result<PathBuf, String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, name, category, clean_reps, attempts, accuracy, rep_times_ms, is_team, created_at FROM runs")
+            .prepare("SELECT id, name, category, clean_reps, attempts, accuracy, is_team, created_at FROM runs")
             .map_err(|e| e.to_string())?;
         let runs = stmt
             .query_map([], |row| {
@@ -201,9 +173,8 @@ impl Leaderboard {
                     clean_reps: row.get(3)?,
                     attempts: row.get(4)?,
                     accuracy: row.get::<_, f64>(5)? as f32,
-                    rep_times_ms: row.get(6)?,
-                    is_team: row.get(7)?,
-                    created_at: row.get(8)?,
+                    is_team: row.get(6)?,
+                    created_at: row.get(7)?,
                 })
             })
             .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
@@ -231,7 +202,6 @@ mod tests {
             attempts,
             accuracy: clean as f32 / attempts as f32,
             no_reps: NoRepCounts::default(),
-            rep_times_ms: (1..=clean as i64).map(|i| i * 1000).collect(),
             duration_ms: 30_000,
             voided: None,
             run_id: None,
@@ -251,7 +221,6 @@ mod tests {
         assert_eq!(top[0].name, "Ben");
         assert_eq!(top[1].clean_reps, 14);
         assert_eq!(db.rank_of(cat, "ANA").unwrap(), Some(2));
-        assert_eq!(db.ghost(cat).unwrap().unwrap().rep_times_ms.len(), 14);
     }
 
     #[test]

@@ -42,7 +42,6 @@ pub fn run() {
             commands::get_judge_config,
             commands::set_judge_config,
             commands::get_leaderboard,
-            commands::get_ghost_run,
             commands::get_player_count,
             commands::delete_run,
             commands::export_backup,

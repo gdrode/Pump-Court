@@ -7,7 +7,7 @@
 use crate::engine::EngineCommand;
 use crate::game::{Category, RoundMode};
 use crate::judge::JudgeConfig;
-use crate::leaderboard::{self, GhostRun, Leaderboard, LeaderboardRow};
+use crate::leaderboard::{self, Leaderboard, LeaderboardRow};
 use crate::pose::{self, SourceInfo, SourceSpec};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -52,11 +52,7 @@ pub fn check_name(name: String) -> CmdResult<String> {
 
 #[tauri::command]
 pub fn start_round(state: State<AppState>, mode: RoundMode, player: String, is_team: bool) -> CmdResult<()> {
-    let player = if mode.is_practice() && player.trim().is_empty() {
-        "Practice".to_string()
-    } else {
-        leaderboard::validate_name(&player)?
-    };
+    let player = leaderboard::validate_name(&player)?;
     state.send(EngineCommand::StartRound { mode, player, is_team })
 }
 
@@ -81,11 +77,6 @@ pub fn set_judge_config(state: State<AppState>, config: JudgeConfig) -> CmdResul
 #[tauri::command]
 pub fn get_leaderboard(state: State<AppState>, category: Category, include_team: bool, limit: u32) -> CmdResult<Vec<LeaderboardRow>> {
     state.db.lock().unwrap().top(category, include_team, limit).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn get_ghost_run(state: State<AppState>, category: Category) -> CmdResult<Option<GhostRun>> {
-    state.db.lock().unwrap().ghost(category).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

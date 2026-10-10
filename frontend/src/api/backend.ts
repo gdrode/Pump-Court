@@ -5,7 +5,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   Category,
-  GhostRun,
   JudgeConfig,
   LeaderboardRow,
   RepVerdict,
@@ -29,7 +28,6 @@ export const backend = {
   setJudgeConfig: (config: JudgeConfig) => invoke<void>("set_judge_config", { config }),
   getLeaderboard: (category: Category, includeTeam = false, limit = 20) =>
     invoke<LeaderboardRow[]>("get_leaderboard", { category, includeTeam, limit }),
-  getGhostRun: (category: Category) => invoke<GhostRun | null>("get_ghost_run", { category }),
   getPlayerCount: () => invoke<number>("get_player_count"),
   deleteRun: (runId: number) => invoke<void>("delete_run", { runId }),
   exportBackup: () => invoke<string>("export_backup"),

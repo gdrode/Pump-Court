@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { Tick } from "../api/types";
+import type { Tick } from "../../api/types";
 
 // Bones to draw, as pairs of MediaPipe landmark indices.
 const BONES: [number, number][] = [
@@ -7,6 +7,11 @@ const BONES: [number, number][] = [
   [11, 23], [12, 24], [23, 24],
   [23, 25], [25, 27], [24, 26], [26, 28],
 ];
+
+/** Reads a colour token from theme/tokens.css so the canvas follows the theme. */
+function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 /** Camera preview (when the tracker sends one) with the skeleton drawn on top. */
 export function PoseView({ tick }: { tick: Tick | null }) {
@@ -31,7 +36,7 @@ export function PoseView({ tick }: { tick: Tick | null }) {
 
     if (imageRef.current) ctx.drawImage(imageRef.current, 0, 0, w, h);
     else {
-      ctx.fillStyle = "#111318";
+      ctx.fillStyle = token("--video-bg");
       ctx.fillRect(0, 0, w, h);
     }
     const lms = tick.landmarks;
@@ -39,7 +44,7 @@ export function PoseView({ tick }: { tick: Tick | null }) {
 
     const ok = tick.session.trackingOk;
     ctx.lineWidth = Math.max(4, w / 200);
-    ctx.strokeStyle = ok ? "rgba(255,255,255,0.9)" : "rgba(255,90,90,0.9)";
+    ctx.strokeStyle = token(ok ? "--skeleton-bone" : "--skeleton-bone-lost");
     for (const [a, b] of BONES) {
       if (lms[a].visibility < 0.3 || lms[b].visibility < 0.3) continue;
       ctx.beginPath();
@@ -47,7 +52,7 @@ export function PoseView({ tick }: { tick: Tick | null }) {
       ctx.lineTo(lms[b].x * w, lms[b].y * h);
       ctx.stroke();
     }
-    ctx.fillStyle = "#4ade80";
+    ctx.fillStyle = token("--skeleton-joint");
     for (const i of [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
       if (lms[i].visibility < 0.3) continue;
       ctx.beginPath();
@@ -60,7 +65,7 @@ export function PoseView({ tick }: { tick: Tick | null }) {
     if (angles) {
       const near = angles.side === "left" ? { elbow: 13, hip: 23, knee: 25 } : { elbow: 14, hip: 24, knee: 26 };
       ctx.font = `bold ${Math.round(w / 45)}px system-ui`;
-      ctx.fillStyle = "#facc15";
+      ctx.fillStyle = token("--skeleton-label");
       for (const joint of ["elbow", "hip", "knee"] as const) {
         const p = lms[near[joint]];
         ctx.fillText(`${Math.round(angles[joint])}°`, p.x * w + 12, p.y * h - 12);

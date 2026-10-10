@@ -196,9 +196,9 @@ impl Engine {
         self.emit("tick", tick);
     }
 
-    /// Posts a valid, non-practice round to the leaderboard and fills in its rank.
+    /// Posts a valid round to the leaderboard and fills in its rank.
     fn save(&self, mut result: RoundResult) -> RoundResult {
-        let Some(category) = result.mode.category() else { return result };
+        let category = result.mode.category();
         if result.voided.is_some() {
             return result;
         }

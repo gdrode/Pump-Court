@@ -1,4 +1,4 @@
-import type { ReadyItem } from "../api/types";
+import type { ReadyItem } from "../../api/types";
 
 export function ReadyChecklist({ items }: { items: ReadyItem[] }) {
   if (items.length === 0) return <p className="muted">Waiting for the camera…</p>;

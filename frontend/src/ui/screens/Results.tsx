@@ -1,40 +1,23 @@
-import { useEffect } from "react";
-import type { RoundResult } from "../api/types";
+import type { RoundResult } from "../../api/types";
+import { summarizeResults } from "../../logic/results";
+import { useKeys } from "../../logic/useKeys";
 
 interface Props {
   results: RoundResult[];
-  /** Duel: more players still to go. */
-  nextPlayer: string | null;
+  players: string[];
   onNext: () => void;
   onAgain: () => void;
   onLeaderboard: () => void;
   onHome: () => void;
 }
 
-export function Results({ results, nextPlayer, onNext, onAgain, onLeaderboard, onHome }: Props) {
-  const r = results[results.length - 1];
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Enter") (nextPlayer ? onNext : onAgain)();
-      else if (e.key === "Escape") onHome();
-      else if (e.key.toLowerCase() === "l") onLeaderboard();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [nextPlayer, onNext, onAgain, onLeaderboard, onHome]);
-
-  const duelDone = results.length === 2 && !nextPlayer;
-  let duelLine: string | null = null;
-  if (duelDone) {
-    const [a, b] = results;
-    const score = (x: RoundResult) => x.cleanReps + x.accuracy / 10; // accuracy breaks ties
-    duelLine = score(a) === score(b) ? "It's a draw!" : `${score(a) > score(b) ? a.player : b.player} wins!`;
-  }
+export function Results({ results, players, onNext, onAgain, onLeaderboard, onHome }: Props) {
+  const { latest: r, all, nextPlayer, duelWinner } = summarizeResults(results, players);
+  useKeys({ Enter: nextPlayer ? onNext : onAgain, Escape: onHome, l: onLeaderboard });
 
   return (
     <div className="screen results">
-      {duelLine && <h1>{duelLine}</h1>}
+      {duelWinner !== undefined && <h1>{duelWinner ? `${duelWinner} wins!` : "It's a draw!"}</h1>}
       <h2>{r.player}</h2>
       {r.voided ? (
         <p className="error">Round voided: {r.voided}</p>
@@ -53,10 +36,8 @@ export function Results({ results, nextPlayer, onNext, onAgain, onLeaderboard, o
           {r.isTeam && <p className="muted">Team run — hidden from the public ranking.</p>}
         </>
       )}
-      {duelDone && (
-        <p className="muted">
-          {results.map((x) => `${x.player}: ${x.cleanReps}`).join("  ·  ")}
-        </p>
+      {duelWinner !== undefined && (
+        <p className="muted">{all.map((x) => `${x.player}: ${x.cleanReps}`).join("  ·  ")}</p>
       )}
       <div className="row">
         {nextPlayer ? (
