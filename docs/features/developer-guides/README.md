@@ -59,11 +59,19 @@ cargo test
 ```
 
 ### 3.2 Vision Prototype Tests
-Executes unit tests covering geometry, angle formulas, rep logging, and browser-side referee segmentation:
+Executes unit tests (213) covering geometry, angles, posture gate, referee, rep logging and the phone pairing relay:
 ```bash
 cd pumpCourt
 npm test
 ```
+
+### 3.2b Run the Vision Prototype
+```bash
+cd pumpCourt
+npm run dev        # https://localhost:5173 on the network (phones need HTTPS)
+npm run dev:local  # http only on this laptop; use in previews that refuse the self-signed certificate
+```
+See [Browser Prototype Pairing](../phone-camera/browser-prototype-pairing.md) and [Browser Prototype Judge](../referee-engine/browser-prototype-judge.md).
 
 ### 3.3 Frontend Typecheck & Production Bundle
 ```bash

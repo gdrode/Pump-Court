@@ -11,6 +11,7 @@
 | Symptom | Probable Cause | Immediate Remediation |
 | :--- | :--- | :--- |
 | **"No local network found" in Settings** | Laptop Wi-Fi is disabled or not connected to any network. | Enable phone's Personal Hotspot and join it from the laptop, or connect laptop to venue router. |
+| **Phone page loads forever after scanning the QR code** (browser prototype) | Venue/school Wi-Fi blocks devices from reaching each other. | In **+ Add camera** use the **Any network** tab (internet link, works on any network), or join the laptop to the phone's hotspot. See [Browser Prototype Pairing](../phone-camera/browser-prototype-pairing.md). |
 | **Phone shows "Connection Not Private"** | Expected behavior for self-signed local TLS certificates. | Tap **Advanced ➔ Proceed to site (unsafe)** on the phone browser. |
 | **Phone connects, but video is black or won't start** | Camera permissions blocked in mobile browser. | Tap URL lock icon in phone browser ➔ Permissions ➔ Camera ➔ Allow, then reload page. |
 | **Ready check fails: "Hold top plank" never ticks** | Athlete's arms not fully extended or hips sagging. | Instruct athlete to push floor away and lock hips straight; check that camera is side-on. |

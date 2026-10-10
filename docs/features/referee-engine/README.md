@@ -2,7 +2,7 @@
 
 > **Module**: `backend/src/judge/` and `pumpCourt/src/judge.ts`  
 > **Key Types**: `Referee`, `Light`, `RepVerdict`, `RepTracker`, `JudgeConfig`, `BodyAngles`  
-> **Related Documents**: [Angles & Biomechanics](angles-and-biomechanics.md), [Rep Segmentation](rep-segmentation.md), [Ready Check & Calibration](ready-check-calibration.md)  
+> **Related Documents**: [Angles & Biomechanics](angles-and-biomechanics.md), [Rep Segmentation](rep-segmentation.md), [Ready Check & Calibration](ready-check-calibration.md), [Browser Prototype Judge](browser-prototype-judge.md)  
 > **Maintenance Status**: Core Business Logic / Highly Sensitive to Tuning  
 
 ---

@@ -7,11 +7,15 @@ const startBtn = document.getElementById('start') as HTMLButtonElement
 const flipBtn = document.getElementById('flip') as HTMLButtonElement
 
 const room = new URLSearchParams(location.search).get('room') ?? ''
+/** 'relay' when opened through the internet link: frames go through the server instead of WebRTC. */
+const relayMode = new URLSearchParams(location.search).get('mode') === 'relay'
 let facing: 'environment' | 'user' = 'environment'
 let stream: MediaStream | null = null
 let pc: RTCPeerConnection | null = null
 let channel: SignalChannel | null = null
 let wakeLock: { release(): Promise<void> } | null = null
+let relay: WebSocket | null = null
+let relayTimer = 0
 // ICE candidates that arrive before the laptop's answer, applied once it lands.
 let pendingCandidates: RTCIceCandidateInit[] = []
 
@@ -59,6 +63,7 @@ async function startPeer() {
 
 /** Stop filming and go back to the Start screen. */
 function teardown(message: string, kind: '' | 'err' = '') {
+  stopRelay()
   const peer = pc
   pc = null
   peer?.close()
@@ -132,6 +137,53 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && stream) keepAwake()
 })
 
+// --- Internet link: JPEG frames over a WebSocket through the relay ----------
+/** Frame width sent through the relay: enough for pose tracking, small enough for a phone's upload. */
+const RELAY_WIDTH = 640
+const RELAY_QUALITY = 0.6
+/** Skip a frame when this much is still waiting to be sent: keeps the delay down on a slow connection. */
+const RELAY_BACKLOG = 256 * 1024
+
+function stopRelay() {
+  clearInterval(relayTimer)
+  const ws = relay
+  relay = null
+  ws?.close()
+}
+
+function connectRelay() {
+  status('Connecting to the laptop over the internet…')
+  const ws = new WebSocket(`wss://${location.host}/relay?room=${encodeURIComponent(room)}&role=phone`)
+  relay = ws
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')!
+  let busy = false
+  const sendFrame = () => {
+    if (relay !== ws || ws.readyState !== WebSocket.OPEN || busy || ws.bufferedAmount > RELAY_BACKLOG || !preview.videoWidth) return
+    canvas.width = RELAY_WIDTH
+    canvas.height = Math.round((RELAY_WIDTH * preview.videoHeight) / preview.videoWidth)
+    ctx.drawImage(preview, 0, 0, canvas.width, canvas.height)
+    busy = true
+    canvas.toBlob((blob) => {
+      busy = false
+      if (blob && relay === ws && ws.readyState === WebSocket.OPEN) ws.send(blob)
+    }, 'image/jpeg', RELAY_QUALITY)
+  }
+  ws.onopen = () => {
+    status('Streaming to the laptop (internet link)', 'ok')
+    relayTimer = window.setInterval(sendFrame, 1000 / PHONE_FPS)
+  }
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(String(e.data)) as { type: string; message?: string }
+    if (msg.type === 'error') teardown(msg.message ?? 'Could not connect.', 'err')
+    else if (msg.type === 'peer-left') teardown('The laptop closed this camera. Scan a new code to reconnect.')
+  }
+  ws.onclose = (e) => {
+    if (relay !== ws) return // closed on purpose
+    teardown(e.code === 4000 ? 'Another phone took over this code.' : 'Lost the connection to the laptop. Reload to try again.', 'err')
+  }
+}
+
 startBtn.onclick = async () => {
   if (!room) return status('Missing pairing code. Scan the QR code on the laptop again.', 'err')
   if (!window.isSecureContext || !navigator.mediaDevices) return status('The camera needs https. Open the exact link from the QR code.', 'err')
@@ -143,7 +195,8 @@ startBtn.onclick = async () => {
   startBtn.hidden = true
   flipBtn.hidden = false
   keepAwake()
-  connect()
+  if (relayMode) connectRelay()
+  else connect()
 }
 
 flipBtn.onclick = async () => {
@@ -162,4 +215,5 @@ window.addEventListener('pagehide', () => {
   void wakeLock?.release()
   channel?.close()
   pc?.close()
+  stopRelay()
 })

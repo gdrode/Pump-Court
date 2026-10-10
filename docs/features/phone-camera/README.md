@@ -2,7 +2,7 @@
 
 > **Module**: `backend/src/phone/`  
 > **Key Types**: `PhoneHub`, `PhoneLink`, `PhoneStatus`, `PhoneFrame`  
-> **Related Documents**: [HTTPS & TLS](https-and-tls.md), [Pairing & WebSocket Protocol](pairing-and-websocket.md), [Mobile Web Client](mobile-web-client.md)  
+> **Related Documents**: [HTTPS & TLS](https-and-tls.md), [Pairing & WebSocket Protocol](pairing-and-websocket.md), [Mobile Web Client](mobile-web-client.md), [Browser Prototype Pairing](browser-prototype-pairing.md)  
 > **Maintenance Status**: Active / Core Tournament Capability  
 
 ---
