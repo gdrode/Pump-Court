@@ -1,35 +1,33 @@
 import { useEffect, useState } from "react";
-import type { Category } from "../../api/types";
-import { CATEGORIES } from "../../config/modes";
+import type { RoundMode } from "../../api/types";
+import { BOARDS, MODE_LABELS } from "../../config/modes";
 import { useKeys } from "../../logic/useKeys";
 import { useLeaderboard } from "../../logic/useLeaderboard";
-import { CrowdViewPicker } from "../components/CrowdViewPicker";
 import { KeyHints } from "../components/KeyHints";
 import { LeaderboardTable } from "../components/LeaderboardTable";
 
 interface Props {
-  initial?: Category;
+  /** Tab to open on: a mode, or null for the all-time board. */
+  initial?: RoundMode | null;
   /** Name to mark, e.g. the player who just posted. */
   highlight?: string;
   onBack: () => void;
 }
 
-/** Operator view: tabs, moderation (select + delete twice), backup, crowd screen controls. */
-export function Leaderboard({ initial = "thirtySecond", highlight, onBack }: Props) {
+/** Operator view: tabs, moderation (select + delete twice), backup. */
+export function Leaderboard({ initial = null, highlight, onBack }: Props) {
   const board = useLeaderboard(initial);
   const [sel, setSel] = useState<number | undefined>(undefined);
   const [confirm, setConfirm] = useState(false);
   const visible = Math.min(board.rows.length, 10);
+  const tab = BOARDS.findIndex((b) => b.mode === board.mode);
 
   useEffect(() => {
     setSel(undefined);
     setConfirm(false);
-  }, [board.category, board.includeTeam]);
+  }, [board.mode]);
 
-  const move = (d: number) => {
-    const i = CATEGORIES.findIndex((c) => c.id === board.category);
-    board.setCategory(CATEGORIES[(i + d + CATEGORIES.length) % CATEGORIES.length].id);
-  };
+  const move = (d: number) => board.setMode(BOARDS[(tab + d + BOARDS.length) % BOARDS.length].mode);
 
   const remove = async () => {
     const row = sel !== undefined ? board.rows[sel] : undefined;
@@ -41,9 +39,7 @@ export function Leaderboard({ initial = "thirtySecond", highlight, onBack }: Pro
   };
 
   useKeys({
-    "1": () => board.setCategory(CATEGORIES[0].id),
-    "2": () => board.setCategory(CATEGORIES[1].id),
-    "3": () => board.setCategory(CATEGORIES[2].id),
+    ...Object.fromEntries(BOARDS.map((b, i) => [String(i + 1), () => board.setMode(b.mode)])),
     ArrowLeft: () => move(-1),
     ArrowRight: () => move(1),
     ArrowUp: () => {
@@ -57,7 +53,6 @@ export function Leaderboard({ initial = "thirtySecond", highlight, onBack }: Pro
     Delete: () => void remove(),
     Backspace: () => void remove(), // Mac laptops have no forward-delete key
     b: () => void board.exportBackup(),
-    t: () => board.setIncludeTeam(!board.includeTeam),
     Escape: onBack,
     Enter: onBack,
   });
@@ -66,35 +61,28 @@ export function Leaderboard({ initial = "thirtySecond", highlight, onBack }: Pro
   return (
     <div className="panel sketch leaderboard">
       <div className="tabs" role="tablist">
-        {CATEGORIES.map((c, i) => (
+        {BOARDS.map((b, i) => (
           <button
-            key={c.id}
+            key={b.title}
             role="tab"
-            aria-selected={c.id === board.category}
-            className={`sketch ${c.id === board.category ? "is-on" : ""}`}
-            onClick={() => board.setCategory(c.id)}
+            aria-selected={i === tab}
+            className={`sketch ${i === tab ? "is-on" : ""}`}
+            onClick={() => board.setMode(b.mode)}
           >
-            <kbd>{i + 1}</kbd> {c.title}
+            <kbd>{i + 1}</kbd> {b.title}
           </button>
         ))}
       </div>
-      <LeaderboardTable rows={board.rows} highlight={highlight} selected={sel} />
+      <LeaderboardTable rows={board.rows} showMode={board.mode === null} highlight={highlight} selected={sel} />
       {confirm && selected && (
         <p className="error">
-          Press Delete again to remove {selected.name}'s {selected.cleanReps} from {CATEGORIES.find((c) => c.id === board.category)?.title}.
+          Press Delete again to remove {selected.name}'s {selected.reps} ({MODE_LABELS[selected.mode]}).
         </p>
       )}
       {board.message && <p className="message">{board.message}</p>}
-      <div className="board-tools">
-        <label className="check">
-          <input type="checkbox" checked={board.includeTeam} onChange={(e) => board.setIncludeTeam(e.target.checked)} />
-          Show team runs <kbd>T</kbd>
-        </label>
-        <CrowdViewPicker />
-      </div>
       <KeyHints
         hints={[
-          ["1–3", "Board"],
+          [`1–${BOARDS.length}`, "Board"],
           ["↑↓", "Select"],
           ["Del", "Remove run", () => void remove()],
           ["B", "Backup file", () => void board.exportBackup()],

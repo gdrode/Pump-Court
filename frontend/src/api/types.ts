@@ -1,178 +1,131 @@
 // TypeScript mirrors of the Rust types the backend sends.
 // If you change a struct in backend/src, change it here too.
 
+/** backend/src/game/mode.rs `RoundMode`. */
 export type RoundMode = "sprint" | "minute" | "max" | "duel";
-export type Category = "thirtySecond" | "oneMinute" | "most";
-export type RoundPhase = "idle" | "readyCheck" | "countdown" | "running" | "finished";
-export type Referee = "depth" | "lockout" | "plank";
+/** backend/src/game/session.rs `RoundPhase`. */
+export type RoundPhase = "idle" | "getReady" | "countdown" | "running" | "finished";
 
-export type SourceSpec =
-  | { kind: "mock" }
-  | { kind: "phone" }
-  | { kind: "pushed" };
-
-export interface SourceInfo {
-  label: string;
-  spec: SourceSpec;
+/** One white (true) or red (false) light per rule. Same names as the tracker's `Light`. */
+export interface Lights {
+  depth: boolean;
+  torso: boolean;
+  lockout: boolean;
 }
 
-export interface Landmark {
-  x: number;
-  y: number;
-  z: number;
-  visibility: number;
+/** A rep the tracker judged, sent with `reportRep`. */
+export interface RepReport {
+  /** 2 or 3 white lights. */
+  counted: boolean;
+  /** 3 white lights. */
+  perfect: boolean;
+  lights: Lights;
+  /** Why each red light was given. */
+  faults: string[];
 }
 
-export interface BodyAngles {
-  side: "left" | "right";
-  elbow: number;
-  hip: number;
-  knee: number;
-  visibility: number;
-}
-
-export interface Light {
-  referee: Referee;
-  pass: boolean;
-  measured: number;
-  needed: number;
-}
-
+/** A rep the backend counted into the round (`rep` event). */
 export interface RepVerdict {
+  /** 1 for the first attempt of the round. */
   attempt: number;
-  clean: boolean;
-  lights: [Light, Light, Light];
-  reasons: string[];
-  startMs: number;
-  endMs: number;
+  counted: boolean;
+  perfect: boolean;
+  lights: Lights;
+  faults: string[];
 }
 
-export interface ReadyItem {
-  id: string;
-  label: string;
-  pass: boolean;
-  prompt: string | null;
+/** Red lights per rule over a round. */
+export interface NoRepCounts {
+  depth: number;
+  torso: number;
+  lockout: number;
 }
 
+/** A finished round (`round-finished` event). Already saved when it arrives. */
+export interface RoundResult {
+  mode: RoundMode;
+  player: string;
+  /** Valid push-ups (2–3 white lights). */
+  reps: number;
+  attempts: number;
+  perfect: number;
+  noReps: NoRepCounts;
+  durationMs: number;
+  /** Database id, or null if saving failed. */
+  runId: number | null;
+  /** Player's place on this mode's board. */
+  rank: number | null;
+}
+
+/** The round right now (`tick` event, about 10 times a second during a round). */
 export interface SessionSnapshot {
   phase: RoundPhase;
   mode: RoundMode | null;
   player: string | null;
-  readyItems: ReadyItem[];
+  /** The tracker's posture check says the player is holding the top position. */
+  inPosition: boolean;
   countdownMs: number | null;
   elapsedMs: number;
+  /** Time left (Sprint, Minute, Duel). */
   remainingMs: number | null;
+  /** Max: time left to get the next valid push-up. */
   idleRemainingMs: number | null;
-  cleanReps: number;
+  reps: number;
   attempts: number;
+  perfect: number;
   lastRep: RepVerdict | null;
-  lockoutThreshold: number | null;
-  trackingOk: boolean;
 }
 
-export interface Tick {
-  width: number;
-  height: number;
-  landmarks: Landmark[] | null;
-  angles: BodyAngles | null;
-  fps: number;
-  preview: string | null;
-  session: SessionSnapshot;
-}
-
-export interface NoRepCounts {
-  depth: number;
-  lockout: number;
-  plank: number;
-}
-
-export interface RoundResult {
-  mode: RoundMode;
-  player: string;
-  isTeam: boolean;
-  cleanReps: number;
-  attempts: number;
-  accuracy: number;
-  noReps: NoRepCounts;
-  durationMs: number;
-  voided: string | null;
-  runId: number | null;
-  rank: number | null;
-}
-
+/** One player's best round. The database keeps only name, mode and reps. */
 export interface LeaderboardRow {
   rank: number;
   runId: number;
   name: string;
-  cleanReps: number;
-  attempts: number;
-  accuracy: number;
-  postedAt: number;
-}
-
-/** A finished run for the crowd screen's "Recent" list. */
-export interface RecentRun {
-  runId: number;
-  name: string;
   mode: RoundMode;
-  cleanReps: number;
-  attempts: number;
-  accuracy: number;
-  noReps: NoRepCounts;
-  postedAt: number;
+  reps: number;
 }
 
-/** What the crowd screen shows when no round is running. */
-export type CrowdView = { kind: "auto" } | { kind: "board"; category: Category } | { kind: "recent" };
+// --- Phone cameras (backend/src/phone) ------------------------------------------
 
-export interface PhoneStatus {
-  listening: boolean;
-  error: string | null;
-  connected: boolean;
-  device: string | null;
-  width: number;
-  height: number;
-  fps: number;
-  /** How many phones have paired since the app started. */
-  pairings: number;
+export interface LanAddress {
+  address: string;
+  /** Network adapter name, e.g. "en0". */
+  iface: string;
+  /** Plain-words kind, e.g. "Wi-Fi", "hotspot". */
+  label: string;
 }
 
-export interface PhoneLink {
-  /** Address the QR code encodes. */
-  url: string;
-  /** Single-use: changes as soon as a phone pairs with it. */
-  code: string;
-  /** QR code as an SVG string. */
-  qrSvg: string;
-  status: PhoneStatus;
-}
-
-/** Landmarks from a frontend tracker, sent with pushPoseFrame. */
-export interface PushedPoseFrame {
-  width: number;
-  height: number;
-  landmarks: Landmark[] | null;
-}
-
-export interface SourceStatus {
-  running: boolean;
+/** This laptop's addresses for the pairing QR code, best first. */
+export interface LanInfo {
+  addresses: LanAddress[];
+  /** macOS Bonjour name, e.g. "Alexs-MacBook.local". */
+  bonjour: string | null;
+  /** HTTPS port the phone page is served on (47800). */
+  port: number;
+  /** The phone server could not start. */
   error: string | null;
 }
 
-export interface JudgeConfig {
-  depthMaxElbow: number;
-  lockoutMinElbow: number;
-  plankMinHip: number;
-  plankMinKnee: number;
-  topExitMargin: number;
-  minAttemptDrop: number;
-  ascentMargin: number;
-  redipMargin: number;
-  confirmFrames: number;
-  smoothingAlpha: number;
-  minVisibility: number;
-  trackingLossMs: number;
-  startPositionMinElbow: number;
-  startHoldMs: number;
-  minFps: number;
+/** The "Any network" link (Cloudflare quick tunnel). */
+export interface TunnelStatus {
+  status: "off" | "starting" | "on" | "error" | "missing";
+  url: string | null;
+  error: string | null;
 }
+
+/** Messages for the laptop's side of a pairing room (`phoneOpen` events). */
+export type PhoneRoomMessage =
+  | { type: "joined" }
+  | { type: "peer-joined" }
+  | { type: "peer-left" }
+  | { type: "error"; message: string }
+  | { type: "signal"; data: SignalData }
+  | { type: "phone-visit"; from: string }
+  /** Any network: the phone says which way to turn its picture (clockwise degrees). */
+  | { type: "orientation"; rotation: number };
+
+/**
+ * Passed between phone and laptop through the room: WebRTC offer/answer, ICE
+ * candidate, or (phone → laptop) the clockwise turn that makes the picture upright.
+ */
+export type SignalData = { sdp: RTCSessionDescriptionInit } | { candidate: RTCIceCandidateInit } | { orientation: number };

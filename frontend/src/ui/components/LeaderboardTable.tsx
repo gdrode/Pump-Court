@@ -1,9 +1,11 @@
 import type { LeaderboardRow } from "../../api/types";
-import { formatPosted } from "../../config/modes";
+import { MODE_LABELS } from "../../config/modes";
 
 interface Props {
   rows: LeaderboardRow[];
   limit?: number;
+  /** Show the mode column (the all-time board mixes modes). */
+  showMode?: boolean;
   /** Name to mark as "← you". */
   highlight?: string;
   /** Row index selected by the operator (for delete). */
@@ -11,7 +13,7 @@ interface Props {
   big?: boolean;
 }
 
-export function LeaderboardTable({ rows, limit = 10, highlight, selected, big }: Props) {
+export function LeaderboardTable({ rows, limit = 10, showMode = false, highlight, selected, big }: Props) {
   if (rows.length === 0) return <p className="board__empty">No scores yet. Be the first.</p>;
   return (
     <table className={`board ${big ? "board--big" : ""}`}>
@@ -19,9 +21,8 @@ export function LeaderboardTable({ rows, limit = 10, highlight, selected, big }:
         <tr>
           <th className="num">#</th>
           <th>Name</th>
-          <th className="num">Reps</th>
-          <th className="num">Accuracy</th>
-          <th className="num">Posted</th>
+          {showMode && <th>Mode</th>}
+          <th className="num">Push-ups</th>
         </tr>
       </thead>
       <tbody>
@@ -36,9 +37,8 @@ export function LeaderboardTable({ rows, limit = 10, highlight, selected, big }:
           >
             <td className="num">{r.rank}</td>
             <td className="board__name">{r.name}</td>
-            <td className="num board__reps">{r.cleanReps}</td>
-            <td className="num">{Math.round(r.accuracy * 100)}%</td>
-            <td className="num board__time">{formatPosted(r.postedAt)}</td>
+            {showMode && <td className="board__mode">{MODE_LABELS[r.mode] ?? r.mode}</td>}
+            <td className="num board__reps">{r.reps}</td>
           </tr>
         ))}
       </tbody>

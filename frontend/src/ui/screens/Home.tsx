@@ -1,6 +1,3 @@
-import { useEffect, useState } from "react";
-import { backend } from "../../api/backend";
-import type { LeaderboardRow } from "../../api/types";
 import { HOME_KEYS, MENU_MODES, type MenuModeInfo } from "../../config/modes";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
@@ -16,11 +13,6 @@ interface Props {
 
 /** Operator menu. Number keys pick a mode so the player can stay on the mat. */
 export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
-  const [leader, setLeader] = useState<LeaderboardRow | null>(null);
-  useEffect(() => {
-    backend.getLeaderboard("thirtySecond", false, 1).then((rows) => setLeader(rows[0] ?? null));
-  }, []);
-
   useKeys({
     ...Object.fromEntries(MENU_MODES.map((m) => [m.key, () => onPick(m)])),
     [HOME_KEYS.leaderboard]: onLeaderboard,
@@ -35,12 +27,7 @@ export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
           <TitleLights />
           Pump Court
         </h1>
-        <Dragon
-          action="curl"
-          size="lg"
-          bubble="top"
-          says={leader ? `${host.home} Sprint record: ${leader.name}, ${leader.cleanReps}.` : host.home}
-        />
+        <Dragon action="curl" size="lg" bubble="top" says={host.home} />
       </header>
 
       <div className="modes">
@@ -58,7 +45,7 @@ export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
         hints={[
           [`1–${MENU_MODES.length}`, "pick a mode"],
           ["L", "leaderboard", onLeaderboard],
-          ["S", "camera & settings", onSettings],
+          ["S", "camera", onSettings],
           ["W", "crowd screen", onCrowd],
         ]}
       />

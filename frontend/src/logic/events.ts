@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { events } from "../api/backend";
-import type { Tick } from "../api/types";
+import type { SessionSnapshot } from "../api/types";
 
 /** Subscribes to a backend event for the lifetime of the component. */
 export function useBackendEvent<T>(
@@ -25,9 +25,9 @@ export function useBackendEvent<T>(
   }, [subscribe]);
 }
 
-/** The most recent frame from the engine (skeleton, angles, round state). */
-export function useTick(): Tick | null {
-  const [tick, setTick] = useState<Tick | null>(null);
-  useBackendEvent(events.onTick, setTick);
-  return tick;
+/** The round as the backend last reported it (null until the first `tick`). */
+export function useSession(): SessionSnapshot | null {
+  const [session, setSession] = useState<SessionSnapshot | null>(null);
+  useBackendEvent(events.onTick, setSession);
+  return session;
 }

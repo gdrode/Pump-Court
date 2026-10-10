@@ -1,102 +1,104 @@
-# Feature 01: Pose Tracking & Ingestion Pipeline
+# Feature 01: Pose Tracking Pipeline
 
-> **Module**: `backend/src/pose/` and `pumpCourt/src/`  
-> **Key Types**: `PoseSource`, `PoseFrame`, `Landmark`, `SourceSpec`, `Inbox`  
-> **Related Documents**: [MediaPipe Integration](mediapipe-integration.md), [Mock Athlete](mock-athlete.md), [Integration Guide](../developer-guides/tracker-integration.md)  
-> **Maintenance Status**: Active / Pluggable Interface  
-
----
-
-## 1. Executive Summary
-
-The **Pose Tracking Pipeline** is responsible for transforming raw video feeds (from laptop webcams, external USB capture cards, or wireless phone cameras) into normalized 3D anatomical skeletal landmarks. 
-
-To ensure maximum flexibility and enable seamless development without physical hardware, the backend abstracts all input feeds behind the `PoseSource` trait. Landmarks can be generated via client-side MediaPipe WASM, native C++ pipelines, or an internal synthetic "mock athlete".
+> **Module**: `frontend/src/logic/tracker/TrackerProvider.tsx` and `pumpCourt/src/{camera,landmarker,pose,draw,geometry}.ts`  
+> **Key Types**: `TrackerProvider`, `TrackerFrame`, `Landmark`, `PoseAngles`, `CameraChoice`, `PhoneCamera`, `Rotation`  
+> **Related Documents**: [MediaPipe Integration](mediapipe-integration.md), [Referee Engine](../referee-engine/README.md), [Tracker Integration](../developer-guides/tracker-integration.md)  
+> **Maintenance Status**: Active / Core  
 
 ---
 
-## 2. Anatomical Landmark Contract
+## 1. Summary
 
-The system standardizes on the **MediaPipe Pose 33-landmark schema**. Every landmark is represented in normalized viewport coordinates:
+The pose tracker turns a live camera picture into the body angles the referee needs. It runs in the operator window, using MediaPipe Pose Landmarker and the teammate's plain-TypeScript modules in `pumpCourt/src` (imported as `@tracker/*`).
 
-```rust
-pub struct Landmark {
-    pub x: f32,          // Normalised 0.0 (left) to 1.0 (right)
-    pub y: f32,          // Normalised 0.0 (top) to 1.0 (bottom)
-    pub z: f32,          // Relative depth estimate (camera relative)
-    pub visibility: f32, // Model confidence 0.0 to 1.0
-}
-```
-
-### Key Landmark Indices Used for Push-Ups
-For side-on push-up judging, the engine evaluates either the left or right side of the body based on visibility confidence:
-
-| Landmark Point | Left Side Index | Right Side Index | Role in Biomechanical Evaluation |
-| :--- | :--- | :--- | :--- |
-| **Nose / Eye** | `0` (Nose), `2` (Eye) | `0` (Nose), `5` (Eye) | Head alignment, gaze direction |
-| **Shoulder** | `11` | `12` | Upper body pivot; depth calculation; plank line |
-| **Elbow** | `13` | `14` | Vertex for elbow flexion/extension (Depth & Lockout) |
-| **Wrist** | `15` | `16` | Anchor point for elbow angle calculation |
-| **Hip** | `23` | `24` | Core vertex for hip angle (Plank sag/pike detection) |
-| **Knee** | `25` | `26` | Leg vertex for knee angle (Bent knee detection) |
-| **Ankle** | `27` | `28` | Terminal anchor for body plank line |
+There is no mock athlete and no Rust pose code. A real camera is needed: the laptop webcam, a USB camera, or a phone (see [Phone Camera](../phone-camera/README.md)).
 
 ```text
-       (Shoulder) 11/12
-           o──────────────o (Elbow) 13/14
-          /                \
-         /                  o (Wrist) 15/16 [Ground]
-        o (Hip) 23/24
-        │
-        o (Knee) 25/26
-        │
-        o (Ankle) 27/28 [Ground]
+camera / phone stream ─▶ one shared <video>
+   ─▶ (turned onto the frame <canvas> when rotation ≠ 0)
+   ─▶ MediaPipe Pose Landmarker (landmarker.ts)       33 landmarks, 1 person
+   ─▶ side tracker (pose.ts createSideTracker)         angles of the near side, or null
+   ─▶ posture check (posture.ts)                       ready? floor line, height
+   ─▶ subscribers: useRound (the referee), the Camera screen
+   └▶ skeleton overlay on a <canvas> (draw.ts)
 ```
 
 ---
 
-## 3. The `PoseSource` Trait Abstraction
+## 2. `TrackerProvider` (`frontend/src/logic/tracker/TrackerProvider.tsx`)
 
-Located in `backend/src/pose/mod.rs`, the core contract is:
+`App.tsx` wraps the operator screens in `<TrackerProvider>`. The crowd window does not, so it never opens a camera.
 
-```rust
-pub trait PoseSource: Send {
-    /// Blocks until the next frame is ready.
-    /// Returns Err only when the source stream has permanently halted.
-    fn next_frame(&mut self) -> Result<PoseFrame, String>;
+What it does:
+- **One video, one frame canvas, one overlay.** It creates a single `<video>`, a `canvas.camera-view__frame` for the turned picture, and an overlay `<canvas>` for the whole app. `<CameraView>` (`ui/components/CameraView.tsx`) borrows them with `attach(el)`. Detection only runs while at least one view is attached (the Round and Camera screens).
+- **Camera choice.** Cameras are keyed `device:<deviceId>` (system cameras from `listCameras()`) or `phone:<room>` (paired phones). The last system camera used is remembered in `localStorage` (`pumpcourt.cameraId`, from `camera.ts`). If the saved camera is gone, any camera is used.
+- **Model.** `getLandmarker(MODEL, cpuOnly)` loads the `full` model, GPU first. If detection fails 10 times in a row on the GPU, it reloads on the CPU. See [MediaPipe Integration](mediapipe-integration.md).
+- **One detection per real frame.** It counts frames with `requestVideoFrameCallback` (or `video.currentTime` as a fallback), so a frame is never judged twice. Timestamps passed to `detectForVideo` always increase.
+- **Stalled camera.** If no new frame arrives for 500 ms (for example a phone dropping out), it clears the skeleton and publishes a frame with `angles: null`, so "ready" cannot stick.
+- **Live display data.** A few times a second it updates `live.posture` and `live.poseFps` for the screens.
+
+### Frame contract
+
+```typescript
+export interface TrackerFrame {
+  t: number;                  // performance.now()-based time, ms
+  angles: PoseAngles | null;  // near-side angles, or null when nobody is tracked well enough
+  posture: Posture;           // pumpCourt/src/posture.ts: state, ready, height
 }
 ```
 
-A `PoseFrame` contains:
-```rust
-pub struct PoseFrame {
-    pub width: u32,
-    pub height: u32,
-    pub landmarks: Option<Vec<Landmark>>,
-    pub preview_jpeg: Option<Vec<u8>>,
-    pub timestamp_ms: i64,
-}
-```
+`subscribe(cb)` / `useTrackerFrames(cb)` deliver every frame. `resetPosture()` forgets the planted floor line; `useRound` calls it when a round starts.
+
+### Errors shown to the operator
+- `cameraError`: camera refused ("Allow it for Pump Court in the system settings, then restart the app"), no camera found, or a phone that is disconnected. Outside the Round and Camera screens it shows as a red banner that opens the Camera screen.
+- `modelStatus`: "Loading tracking…" until the model is ready, or the error if it failed.
 
 ---
 
-## 4. Source Implementations
+## 3. Landmarks and the tracked side (`pumpCourt/src/pose.ts`)
 
-1. **`MockSource` (`mock.rs`)**:
-   - Generates deterministic trigonometric pushes (clean reps, shallow reps, sagging planks, failed lockouts) at a fixed 30Hz rate.
-   - Allows frontend and judging development on any headless machine.
-2. **`PushedSource` (`inbox.rs`)**:
-   - Ingests landmark vectors pushed from the frontend over Tauri IPC (`push_pose_frame`).
-   - Uses a thread-safe `Inbox` with a condition variable (`Condvar`) to unblock the engine thread upon frame arrival.
-3. **`PhoneSource` (`sources.rs`)**:
-   - Consumes raw JPEG bytes from `PhoneHub` and hands them to a `PoseEstimator` for inference.
-   - Employs a tracking-loss watchdog: if frames halt for more than `250ms`, `landmarks` defaults to `None`.
+MediaPipe returns 33 landmarks `{x, y, z, visibility}`, with `x` and `y` from 0 to 1 across the frame. The camera is side-on, so only the side **nearest the camera** is used. The far side is hidden behind the body and ignored.
+
+| Point | Left | Right |
+| :--- | :--- | :--- |
+| Shoulder | 11 | 12 |
+| Elbow | 13 | 14 |
+| Wrist | 15 | 16 |
+| Hip | 23 | 24 |
+| Knee | 25 | 26 |
+| Ankle | 27 | 28 |
+
+- `sideVisibility` is the mean visibility of those six points.
+- `pickSide` keeps the current side unless the other side is better by `SIDE_SWITCH_MARGIN` (0.15), so the choice does not flicker.
+- `createSideTracker().update(pose, aspect)` returns `null` when the chosen side's visibility is below `MIN_SIDE_VISIBILITY` (0.5).
+- `x` is multiplied by the video's width/height ratio before measuring, so angles are true angles.
+
+The angles themselves are described in [Angles & Biomechanics](../referee-engine/angles-and-biomechanics.md).
 
 ---
 
-## 5. Tracking Loss & Void Conditions
+## 4. Skeleton overlay (`pumpCourt/src/draw.ts`)
 
-In competitive play, athletes cannot be penalized for camera dropouts, and athletes cannot cheat by leaving the frame.
-- **Micro-drop**: A missing frame is tolerated by the exponential moving average smoother.
-- **Dropout Warning**: If no landmarks are detected for `> 250ms`, `tracking_ok` in `SessionSnapshot` flips to `false`.
-- **Match Voiding**: If landmarks remain undetected for longer than `JudgeConfig.tracking_loss_ms` (default: `500ms`), the active competitive round is immediately voided with `voided: Some("Tracking lost")`.
+`drawOverlay` draws only the tracked side: white bones (shoulder–elbow–wrist, shoulder–hip–knee–ankle) and blue joints. No numbers are drawn on the camera view. The colours are set in `draw.ts`, not in the frontend theme.
+
+---
+
+## 5. Picture rotation
+
+A phone propped on its side with rotation lock on sends a sideways picture, and MediaPipe needs the player upright. Ported from the prototype's `pumpCourt/src/useLane.ts`.
+
+- `Rotation` = 0 | 90 | 180 | 270, a clockwise turn.
+- The turn in use = the operator's choice for this camera (`rotate()`), else the phone's own `PhoneCamera.rotationHint` (from its tilt, see [Phone on its side](../phone-camera/README.md#5-phone-on-its-side-rotation)), else 0.
+- The operator's choice is kept per camera key, so switching cameras keeps each one's turn. `rotateAuto()` drops it.
+- When the turn is not 0, each frame is drawn turned onto the frame canvas. `detectForVideo` runs on that canvas, the side tracker gets its aspect ratio, and the overlay canvas takes its size. The video is hidden and the frame canvas is shown instead.
+- A new turn restarts the detection loop with a fresh side tracker, and resets the posture check (the floor line was measured on the old picture).
+- API: `rotation`, `rotationAuto` (true when not set by the operator), `rotate()`, `rotateAuto()`. `<CameraView rotatable>` shows them.
+
+---
+
+## 6. Tracking loss
+
+- No body, or a body too faint to judge, gives `angles: null`. The posture check then reports `no-player`.
+- Losing the position for more than `POSTURE.graceMs` (600 ms) ends "ready".
+- The referee drops a rep in progress after `SEGMENT.maxGapMs` (1.5 s) without the player, or `SEGMENT.notReadyMs` (600 ms) out of position.
+- Rounds are not voided. The clock keeps running; the player simply scores nothing while not tracked.

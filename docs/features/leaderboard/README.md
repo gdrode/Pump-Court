@@ -1,62 +1,83 @@
-# Feature 05: Leaderboard Engine & Embedded Persistence
+# Feature 05: Leaderboard & Local Storage
 
 > **Module**: `backend/src/leaderboard.rs`  
-> **Key Types**: `Leaderboard`, `LeaderboardRow`, `RecentRun`, `BackupRun`  
+> **Key Types**: `Leaderboard`, `LeaderboardRow`, `BackupRun`, `validate_name`  
 > **Related Documents**: [Scoring & Ranking](scoring-and-ranking.md), [Name Validation](name-validation.md), [Backup & Recovery](backup-and-recovery.md)  
 > **Maintenance Status**: Active / Core Storage  
 
 ---
 
-## 1. Executive Summary
+## 1. Summary
 
-Pump-Court stores all tournament records, player scores, attempts, and fault statistics locally on the laptop disk using an embedded **SQLite** database managed via `rusqlite`.
+Scores are kept in a small **SQLite** database on the game laptop, through `rusqlite`. One row per finished round: who, which mode, how many valid push-ups. Nothing else about the player or the round is stored.
 
-**Key Architectural Guarantees**:
-- **Zero Cloud / Zero Database Server**: SQLite is compiled directly into the binary (`bundled` feature). No MySQL, PostgreSQL, or cloud services required.
-- **ACID Reliability**: Survives sudden app termination, power loss, or OS crashes without corrupted scores.
-- **Automatic Migration**: Database schemas upgrade seamlessly when newer versions of the app boot.
-- **Automatic Backups**: Hourly snapshots exported in JSON format to a dedicated backup directory.
+- **No server, no internet**: SQLite is compiled into the app (`bundled` feature). Nothing needs installing.
+- **Survives crashes**: each round is saved the moment it ends, before the results screen shows. The database runs in WAL mode.
+- **Old databases are converted** on start-up (see §3).
+- **Hourly JSON backups** (see [Backup & Recovery](backup-and-recovery.md)).
 
 ---
 
-## 2. Database Schema (`runs` Table)
+## 2. Database file and schema
 
-Located in `app_data_dir/pump_court.db`:
+The file is `pump-court.sqlite3` in the app data folder (`app.path().app_data_dir()`, app id `com.pumpcourt.app`):
+
+| OS | Folder |
+| :--- | :--- |
+| Windows | `%APPDATA%\com.pumpcourt.app\` |
+| macOS | `~/Library/Application Support/com.pumpcourt.app/` |
+| Linux | `~/.local/share/com.pumpcourt.app/` |
 
 ```sql
 CREATE TABLE IF NOT EXISTS runs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    category TEXT NOT NULL,         -- 'sprint', 'minute', 'max'
-    mode TEXT NOT NULL,             -- 'sprint', 'minute', 'max', 'duel'
-    clean_reps INTEGER NOT NULL,
-    attempts INTEGER NOT NULL,
-    accuracy REAL NOT NULL,         -- clean_reps / attempts (0.0 .. 1.0)
-    is_team INTEGER NOT NULL,       -- 0 = Individual, 1 = Team
-    no_rep_depth INTEGER NOT NULL,  -- Cumulative depth faults
-    no_rep_lockout INTEGER NOT NULL,-- Cumulative lockout faults
-    no_rep_plank INTEGER NOT NULL,  -- Cumulative plank faults
-    created_at INTEGER NOT NULL     -- Unix timestamp in milliseconds
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name  TEXT    NOT NULL,   -- validated player name
+    mode  TEXT    NOT NULL,   -- 'sprint' | 'minute' | 'max' | 'duel'
+    reps  INTEGER NOT NULL    -- valid push-ups
 );
 
-CREATE INDEX IF NOT EXISTS idx_category_score 
-ON runs (category, is_team, clean_reps DESC, accuracy DESC, created_at ASC);
+CREATE INDEX IF NOT EXISTS runs_by_mode ON runs(mode, reps DESC);
 ```
+
+There are no timestamps, attempts, accuracy, fault counts or team flags in the database. The order of `id` is the order rounds were posted.
 
 ---
 
-## 3. Public API Methods
+## 3. Migration from the old layout
 
-The `Leaderboard` struct provides thread-safe access:
+Older versions had a much wider `runs` table (`category`, `clean_reps`, `attempts`, `accuracy`, `is_team`, `created_at`, fault counts…). On start-up `migrate()` checks for a `clean_reps` column. If it finds one, in one transaction it:
+
+1. renames the old table to **`runs_v1`** (nothing is deleted),
+2. creates the new `runs` table,
+3. copies `name`, the mode and `clean_reps` → `reps` into it, in posting order.
+   - The mode comes from the old `mode` column, or from `category` (`oneMinute` → `minute`, `most` → `max`, anything else → `sprint`) if there was no `mode` column.
+   - Team runs (`is_team = 1`) were never public, so they are not copied.
+
+Opening the converted database again leaves it alone.
+
+---
+
+## 4. API (`impl Leaderboard`)
 
 ```rust
 impl Leaderboard {
-    pub fn open(data_dir: &Path) -> rusqlite::Result<Self>;
-    pub fn save_run(&self, category: Category, result: &RoundResult) -> rusqlite::Result<i64>;
-    pub fn list(&self, category: Category, include_team: bool, limit: u32) -> rusqlite::Result<Vec<LeaderboardRow>>;
-    pub fn rank_of(&self, category: Category, player_name: &str) -> rusqlite::Result<Option<u32>>;
-    pub fn recent(&self, limit: u32) -> rusqlite::Result<Vec<RecentRun>>;
+    pub fn open(dir: &Path) -> rusqlite::Result<Self>;
+    pub fn save_run(&self, name: &str, mode: RoundMode, reps: u32) -> rusqlite::Result<i64>;
+    /// Each player's best round; `None` = every mode (the all-time board).
+    pub fn top(&self, mode: Option<RoundMode>, limit: u32) -> rusqlite::Result<Vec<LeaderboardRow>>;
+    pub fn rank_of(&self, mode: Option<RoundMode>, name: &str) -> rusqlite::Result<Option<u32>>;
     pub fn delete_run(&self, run_id: i64) -> rusqlite::Result<()>;
-    pub fn export_backup(&self) -> rusqlite::Result<PathBuf>;
+    pub fn player_count(&self) -> rusqlite::Result<u32>;
+    pub fn export_backup(&self) -> Result<PathBuf, String>;
+}
+
+pub struct LeaderboardRow {  // sent as { rank, runId, name, mode, reps }
+    pub rank: u32,
+    pub run_id: i64,
+    pub name: String,
+    pub mode: String,        // "sprint", "minute", "max" or "duel"
+    pub reps: u32,
 }
 ```
+
+Tauri commands: `get_leaderboard(mode, limit)`, `get_player_count()`, `delete_run(runId)`, `export_backup()`, `check_name(name)`. The database sits behind an `Arc<Mutex<Leaderboard>>` shared by the commands and the engine thread.

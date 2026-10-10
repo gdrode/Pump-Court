@@ -1,71 +1,85 @@
-# Engine Thread Architecture & The 60Hz Tick Loop
+# Engine Thread & The Round Clock
 
 > **Module**: `backend/src/engine.rs`  
-> **Key Types**: `Engine`, `EngineCommand`, `Tick`, `SourceStatus`  
+> **Key Types**: `Engine`, `EngineCommand`, `Session`  
 > **Related Documents**: [Game Engine Overview](README.md), [Architecture Overview](../../ARCHITECTURE.md)  
-> **Maintenance Status**: Active / Core Concurrency Architecture  
+> **Maintenance Status**: Active / Core Concurrency  
 
 ---
 
-## 1. Concurrency Model & Design Rationale
+## 1. Summary
 
-In desktop applications involving camera feeds and computer vision, running frame ingestion and mathematical judging on the UI thread or main event loop inevitably causes dropped frames, input stutter, and audio glitches whenever React re-renders.
-
-Pump-Court eliminates this via a **dedicated OS-level worker thread**:
+One background thread, `pump-court-engine`, owns the `Session`. It reads commands from a channel, moves the round clock about ten times a second, and emits events to every window. It does no image work: the camera, MediaPipe and the referee run in the app window.
 
 ```text
-       UI / Tauri Thread                       Engine Worker Thread
-   (React Components & Commands)             ("pump-court-engine")
-                 │                                     │
-                 │ ─── mpsc::Sender<EngineCommand> ──▶ │
-                 │     (Non-blocking send)             │
-                 │                                     │ ◀─── Frame Ingestion
-                 │                                     │      (30-60 FPS)
-                 │                                     │ ◀─── Judge Processing
-                 │                                     │
-                 │ ◀── app.emit("tick", Tick) ──────── │
-                 │ ◀── app.emit("rep", RepVerdict) ─── │
-                 │ ◀── app.emit("round-finished", …) ─ │
+   Tauri command threads                      Engine thread ("pump-court-engine")
+ (start_round, set_ready, …)
+             │                                         │
+             │ ── mpsc::Sender<EngineCommand> ───────▶ │  handle(cmd) → emit "tick"
+             │    (send never waits)                   │            (+ "rep" for a counted report)
+             │                                         │
+             │                                         │  every 100 ms while a round is active:
+             │                                         │    session.tick(now) → emit "tick"
+             │                                         │    round over → save to SQLite
+             │                                         │               → emit "round-finished"
+             │                                         │  every hour: JSON backup
+   all windows ◀── app.emit(...) ─────────────────────┘
 ```
 
 ---
 
-## 2. Command Channel Protocol
-
-Communication from Tauri commands into the engine thread is strictly one-way and asynchronous via `std::sync::mpsc`:
+## 2. Commands
 
 ```rust
 pub enum EngineCommand {
-    SetSource(SourceSpec),
-    StopSource,
-    StartRound { mode: RoundMode, player: String, is_team: bool },
+    StartRound { mode: RoundMode, player: String },
     CancelRound,
-    SetConfig(JudgeConfig),
+    /// The tracker's posture check: is the player in the push-up position?
+    SetReady(bool),
+    ReportRep(RepReport),
 }
 ```
 
-- When no video source is active, the thread sleeps using `rx.recv_timeout(Duration::from_millis(200))` to consume zero CPU.
-- When an active video source is attached, the thread drains all waiting commands with `while let Ok(cmd) = rx.try_recv()` at the head of every frame iteration.
+`commands.rs` validates input (for example the player name) and then only sends one of these. If the engine thread has stopped, the command returns the error "engine stopped".
 
 ---
 
-## 3. Frame Processing Cycle
+## 3. The loop
 
-On each tick, `Engine::on_frame()` executes:
+```rust
+loop {
+    match rx.recv_timeout(time_until_next_tick) {
+        Ok(cmd) => { self.handle(cmd); continue; }   // commands first
+        Err(Timeout) => {}
+        Err(Disconnected) => return,                 // the app is closing
+    }
+    next_tick = now + TICK_INTERVAL;                 // 100 ms
+    self.tick();
+    if last_backup_at.elapsed() >= BACKUP_INTERVAL { // 1 hour
+        db.export_backup();
+    }
+}
+```
 
-1. **FPS Smoothing**:
-   ```rust
-   let instant_fps = 1.0 / now.duration_since(prev).as_secs_f32().max(1e-3);
-   self.fps = self.fps * 0.9 + instant_fps * 0.1;
-   ```
-2. **Session Step**: Passes the `PoseFrame` and smoothed FPS into `Session::update()`.
-3. **Verdict & Event Emissions**:
-   - If `outcome.verdict` is present, emits `rep` event immediately.
-   - If `outcome.finished` is present, saves to SQLite via `self.save()` and emits `round-finished`.
-4. **Preview JPEG Rate Limiting**:
-   - High-resolution video frames consume significant memory if serialized into base64 every frame.
-   - The engine limits JPEG preview generation to `PREVIEW_INTERVAL` (default **`66ms`** / ~15 FPS).
-5. **Tick Dispatch**:
-   - Assembles and emits the `Tick` struct to all subscribed Tauri windows.
-6. **Automated Maintenance**:
-   - Evaluates `last_backup_at`. If `> 3600 seconds` (1 hour), invokes `Leaderboard::export_backup()`.
+- **`handle(cmd)`** applies the command to the `Session` with the current time, emits `rep` if a reported rep was counted, then emits a `tick` snapshot. So the UI sees every change at once, not only on the next tick.
+- **`tick()`** does nothing while no round is active. During a round it calls `session.tick(now)` (countdown → running, time up, Max idle limit) and emits a `tick`.
+- **When a round ends**, `save()` locks the database, stores `(player, mode, reps)`, sets `run_id` and `rank` (`rank_of` on that mode's board), and only then emits `round-finished`. A failed save leaves both `null`; the result is still shown.
+- **Time** is one steady clock (`Instant`) started with the engine, in milliseconds.
+
+---
+
+## 4. Constants
+
+| Constant | Where | Value |
+| :--- | :--- | :--- |
+| `TICK_INTERVAL` | `engine.rs` | 100 ms |
+| `BACKUP_INTERVAL` | `engine.rs` | 1 hour |
+| `COUNTDOWN_MS` | `game/session.rs` | 3000 ms |
+| `MAX_IDLE_MS` | `game/mode.rs` | 5000 ms |
+| `MAX_CAP_MS` | `game/mode.rs` | 180000 ms (3 minutes) |
+
+---
+
+## 5. Events go to every window
+
+`app.emit` sends each event to all windows. The operator window and the crowd window both listen, so they always agree without talking to each other. See [Crowd Display](../frontend-ui/crowd-display-sync.md).

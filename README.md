@@ -1,8 +1,8 @@
 # Pump-Court
 
-A push-up contest judged by software. A side-on webcam tracks your body, three referee lights call each rep, and clean reps go on a public leaderboard.
+A push-up contest judged by software. A side-on camera (laptop webcam or a phone) tracks your body, three referee lights call each push-up, and valid push-ups go on a public leaderboard.
 
-Pump-Court is a push-up contest judged by software. Get into position side-on to the camera, and pose tracking counts only clean reps. Three referee lights show pass or fail for each rep, with the reason for any failed rep, such as “depth” or “lockout”. Scores go on a leaderboard that runs during judging, and each round ends with a report on the player’s main problems.
+Get into position side-on to the camera. Three referee lights (Depth, Torso, Lockout) judge every push-up. 2 of 3 white lights = it counts; 3 white = perfect. Failed lights show the reason, such as “depth” or “lockout”. Scores go on a leaderboard (name, mode, valid push-ups), and the crowd screen shows the all-time top 10.
 
 All video is processed live on the game laptop. Nothing is recorded or uploaded.
 
@@ -12,18 +12,21 @@ All video is processed live on the game laptop. Nothing is recorded or uploaded.
 | --- | --- | --- |
 | Desktop app + backend | Rust, [Tauri 2](https://tauri.app) | `backend/` |
 | Frontend | React + TypeScript (Vite) | `frontend/` |
-| Pose tracking | MediaPipe Pose Landmarker, built separately | `pumpCourt/`; plugs in per [docs/INTEGRATION.md](docs/INTEGRATION.md) |
-| Phone camera | QR code link to a built-in local HTTPS server | `backend/src/phone/` |
+| Pose tracking + referee | MediaPipe Pose Landmarker, runs in the app window | `pumpCourt/src` (imported by the frontend as `@tracker/*`) |
+| Phone camera | QR code → built-in HTTPS server (port 47800); any network (Cloudflare tunnel, the default) or same Wi-Fi (WebRTC); sideways picture turned upright | `backend/src/phone/` |
 | Storage | SQLite (bundled, via `rusqlite`) | app data folder |
 
 ```
-laptop or phone camera ─▶ tracker (MediaPipe JS, in the app window) ─▶ landmarks ─▶ engine thread (Rust)
-                                                             │ angles → ready check → rep tracker → 3 referees
-                                                             ├─ "tick" / "rep" / "round-finished" events ─▶ React (operator + crowd windows)
-                                                             └─ SQLite leaderboard
+laptop or phone camera ─▶ app window (TypeScript, pumpCourt/src)
+                           MediaPipe pose → posture (ready check) → judge (3 lights)
+                             │ set_ready / report_rep
+                             ▼
+                           engine thread (Rust): round clock + score
+                             ├─ "tick" / "rep" / "round-finished" events ─▶ operator + crowd windows
+                             └─ SQLite leaderboard: runs(name, mode, reps)
 ```
 
-Until the motion tracker is integrated, the backend ships a **mock athlete** that does scripted push-ups (clean, shallow, sagging, no lockout), so the whole game runs on any machine. See [docs/features/developer-guides/tracker-integration.md](docs/features/developer-guides/tracker-integration.md) for how the tracker plugs in.
+The referee rules are fixed (`DIFFICULTY.normal` in `pumpCourt/src/judge.ts`). There is no mock athlete: you need a real camera.
 
 ## Documentation
 
@@ -53,6 +56,14 @@ You need:
 ```bash
 cd frontend && npm install && cd ..
 ```
+
+`npm install` also copies the MediaPipe files into `frontend/public/wasm` and
+`frontend/public/models` (`scripts/setup-assets.mjs`; the model is copied from
+`pumpCourt/public/models` or downloaded once).
+
+For the **Phone · any network** link (the default tab in Add camera), install
+[`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+on the game laptop. The **Phone · same Wi-Fi (offline)** tab needs nothing extra.
 
 ## Build and launch (one command)
 
@@ -88,16 +99,18 @@ cargo tauri dev        # starts the Vite dev server and the app; edits reload li
 Other useful commands, all from `backend/`:
 
 ```bash
-cargo test             # run the Rust unit tests (referees, rounds, leaderboard, phone link)
+cargo test             # run the Rust unit tests (rounds, leaderboard, phone link)
 cargo build            # compile only (debug)
 ```
 
-Frontend alone (from `frontend/`): `npm run build` type-checks and bundles.
+Frontend alone (from `frontend/`): `npm run build` type-checks and bundles the app and the phone page (`dist/phone.html`, baked into the Rust app by `backend/build.rs`).
 
 ## Using it
 
-Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera & thresholds, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. Between rounds the crowd screen cycles the three boards and a **Recent** list (name, mode, results); pin one view from the Leaderboard screen, or press 1–3 / R / A on the crowd window. **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **1–4** pick a mode, **L** leaderboard, **S** camera, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. **Enter** / **Esc** move through screens.
 
-Modes: Sprint (30 s), Minute (60 s), Max (until 5 s without a clean rep, 3 min cap) and Versus (2–4 players take 30 s turns; standings rank on reps, then accuracy).
+The crowd screen shows the all-time leaderboard (each player's best round in any mode: name, mode, push-ups) between rounds, and the live count and lights during a round.
 
-The referee thresholds (90° depth, 160° lockout, 160° plank, …) are editable live under **S** and documented in `backend/src/judge/config.rs`.
+Modes: Sprint (30 s), Minute (60 s), Max (until 5 s without a valid push-up, 3 min cap) and Duel (exactly 2 players, 30 s each; most push-ups wins, perfect push-ups break a tie).
+
+Cameras: press **S** → **Add camera** → tabs **Phone · any network** (default; needs `cloudflared` and internet), **Phone · same Wi-Fi (offline)** (scan the QR on a shared network), or **USB / system camera**. A phone on its side is turned upright by itself; if not, press **⟳ Rotate** on the camera picture.

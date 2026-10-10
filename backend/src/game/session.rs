@@ -1,125 +1,150 @@
-//! One round from ready check to final buzzer.
+//! One round from "get in position" to the final buzzer.
 //!
-//! `Session::update` is called once per camera frame by the engine thread.
-//! It moves through the phases and returns what happened on that frame.
+//! The referee itself runs in the app window (the motion tracker in
+//! `pumpCourt/src/judge.ts`). It tells the session two things:
+//! * whether the player is in the push-up position ([`Session::set_ready`]),
+//! * each judged rep ([`Session::report_rep`]).
+//!
+//! The session owns the clock: countdown, round length, Max mode's idle limit.
+//! [`Session::tick`] is called by the engine thread about ten times a second.
+//! All times are milliseconds on one steady clock, passed in, so tests can
+//! play a whole round instantly.
 
 use super::mode::{RoundMode, MAX_IDLE_MS};
-use crate::judge::angles::{body_angles, Smoother};
-use crate::judge::tracker::Referee;
-use crate::judge::{BodyAngles, JudgeConfig, ReadyCheck, ReadyItem, RepTracker, RepVerdict};
-use crate::pose::PoseFrame;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-const COUNTDOWN_MS: i64 = 3_000;
+pub const COUNTDOWN_MS: i64 = 3_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RoundPhase {
     Idle,
-    ReadyCheck,
+    /// Waiting for the player to hold the top of a push-up.
+    GetReady,
     Countdown,
     Running,
     Finished,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NoRepCounts {
-    pub depth: u32,
-    pub lockout: u32,
-    pub plank: u32,
+/// The three referee lights for one rep: `true` = white (good).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Lights {
+    pub depth: bool,
+    pub torso: bool,
+    pub lockout: bool,
 }
 
-/// Final numbers for the results screen and the leaderboard.
+/// One rep as the tracker judged it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepReport {
+    /// At least 2 of 3 white lights: the push-up counts.
+    pub counted: bool,
+    /// All 3 white lights.
+    pub perfect: bool,
+    pub lights: Lights,
+    /// Why each red light was given, in plain words.
+    #[serde(default)]
+    pub faults: Vec<String>,
+}
+
+/// A rep after the session numbered it. Sent to every window as "rep".
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepVerdict {
+    /// 1 for the first attempt of the round.
+    pub attempt: u32,
+    pub counted: bool,
+    pub perfect: bool,
+    pub lights: Lights,
+    pub faults: Vec<String>,
+}
+
+/// How many red lights each referee gave in a round.
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct NoRepCounts {
+    pub depth: u32,
+    pub torso: u32,
+    pub lockout: u32,
+}
+
+/// Final numbers for the results screen. Only `player`, `mode` and `reps`
+/// are stored on the leaderboard.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoundResult {
     pub mode: RoundMode,
     pub player: String,
-    pub is_team: bool,
-    pub clean_reps: u32,
+    /// Valid push-ups: the score.
+    pub reps: u32,
     pub attempts: u32,
-    /// Clean reps / attempts, 0..1. Breaks ties on the leaderboard.
-    pub accuracy: f32,
+    pub perfect: u32,
     pub no_reps: NoRepCounts,
     pub duration_ms: i64,
-    /// Set when the round did not count, e.g. tracking was lost.
-    pub voided: Option<String>,
     /// Filled in by the engine after saving.
     pub run_id: Option<i64>,
     pub rank: Option<u32>,
 }
 
-/// Everything the UI needs to draw the round screen, sent every frame.
+/// Everything the windows need to draw a round. Sent as "tick".
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSnapshot {
     pub phase: RoundPhase,
     pub mode: Option<RoundMode>,
     pub player: Option<String>,
-    pub ready_items: Vec<ReadyItem>,
+    /// The tracker last said the player is in the push-up position.
+    pub in_position: bool,
     pub countdown_ms: Option<i64>,
     pub elapsed_ms: i64,
+    /// Time left on the clock (for Max: before the 3 minute cap).
     pub remaining_ms: Option<i64>,
-    /// Max mode: time left before 5 s without a clean rep ends the round.
+    /// Max mode: time left to get the next valid push-up.
     pub idle_remaining_ms: Option<i64>,
-    pub clean_reps: u32,
+    pub reps: u32,
     pub attempts: u32,
+    pub perfect: u32,
     pub last_rep: Option<RepVerdict>,
-    pub lockout_threshold: Option<f32>,
-    pub tracking_ok: bool,
-}
-
-/// What happened on one frame.
-pub struct FrameOutcome {
-    pub angles: Option<BodyAngles>,
-    pub verdict: Option<RepVerdict>,
-    pub finished: Option<RoundResult>,
 }
 
 pub struct Session {
-    cfg: JudgeConfig,
     phase: RoundPhase,
-    /// Time the current phase began; set on its first frame.
-    phase_start_ms: Option<i64>,
     mode: Option<RoundMode>,
     player: Option<String>,
-    is_team: bool,
-    ready: ReadyCheck,
-    ready_items: Vec<ReadyItem>,
-    calibrated: Option<f32>,
-    tracker: RepTracker,
-    smoother: Smoother,
-    clean_reps: u32,
+    in_position: bool,
+    /// When the current phase began.
+    phase_start: i64,
+    now: i64,
+    reps: u32,
+    attempts: u32,
+    perfect: u32,
     no_reps: NoRepCounts,
-    last_clean_ms: i64,
+    /// Elapsed time of the last valid push-up (Max mode's idle limit).
+    last_valid_at: i64,
     last_rep: Option<RepVerdict>,
-    last_tracked_ms: Option<i64>,
-    tracking_ok: bool,
-    now_ms: i64,
+}
+
+impl Default for Session {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Session {
-    pub fn new(cfg: JudgeConfig) -> Self {
+    pub fn new() -> Self {
         Self {
-            ready: ReadyCheck::new(cfg.clone()),
-            tracker: RepTracker::new(cfg.clone(), None),
-            smoother: Smoother::new(cfg.smoothing_alpha),
-            cfg,
             phase: RoundPhase::Idle,
-            phase_start_ms: None,
             mode: None,
             player: None,
-            is_team: false,
-            ready_items: Vec::new(),
-            calibrated: None,
-            clean_reps: 0,
+            in_position: false,
+            phase_start: 0,
+            now: 0,
+            reps: 0,
+            attempts: 0,
+            perfect: 0,
             no_reps: NoRepCounts::default(),
-            last_clean_ms: 0,
+            last_valid_at: 0,
             last_rep: None,
-            last_tracked_ms: None,
-            tracking_ok: false,
-            now_ms: 0,
         }
     }
 
@@ -127,149 +152,126 @@ impl Session {
         self.phase
     }
 
-    /// Start a new round, beginning with the ready check.
-    pub fn start(&mut self, mode: RoundMode, player: String, is_team: bool, cfg: JudgeConfig) {
-        *self = Session::new(cfg);
-        self.mode = Some(mode);
-        self.player = Some(player);
-        self.is_team = is_team;
-        self.set_phase(RoundPhase::ReadyCheck);
+    /// A round is on (from "get ready" to the last second).
+    pub fn is_active(&self) -> bool {
+        matches!(self.phase, RoundPhase::GetReady | RoundPhase::Countdown | RoundPhase::Running)
     }
 
-    /// Abandon the round without posting anything.
+    /// Starts a new round, beginning with "get in position".
+    pub fn start(&mut self, mode: RoundMode, player: String, now: i64) {
+        *self = Session::new();
+        self.mode = Some(mode);
+        self.player = Some(player);
+        self.now = now;
+        self.set_phase(RoundPhase::GetReady);
+    }
+
+    /// Abandons the round without posting anything.
     pub fn cancel(&mut self) {
-        let cfg = self.cfg.clone();
-        *self = Session::new(cfg);
+        *self = Session::new();
     }
 
     fn set_phase(&mut self, phase: RoundPhase) {
         self.phase = phase;
-        self.phase_start_ms = None;
+        self.phase_start = self.now;
     }
 
-    fn phase_elapsed(&mut self) -> i64 {
-        let start = *self.phase_start_ms.get_or_insert(self.now_ms);
-        self.now_ms - start
+    fn elapsed(&self) -> i64 {
+        self.now - self.phase_start
     }
 
-    pub fn update(&mut self, frame: &PoseFrame, fps: f32) -> FrameOutcome {
-        self.now_ms = frame.timestamp_ms;
-        let lms = frame.landmarks.as_deref();
-        let angles = lms.map(|l| self.smoother.smooth(body_angles(l, frame.width, frame.height)));
-        self.tracking_ok = angles.map_or(false, |a| a.visibility >= self.cfg.min_visibility);
-        if self.tracking_ok {
-            self.last_tracked_ms = Some(self.now_ms);
-        }
-        let mut out = FrameOutcome { angles, verdict: None, finished: None };
-
+    /// The tracker's posture check. Holding the top of a push-up starts the
+    /// countdown; leaving the position during the countdown stops it.
+    pub fn set_ready(&mut self, ready: bool, now: i64) {
+        self.now = now.max(self.now);
+        self.in_position = ready;
         match self.phase {
-            RoundPhase::Idle | RoundPhase::Finished => {}
-            RoundPhase::ReadyCheck => {
-                self.phase_elapsed();
-                let status = self.ready.update(lms, frame.width, frame.height, fps, self.now_ms);
-                self.ready_items = status.items;
-                if let Some(cal) = status.calibrated_lockout {
-                    self.calibrated = Some(cal);
-                    self.set_phase(RoundPhase::Countdown);
-                }
-            }
-            RoundPhase::Countdown => {
-                if self.phase_elapsed() >= COUNTDOWN_MS {
-                    self.tracker = RepTracker::new(self.cfg.clone(), self.calibrated);
-                    self.smoother.reset();
-                    self.set_phase(RoundPhase::Running);
-                    self.phase_elapsed();
-                    self.last_tracked_ms = Some(self.now_ms);
-                }
-            }
-            RoundPhase::Running => {
-                let elapsed = self.phase_elapsed();
-                if self.tracking_ok {
-                    if let Some(v) = self.tracker.update(angles.as_ref().unwrap(), self.now_ms) {
-                        self.record(&v, elapsed);
-                        out.verdict = Some(v);
-                    }
-                }
-                out.finished = self.check_end(elapsed);
-            }
+            RoundPhase::GetReady if ready => self.set_phase(RoundPhase::Countdown),
+            RoundPhase::Countdown if !ready => self.set_phase(RoundPhase::GetReady),
+            _ => {}
         }
-        out
     }
 
-    fn record(&mut self, v: &RepVerdict, elapsed: i64) {
-        if v.clean {
-            self.clean_reps += 1;
-            self.last_clean_ms = elapsed;
-        }
-        for light in v.lights.iter().filter(|l| !l.pass) {
-            match light.referee {
-                Referee::Depth => self.no_reps.depth += 1,
-                Referee::Lockout => self.no_reps.lockout += 1,
-                Referee::Plank => self.no_reps.plank += 1,
-            }
-        }
-        self.last_rep = Some(v.clone());
-    }
-
-    fn check_end(&mut self, elapsed: i64) -> Option<RoundResult> {
-        let mode = self.mode?;
-        let lost_for = self.now_ms - self.last_tracked_ms.unwrap_or(self.now_ms);
-        let voided = (lost_for > self.cfg.tracking_loss_ms as i64)
-            .then(|| "Tracking lost: stay in frame and try again".to_string());
-        let time_up = elapsed >= mode.duration_ms() as i64;
-        let max_idle = mode == RoundMode::Max && elapsed - self.last_clean_ms >= MAX_IDLE_MS as i64;
-        if voided.is_none() && !time_up && !max_idle {
+    /// A rep the tracker judged. Only counts while the clock runs.
+    pub fn report_rep(&mut self, rep: RepReport, now: i64) -> Option<RepVerdict> {
+        self.now = now.max(self.now);
+        if self.phase != RoundPhase::Running {
             return None;
         }
-        self.set_phase(RoundPhase::Finished);
-        Some(self.result(mode, elapsed, voided))
+        self.attempts += 1;
+        if rep.counted {
+            self.reps += 1;
+            self.last_valid_at = self.elapsed();
+        }
+        if rep.perfect {
+            self.perfect += 1;
+        }
+        self.no_reps.depth += u32::from(!rep.lights.depth);
+        self.no_reps.torso += u32::from(!rep.lights.torso);
+        self.no_reps.lockout += u32::from(!rep.lights.lockout);
+        let verdict = RepVerdict {
+            attempt: self.attempts,
+            counted: rep.counted,
+            perfect: rep.perfect,
+            lights: rep.lights,
+            faults: rep.faults,
+        };
+        self.last_rep = Some(verdict.clone());
+        Some(verdict)
     }
 
-    fn result(&self, mode: RoundMode, duration_ms: i64, voided: Option<String>) -> RoundResult {
-        let attempts = self.tracker.attempts();
-        RoundResult {
-            mode,
-            player: self.player.clone().unwrap_or_default(),
-            is_team: self.is_team,
-            clean_reps: self.clean_reps,
-            attempts,
-            accuracy: if attempts == 0 { 0.0 } else { self.clean_reps as f32 / attempts as f32 },
-            no_reps: self.no_reps.clone(),
-            duration_ms,
-            voided,
-            run_id: None,
-            rank: None,
+    /// Moves the clock on. Returns the result once, when the round ends.
+    pub fn tick(&mut self, now: i64) -> Option<RoundResult> {
+        self.now = now.max(self.now);
+        match self.phase {
+            RoundPhase::Countdown if self.elapsed() >= COUNTDOWN_MS => {
+                self.set_phase(RoundPhase::Running);
+                self.last_valid_at = 0;
+                None
+            }
+            RoundPhase::Running => {
+                let mode = self.mode?;
+                let elapsed = self.elapsed();
+                let time_up = elapsed >= mode.duration_ms();
+                let idle = mode == RoundMode::Max && elapsed - self.last_valid_at >= MAX_IDLE_MS;
+                if !time_up && !idle {
+                    return None;
+                }
+                let duration_ms = elapsed.min(mode.duration_ms());
+                self.set_phase(RoundPhase::Finished);
+                Some(RoundResult {
+                    mode,
+                    player: self.player.clone().unwrap_or_default(),
+                    reps: self.reps,
+                    attempts: self.attempts,
+                    perfect: self.perfect,
+                    no_reps: self.no_reps.clone(),
+                    duration_ms,
+                    run_id: None,
+                    rank: None,
+                })
+            }
+            _ => None,
         }
     }
 
     pub fn snapshot(&self) -> SessionSnapshot {
-        let elapsed = match (self.phase, self.phase_start_ms) {
-            (RoundPhase::Running, Some(s)) => self.now_ms - s,
-            _ => 0,
-        };
         let running = self.phase == RoundPhase::Running;
+        let elapsed = if running { self.elapsed() } else { 0 };
         SessionSnapshot {
             phase: self.phase,
             mode: self.mode,
             player: self.player.clone(),
-            ready_items: self.ready_items.clone(),
-            countdown_ms: match (self.phase, self.phase_start_ms) {
-                (RoundPhase::Countdown, Some(s)) => Some((COUNTDOWN_MS - (self.now_ms - s)).max(0)),
-                (RoundPhase::Countdown, None) => Some(COUNTDOWN_MS),
-                _ => None,
-            },
+            in_position: self.in_position,
+            countdown_ms: (self.phase == RoundPhase::Countdown).then(|| (COUNTDOWN_MS - self.elapsed()).max(0)),
             elapsed_ms: elapsed,
-            remaining_ms: self
-                .mode
-                .filter(|_| running)
-                .map(|m| (m.duration_ms() as i64 - elapsed).max(0)),
+            remaining_ms: self.mode.filter(|_| running).map(|m| (m.duration_ms() - elapsed).max(0)),
             idle_remaining_ms: (running && self.mode == Some(RoundMode::Max))
-                .then(|| (MAX_IDLE_MS as i64 - (elapsed - self.last_clean_ms)).max(0)),
-            clean_reps: self.clean_reps,
-            attempts: self.tracker.attempts(),
+                .then(|| (MAX_IDLE_MS - (elapsed - self.last_valid_at)).max(0)),
+            reps: self.reps,
+            attempts: self.attempts,
+            perfect: self.perfect,
             last_rep: self.last_rep.clone(),
-            lockout_threshold: running.then(|| self.tracker.lockout_threshold()),
-            tracking_ok: self.tracking_ok,
         }
     }
 }
@@ -277,50 +279,98 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pose::mock::MockSource;
 
-    /// Plays the mock athlete through a full Sprint, without the real-time
-    /// sleeps, by rewriting timestamps.
-    #[test]
-    fn mock_sprint_round_counts_clean_reps() {
-        let mut source = MockSource::new();
-        let mut session = Session::new(JudgeConfig::default());
-        session.start(RoundMode::Sprint, "Tester".into(), false, JudgeConfig::default());
-        let mut result = None;
-        let mut verdicts = vec![];
-        for i in 0..2_000 {
-            let mut frame = source.frame_at(i * 33);
-            frame.timestamp_ms = i * 33;
-            let out = session.update(&frame, 30.0);
-            verdicts.extend(out.verdict);
-            if let Some(r) = out.finished {
-                result = Some(r);
-                break;
-            }
-        }
-        let result = result.expect("round should finish");
-        assert!(result.voided.is_none());
-        assert!(result.clean_reps >= 8, "clean reps: {}", result.clean_reps);
-        assert!(result.no_reps.depth >= 1 && result.no_reps.lockout >= 1 && result.no_reps.plank >= 1,
-            "{:?} / {:?}", result.no_reps, verdicts.iter().map(|v| &v.reasons).collect::<Vec<_>>());
+    fn rep(depth: bool, torso: bool, lockout: bool) -> RepReport {
+        let whites = [depth, torso, lockout].iter().filter(|&&w| w).count();
+        RepReport { counted: whites >= 2, perfect: whites == 3, lights: Lights { depth, torso, lockout }, faults: vec![] }
+    }
+
+    /// Starts a round and gets it to the running clock. Returns the time it started.
+    fn running(s: &mut Session, mode: RoundMode) -> i64 {
+        s.start(mode, "Ana".into(), 0);
+        assert!(s.tick(1_000).is_none());
+        assert_eq!(s.phase(), RoundPhase::GetReady, "waits for the player");
+        s.set_ready(true, 2_000);
+        assert_eq!(s.phase(), RoundPhase::Countdown);
+        assert!(s.tick(4_000).is_none());
+        assert!(s.tick(5_000).is_none());
+        assert_eq!(s.phase(), RoundPhase::Running);
+        5_000
     }
 
     #[test]
-    fn losing_tracking_voids_the_round() {
-        let mut source = MockSource::new();
-        let mut session = Session::new(JudgeConfig::default());
-        session.start(RoundMode::Sprint, "Tester".into(), false, JudgeConfig::default());
-        let mut result = None;
-        for i in 0..2_000 {
-            let mut frame = source.frame_at(i * 33);
-            if session.phase() == RoundPhase::Running && i % 200 > 150 {
-                frame.landmarks = None; // the player walks out of frame
-            }
-            if let Some(r) = session.update(&frame, 30.0).finished {
-                result = Some(r);
-                break;
-            }
-        }
-        assert!(result.unwrap().voided.is_some());
+    fn sprint_counts_valid_pushups_and_ends_on_time() {
+        let mut s = Session::new();
+        let t0 = running(&mut s, RoundMode::Sprint);
+        assert!(s.report_rep(rep(true, true, true), t0 + 1_000).unwrap().perfect);
+        assert!(s.report_rep(rep(false, true, true), t0 + 2_000).unwrap().counted, "2 of 3 counts");
+        assert!(!s.report_rep(rep(false, false, true), t0 + 3_000).unwrap().counted);
+        assert!(s.tick(t0 + 29_000).is_none());
+        let r = s.tick(t0 + 30_100).expect("time up");
+        assert_eq!((r.reps, r.attempts, r.perfect), (2, 3, 1));
+        assert_eq!((r.no_reps.depth, r.no_reps.torso, r.no_reps.lockout), (2, 1, 0));
+        assert_eq!(r.duration_ms, 30_000);
+        assert!(s.tick(t0 + 31_000).is_none(), "the result comes once");
+        assert!(s.report_rep(rep(true, true, true), t0 + 31_000).is_none(), "no reps after the buzzer");
+    }
+
+    #[test]
+    fn reps_before_the_clock_starts_do_not_count() {
+        let mut s = Session::new();
+        s.start(RoundMode::Sprint, "Ana".into(), 0);
+        assert!(s.report_rep(rep(true, true, true), 100).is_none());
+        s.set_ready(true, 200);
+        assert!(s.report_rep(rep(true, true, true), 300).is_none(), "not during the countdown");
+        assert_eq!(s.snapshot().reps, 0);
+    }
+
+    #[test]
+    fn leaving_position_during_the_countdown_stops_it() {
+        let mut s = Session::new();
+        s.start(RoundMode::Sprint, "Ana".into(), 0);
+        s.set_ready(true, 1_000);
+        s.tick(2_500);
+        s.set_ready(false, 2_600);
+        assert_eq!(s.phase(), RoundPhase::GetReady, "back to get ready");
+        s.set_ready(true, 3_000);
+        assert!(s.tick(5_500).is_none());
+        assert_eq!(s.phase(), RoundPhase::Countdown, "the countdown starts again from 3");
+        s.tick(6_000);
+        assert_eq!(s.phase(), RoundPhase::Running);
+        s.set_ready(false, 7_000);
+        assert_eq!(s.phase(), RoundPhase::Running, "the clock keeps going once started");
+    }
+
+    #[test]
+    fn max_ends_after_five_seconds_without_a_valid_pushup() {
+        let mut s = Session::new();
+        let t0 = running(&mut s, RoundMode::Max);
+        s.report_rep(rep(true, true, true), t0 + 4_000);
+        s.report_rep(rep(false, false, true), t0 + 8_000); // a no-rep does not reset the limit
+        assert!(s.tick(t0 + 8_900).is_none());
+        assert_eq!(s.snapshot().idle_remaining_ms, Some(100));
+        let r = s.tick(t0 + 9_000).expect("idle limit");
+        assert_eq!(r.reps, 1);
+    }
+
+    #[test]
+    fn cancel_goes_back_to_idle() {
+        let mut s = Session::new();
+        running(&mut s, RoundMode::Minute);
+        s.cancel();
+        assert_eq!(s.phase(), RoundPhase::Idle);
+        assert!(!s.is_active());
+        assert!(s.tick(100_000).is_none());
+    }
+
+    #[test]
+    fn a_new_round_starts_clean_after_a_finished_one() {
+        let mut s = Session::new();
+        let t0 = running(&mut s, RoundMode::Duel);
+        s.report_rep(rep(true, true, true), t0 + 100);
+        s.tick(t0 + 30_000).unwrap();
+        s.start(RoundMode::Duel, "Ben".into(), t0 + 40_000);
+        let snap = s.snapshot();
+        assert_eq!((snap.phase, snap.reps, snap.player.as_deref()), (RoundPhase::GetReady, 0, Some("Ben")));
     }
 }

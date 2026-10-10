@@ -1,56 +1,68 @@
-import { CONFIG_FIELDS, useSettings } from "../../logic/useSettings";
+import { POSTURE_MESSAGE } from "@tracker/posture";
+import { useState } from "react";
 import { useKeys } from "../../logic/useKeys";
+import { useTracker } from "../../logic/tracker/TrackerProvider";
+import { AddCameraDialog } from "../components/AddCameraDialog";
+import { CameraView } from "../components/CameraView";
 import { KeyHints } from "../components/KeyHints";
-import { PhoneLinkPanel } from "../components/PhoneLinkPanel";
 
-/** Camera picker, phone QR link and referee thresholds. */
+/** Camera screen: pick a camera, pair a phone, check the player is tracked. The referee rules are fixed. */
 export function Settings({ onBack }: { onBack: () => void }) {
-  const settings = useSettings();
-  useKeys({ Escape: onBack });
+  const tracker = useTracker();
+  const [adding, setAdding] = useState(false);
+  useKeys({ Escape: onBack, a: () => setAdding(true) }, !adding);
+  const posture = tracker.live.posture;
 
   return (
-    <div className="panel sketch settings">
-      <p className="eyebrow">Operator</p>
-      <h2>Camera</h2>
-      <div className="seg" role="group" aria-label="Camera">
-        {settings.sources.map((s) => (
-          <button
-            key={s.label}
-            type="button"
-            className={`seg__btn sketch ${settings.isCurrent(s.spec) ? "is-on" : ""}`}
-            onClick={() => settings.pickSource(s.spec)}
-          >
-            {s.label}
-          </button>
-        ))}
+    <div className="camera-settings">
+      <div className="camera-settings__view">
+        <CameraView rotatable />
       </div>
-
-      <h2>Phone camera</h2>
-      <PhoneLinkPanel usingPhone={settings.isCurrent({ kind: "phone" })} onUsePhone={() => settings.pickSource({ kind: "phone" })} />
-
-      <h2>Referee thresholds</h2>
-      {settings.config && (
-        <div className="config-grid">
-          {CONFIG_FIELDS.map((f) => (
-            <label key={f.key}>
-              {f.label}
-              <input
-                type="number"
-                step={f.step ?? 1}
-                value={settings.config![f.key]}
-                onChange={(e) => settings.setConfigField(f.key, Number(e.target.value))}
-              />
-            </label>
+      <aside className="side-panel sketch settings">
+        <p className="eyebrow">Operator</p>
+        <h1>Camera</h1>
+        <ul className="camera-list">
+          {tracker.cameras.map((c) => (
+            <li key={c.key}>
+              <button
+                type="button"
+                className={`seg__btn sketch ${c.key === tracker.current ? "is-on" : ""}`}
+                onClick={() => tracker.choose(c.key)}
+              >
+                {c.label}
+                {c.note && <small> ({c.note})</small>}
+              </button>
+              {c.key.startsWith("phone:") && (
+                <button type="button" className="player__remove" aria-label={`Remove ${c.label}`} onClick={() => tracker.removePhone(c.key.slice(6))}>
+                  ×
+                </button>
+              )}
+            </li>
           ))}
-        </div>
-      )}
-      {settings.message && <p className="message">{settings.message}</p>}
-      <div className="players__foot">
-        <button type="button" className="start-btn sketch" disabled={!settings.config} onClick={settings.applyConfig}>
-          Apply thresholds
+          {tracker.cameras.length === 0 && <li className="muted">No cameras found yet.</li>}
+        </ul>
+        <button type="button" className="add-player sketch" onClick={() => setAdding(true)}>
+          + Add camera (phone, USB) <kbd>A</kbd>
         </button>
+
+        <dl className="tracking">
+          <dt>Tracking</dt>
+          <dd>
+            {tracker.modelStatus.error ??
+              (tracker.modelStatus.ready
+                ? `ready (${tracker.modelStatus.delegate}), ${Math.round(tracker.live.poseFps)} poses/s`
+                : "loading…")}
+          </dd>
+          <dt>Player</dt>
+          <dd>{posture ? POSTURE_MESSAGE[posture.state] : "—"}</dd>
+        </dl>
+        <p className="muted">
+          Put the camera side-on to the mat, about knee height, with the whole body in view. Rules are fixed: 2 of 3 white lights
+          (Depth, Torso, Lockout) = a push-up.
+        </p>
         <KeyHints hints={[["Esc", "Back", onBack]]} />
-      </div>
+      </aside>
+      {adding && <AddCameraDialog onClose={() => setAdding(false)} />}
     </div>
   );
 }

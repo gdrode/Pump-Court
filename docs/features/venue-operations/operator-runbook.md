@@ -1,79 +1,97 @@
 # Stage Operator Tournament Playbook
 
 > **Role**: Tournament Operator & Lead Referee  
-> **Key Shortcuts**: `1`–`4` (Modes), `Enter` (Advance), `Esc` (Back/Cancel), `L` (Board), `S` (Settings), `W` (Crowd)  
-> **Related Documents**: [Venue Operations Overview](README.md), [Troubleshooting Matrix](troubleshooting.md)  
+> **Key Shortcuts**: `1`–`4` (Modes), `Enter` (Advance), `Esc` (Back/Cancel), `L` (Board), `S` (Camera), `W` (Crowd)  
+> **Related Documents**: [Venue Operations Overview](README.md), [Troubleshooting Matrix](troubleshooting.md), [Phone Cameras](../phone-camera/README.md)  
 > **Maintenance Status**: Active / Match Day Runbook  
 
 ---
 
-## 1. Pre-Event System Checklist (15 Minutes Before Event)
+## 1. Pre-Event Checklist (15 minutes before)
 
 1. **Power & Displays**:
-   - Plug tournament laptop into AC power (disable OS sleep / screen savers).
-   - Connect HDMI cable to crowd display / projector.
-   - Boot desktop app: `scripts/launch.cmd` (Windows), `./scripts/launch.sh` (macOS/Linux), or the built `pump-court` program.
-   - Press **W** on Home screen to spawn the Crowd window. Drag it onto the external projector and press Fullscreen (F11 / Cmd+Ctrl+F).
-2. **Camera Link**:
-   - Turn on the smartphone's **Wi-Fi Hotspot** or connect laptop and phone to venue router.
-   - On the laptop, press **S** ➔ **Phone Camera**.
-   - With the phone's camera app, scan the displayed QR code.
-   - On phone: tap *Advanced ➔ Proceed*.
-   - Tap **Start Camera**. Confirm the laptop settings screen reports: `Connected: 960x540 at 30 fps`.
-   - Click **Use phone camera** on the laptop.
-3. **Audio Check**:
-   - Verify external PA speakers or laptop volume is set to a crisp level. Sound effects (countdown beeps, clean rep chime, no-rep buzzer) must be audible to athletes above crowd noise.
+   - Plug the laptop into power; turn off sleep and screen savers.
+   - Connect the crowd monitor or projector.
+   - Start the app: `scripts\launch.cmd` (Windows), `./scripts/launch.sh` (macOS/Linux), or the built `pump-court` program.
+   - Press **W** on the home screen to open the crowd window. Drag it onto the second screen and make it full screen (F11 / Cmd+Ctrl+F).
+2. **Camera**:
+   - Press **S** to open the **Camera** screen. The camera list shows the computer's cameras (USB webcams appear by themselves). Click one to use it.
+   - For a phone, press **A** (**+ Add camera**). Tabs, in order:
+     - **Phone · any network** (opens first): works on any network, even mobile data. Needs `cloudflared` and internet on the laptop, and about 5–10 s to start. Scan the QR code, tap **Start camera**, allow camera access (and motion access on iPhone). No certificate warning.
+     - **Phone · same Wi-Fi (offline)**: keeps the video on the local network. Phone and laptop on the same Wi-Fi, or the laptop joined to the phone's hotspot. Scan the QR code. Accept the certificate warning once (Safari: *Show Details → visit this website*; Chrome: *Advanced → Proceed*). Tap **Start camera** and allow camera access. If the page never loads (venue Wi-Fi often blocks this), go back to **Phone · any network**.
+     - **USB / system camera**: help text and **Refresh camera list**.
+     - The dialog shows "✓ A phone reached this laptop", then "Connected", and closes. The phone is now "Phone 1" in the list and is the camera in use.
+     - Close the dialog with **×** (keys are paused while it is open).
+   - Phone on its side: the picture should turn upright by itself (the label on the picture reads e.g. "90° auto"). If the player still looks sideways or upside down, press **⟳ Rotate** on the picture until they are upright; **auto** goes back to the phone's own value. Rotate is also on the get-ready screen, until the clock runs.
+   - Check the right-hand panel: **Tracking** says "ready (GPU)" or "ready (CPU)" with poses per second, and **Player** follows the person on the mat.
+3. **Audio Check**: the countdown beeps, the chime (valid push-up) and the buzzer (no-rep) must be heard over the crowd.
+
+The chosen system camera is remembered for next time. Phones must be paired again after a restart.
 
 ---
 
-## 2. Match Execution Workflow (Per Athlete)
+## 2. Match Workflow (per player)
 
 ```text
-[ HOME SCREEN ]
-  │ Operator presses 1 (Sprint), 2 (Minute), 3 (Max), or 4 (Versus)
+[ HOME ]
+  │ 1 Sprint (30 s), 2 Minute (60 s), 3 Max (ends after 5 s without a valid push-up, 3 min cap),
+  │ 4 Duel (2 players, 30 s each)
   ▼
 [ PLAYERS ]
-  │ Operator types athlete's name (max 12 chars). Versus: 2–4 names, Alt+N adds one.
-  │ Toggle 'Team' (Alt+T) if applicable. Operator presses Enter.
+  │ Type the name (max 12 characters). Duel: two names; Enter moves to the next empty one.
+  │ Enter starts. Esc goes back.
   ▼
-[ READY CHECK ]
-  │ Athlete steps onto mat, assumes side-on top plank position.
-  │ System verifies FPS (>=24), full visibility, and holds plank for 1 second.
-  │ Lockout angle calibrates automatically.
+[ GET READY ]  (camera on the left, checklist on the right)
+  │ ✓ Whole body in view, side-on
+  │ ✓ Near hand in view
+  │ ✓ Down in the push-up position
+  │ ✓ Knees off the floor, legs straight
+  │ ✓ Hands on the floor, under the shoulders
+  │ ✓ Hold still at the top, arms straight
+  │ All rows ticked → countdown starts by itself. Knee push-ups never count.
+  │ Picture sideways? ⟳ Rotate (bottom right of the camera picture).
   ▼
-[ COUNTDOWN ]
-  │ 3-second audible countdown sounds: 3... 2... 1... GO!
+[ COUNTDOWN ]  3 … 2 … 1 … GO  (beeps)
   ▼
-[ LIVE MATCH ]
-  │ Athlete performs push-ups.
-  │ Three referee lights fire on every rep (chime for a clean rep, buzzer for a no-rep).
-  │ The dragon host cheers clean reps and calls out no-reps.
-  │ Clock runs down to zero (or 5s idle in Max mode).
-  │ Tracking lost > 0.5 s: run voided, nothing saved. Press R to restart, Esc for menu.
+[ LIVE ROUND ]
+  │ Three lights on every rep: Depth, Torso, Lockout. 2 or 3 white = it counts; 3 = perfect.
+  │ Red lights list the reason, e.g. "Not deep enough: shoulders dropped 22% of their height (needs 30%)".
+  │ Depth = shoulders drop at least 30% of the player's own straight-arm height.
+  │ A rep is judged as soon as the arms lock out again; collapsing to the floor is not a rep.
+  │ Clock runs down; beeps in the last 5 s. Max: shows the seconds left to get the next push-up.
+  │ Esc aborts (nothing saved).
   ▼
-[ RESULTS SCREEN ]
-  │ Final score, accuracy, rank and no-reps per referee.
-  │ Score already saved to the SQLite leaderboard.
-  │ Enter: post (solo → leaderboard; Versus → next player or standings).
-  │ Esc: discard the score (Versus: redo the turn).
+[ RESULTS ]
+  │ Push-ups, attempts, perfect, rank, red lights per referee. Already saved.
+  │ Enter: post (solo → leaderboard with the name highlighted; Duel → next player, then the winner).
+  │ Esc: discard the score (Duel: redo this turn).
+  ▼
+[ DUEL RESULT ]  (Duel only)
+  │ Most push-ups wins; perfect push-ups break a tie. R: rematch. Enter/Esc: menu.
 ```
+
+If the player walks out of view during a round, nothing is voided: reps simply stop being judged until they're back. The clock keeps running.
 
 ---
 
-## 3. Quick Reference Keyboard Hotkeys
+## 3. Keys
 
-| Key | Context | Action |
+| Key | Where | Action |
 | :--- | :--- | :--- |
-| **`1`** | Home Screen | Select Sprint Mode (30s) |
-| **`2`** | Home Screen | Select Minute Mode (60s) |
-| **`3`** | Home Screen | Select Max Reps Mode (Sudden Death) |
-| **`4`** | Home Screen | Select Versus Mode (2–4 players take turns) |
-| **`Enter`** | Any Screen | Advance / Submit / Post score |
-| **`Escape`** | Any Screen | Back / Cancel round / Discard score |
-| **`L`** | Home, Results | Leaderboard |
-| **`S`** | Home Screen | Settings / Phone QR |
-| **`W`** | Home Screen | Spawn secondary Crowd display window |
-| **`Alt+N`**, **`Alt+T`** | Players | Add a Versus player, toggle team run |
-| **`R`** | Voided round / Versus standings | Restart the run / Rematch |
-| **`1`–`3`, `←→`, `↑↓`, `Del` ×2, `B`, `T`** | Leaderboard | Board, select row, delete run, backup file, show team runs |
-| **`1`–`3`, `R`, `A`** | Crowd Window | Pin Sprint, Minute, Max, Recent, or Auto carousel |
+| **`1`–`4`** | Home | Sprint, Minute, Max, Duel |
+| **`L`** | Home | Leaderboard |
+| **`S`** | Home | Camera screen |
+| **`W`** | Home | Open (or bring forward) the crowd window |
+| **`A`** | Camera screen | Add camera |
+| **`Enter`** | Players | Next name / start |
+| **`Esc`** | Players, Camera screen | Back to home |
+| **`Esc`** | Get ready, live round | Abort the round (not saved) |
+| **`Enter`** / **`Esc`** | Results | Post / discard (Duel: redo turn) |
+| **`R`** | Duel result | Rematch |
+| **`Enter`** / **`Esc`** | Duel result, Leaderboard | Back to home |
+| **`1`–`5`**, **`←` `→`** | Leaderboard | Tabs: All time, Sprint, Minute, Max, Duel |
+| **`↑` `↓`** | Leaderboard | Select a row |
+| **`Delete`** or **`Backspace`**, twice | Leaderboard | Delete the selected run |
+| **`B`** | Leaderboard | Write a backup file |
+
+The crowd window has no keys. Every key hint on screen is also a button.

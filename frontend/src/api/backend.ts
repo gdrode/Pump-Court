@@ -3,65 +3,72 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type {
-  Category,
-  CrowdView,
-  PhoneLink,
-  PushedPoseFrame,
-  RecentRun,
-  JudgeConfig,
+  LanInfo,
   LeaderboardRow,
+  PhoneRoomMessage,
+  RepReport,
   RepVerdict,
   RoundMode,
   RoundResult,
-  SourceInfo,
-  SourceSpec,
-  SourceStatus,
-  Tick,
+  SessionSnapshot,
+  SignalData,
+  TunnelStatus,
 } from "./types";
 
 export const backend = {
-  listSources: () => invoke<SourceInfo[]>("list_sources"),
-  startSource: (spec: SourceSpec) => invoke<void>("start_source", { spec }),
-  stopSource: () => invoke<void>("stop_source"),
   checkName: (name: string) => invoke<string>("check_name", { name }),
-  startRound: (mode: RoundMode, player: string, isTeam: boolean) =>
-    invoke<void>("start_round", { mode, player, isTeam }),
+  /** Starts a round. It waits in "get ready" until `setReady(true)`. */
+  startRound: (mode: RoundMode, player: string) => invoke<void>("start_round", { mode, player }),
   cancelRound: () => invoke<void>("cancel_round"),
-  getJudgeConfig: () => invoke<JudgeConfig>("get_judge_config"),
-  setJudgeConfig: (config: JudgeConfig) => invoke<void>("set_judge_config", { config }),
-  getLeaderboard: (category: Category, includeTeam = false, limit = 20) =>
-    invoke<LeaderboardRow[]>("get_leaderboard", { category, includeTeam, limit }),
+  /** The tracker's posture check: holding the top of a push-up (starts the countdown). */
+  setReady: (ready: boolean) => invoke<void>("set_ready", { ready }),
+  /** The tracker judged a rep. Counted only while the clock runs. */
+  reportRep: (rep: RepReport) => invoke<void>("report_rep", { rep }),
+
+  /** Each player's best round. `mode: null` = all modes (the all-time board). */
+  getLeaderboard: (mode: RoundMode | null, limit = 20) => invoke<LeaderboardRow[]>("get_leaderboard", { mode, limit }),
   getPlayerCount: () => invoke<number>("get_player_count"),
-  getRecentRuns: (includeTeam = false, limit = 10) => invoke<RecentRun[]>("get_recent_runs", { includeTeam, limit }),
-  getCrowdView: () => invoke<CrowdView>("get_crowd_view"),
-  setCrowdView: (view: CrowdView) => invoke<void>("set_crowd_view", { view }),
-  getPhoneLink: () => invoke<PhoneLink>("get_phone_link"),
-  newPairingCode: () => invoke<PhoneLink>("new_pairing_code"),
-  /** Every phone camera frame as JPEG bytes, for a tracker in the frontend. */
-  subscribePhoneFrames: (onFrame: (jpeg: ArrayBuffer) => void) => {
-    const channel = new Channel<ArrayBuffer>();
-    channel.onmessage = onFrame;
-    return invoke<void>("subscribe_phone_frames", { onFrame: channel });
-  },
-  /** A frontend tracker hands over one frame of landmarks (use the "pushed" source). */
-  pushPoseFrame: (frame: PushedPoseFrame) => invoke<void>("push_pose_frame", { frame }),
   deleteRun: (runId: number) => invoke<void>("delete_run", { runId }),
   exportBackup: () => invoke<string>("export_backup"),
   openCrowdWindow: () => invoke<void>("open_crowd_window"),
+
+  /**
+   * Opens a phone pairing room. Returns its 8-letter code. Room messages
+   * arrive on `onMessage`; relayed JPEG frames ("Any network") on `onFrame`.
+   */
+  phoneOpen: (onMessage: (m: PhoneRoomMessage) => void, onFrame: (jpeg: ArrayBuffer) => void) => {
+    const events = new Channel<PhoneRoomMessage>();
+    events.onmessage = onMessage;
+    const frames = new Channel<ArrayBuffer>();
+    frames.onmessage = onFrame;
+    return invoke<string>("phone_open", { events, frames });
+  },
+  /** The laptop's WebRTC answer or ICE candidate, for the phone. */
+  phoneSignal: (room: string, data: SignalData) => invoke<void>("phone_signal", { room, data }),
+  phoneClose: (room: string) => invoke<void>("phone_close", { room }),
+  phoneLan: () => invoke<LanInfo>("phone_lan"),
+  tunnelStatus: () => invoke<TunnelStatus>("tunnel_status"),
+  tunnelStart: () => invoke<TunnelStatus>("tunnel_start"),
+  tunnelStop: () => invoke<TunnelStatus>("tunnel_stop"),
 };
 
 export const events = {
-  onTick: (cb: (t: Tick) => void): Promise<UnlistenFn> => listen<Tick>("tick", (e) => cb(e.payload)),
+  onTick: (cb: (s: SessionSnapshot) => void): Promise<UnlistenFn> => listen<SessionSnapshot>("tick", (e) => cb(e.payload)),
   onRep: (cb: (v: RepVerdict) => void) => listen<RepVerdict>("rep", (e) => cb(e.payload)),
-  onRoundFinished: (cb: (r: RoundResult) => void) =>
-    listen<RoundResult>("round-finished", (e) => cb(e.payload)),
-  onSourceStatus: (cb: (s: SourceStatus) => void) =>
-    listen<SourceStatus>("source-status", (e) => cb(e.payload)),
-  /** New code, QR or connection status (sent the moment a phone pairs). */
-  onPhoneLink: (cb: (l: PhoneLink) => void) => listen<PhoneLink>("phone-link", (e) => cb(e.payload)),
-  onCrowdView: (cb: (v: CrowdView) => void) => listen<CrowdView>("crowd-view", (e) => cb(e.payload)),
+  onRoundFinished: (cb: (r: RoundResult) => void) => listen<RoundResult>("round-finished", (e) => cb(e.payload)),
 };
+
+/** True in the second, crowd-facing window (opened by `openCrowdWindow`). */
+export function isCrowdWindow(): boolean {
+  try {
+    if (getCurrentWindow().label === "crowd") return true;
+  } catch {
+    /* not inside Tauri (browser preview) */
+  }
+  return window.location.hash === "#/crowd";
+}
 
 /** Error text from a rejected invoke (Rust `Err(String)`). */
 export function errorText(e: unknown): string {

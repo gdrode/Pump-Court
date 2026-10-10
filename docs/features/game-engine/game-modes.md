@@ -1,52 +1,62 @@
-# Competition Game Modes & Rules
+# Game Modes & Rules
 
 > **Module**: `backend/src/game/mode.rs` and `frontend/src/config/modes.ts`  
-> **Key Types**: `RoundMode`, `Category`, `RoundResult`  
+> **Key Types**: `RoundMode`, `MenuModeInfo`, `MENU_MODES`, `BOARDS`  
 > **Related Documents**: [Game Engine Overview](README.md), [Leaderboard](../leaderboard/README.md)  
 > **Maintenance Status**: Active / Tournament Rules  
 
 ---
 
-## 1. Game Modes Specification
+## 1. The four modes
 
-Pump-Court features four distinct competition formats designed for varying fitness profiles, spectator excitement, and tournament scheduling.
+The score in every mode is the number of **valid push-ups** (2 or 3 white lights).
 
-| Mode Key | Title | Time Limit | End Condition | Leaderboard Category |
+| Key | Mode (`RoundMode`) | Clock | Ends when | Board |
 | :--- | :--- | :--- | :--- | :--- |
-| **`sprint`** | Sprint | 30.0 seconds | Timer hits zero | `Category::Sprint` |
-| **`minute`** | Minute | 60.0 seconds | Timer hits zero | `Category::Minute` |
-| **`max`** | Max Reps | 3 mins hard cap | 5.0 seconds without a clean rep | `Category::Max` |
-| **`duel`** | Versus (shown as "Versus") | 2–4 × 30s turns | Every player finishes a 30s turn | `Category::ThirtySecond` (each turn) |
+| **1** | `sprint` – Sprint | 30 s | time is up | Sprint |
+| **2** | `minute` – Minute | 60 s | time is up | Minute |
+| **3** | `max` – Max | counts up, 3-minute cap | 5 s without a valid push-up, or the cap | Max |
+| **4** | `duel` – Duel | 30 s per player | both players have had a turn | Duel |
+
+`RoundMode::duration_ms()` gives the longest a round can last: 30 000 (Sprint, Duel), 60 000 (Minute), 180 000 (Max, `MAX_CAP_MS`). The value stored in the database is `RoundMode::as_str()`: `"sprint"`, `"minute"`, `"max"`, `"duel"`.
+
+Every round starts with the ready check and a 3-second countdown (see [Game Engine](README.md)).
 
 ---
 
-## 2. Detailed Mode Rules
+## 2. Mode details
 
-### 2.1 Sprint (30 Seconds)
-- **Concept**: Maximum explosive speed and endurance.
-- **Rules**: Exactly 30,000 milliseconds on the game clock. Athletes strive for highest clean count. Fast rep segmentation allows rates exceeding 1.5 reps per second.
-- **Tie-Breaker**: Accuracy percentage ($\frac{\text{clean reps}}{\text{attempts}}$).
+### 2.1 Sprint (30 seconds)
+- Most valid push-ups in 30 seconds. The main mode.
+- The last five seconds beep and the clock turns red.
 
-### 2.2 Minute (60 Seconds)
-- **Concept**: Aerobic stamina and pacing.
-- **Rules**: 60,000 milliseconds on the game clock. Pacing and maintaining locked out plank under extreme fatigue are paramount.
+### 2.2 Minute (60 seconds)
+- Most valid push-ups in 60 seconds. Pacing matters.
 
-### 2.3 Max (Sudden Death)
-- **Concept**: Unbroken density and mental fortitude.
-- **Rules**:
-  - The match clock counts up from 0 to a hard cap of 180,000 milliseconds (3 minutes).
-  - An **Idle Timer** starts at 5,000 milliseconds (`MAX_IDLE_MS`).
-  - Every time a **clean rep** is completed, the idle timer resets to 5,000 ms.
-  - A no-rep does *not* reset the idle timer.
-  - If the idle timer hits zero (athlete collapses, rests on knees, or fails to complete a clean rep within 5 seconds), the match ends instantly with a buzzer.
+### 2.3 Max (untimed)
+- The clock counts up. The round ends after **5 seconds without a valid push-up** (`MAX_IDLE_MS`), or at the 3-minute cap.
+- The 5 seconds start when the clock starts, and restart after each valid push-up. A no-rep does **not** restart them.
+- The Round screen shows "x.x s left to get the next push-up" (`idleRemainingMs`).
+- The menu marks it "only when nobody is queuing".
 
-### 2.4 Versus (Turn-Based, 2–4 Players)
-- **Concept**: 2–4 athletes take turns; most clean reps wins.
-- **Backend mode**: `RoundMode::Duel` (stored as `"duel"`), shown in the UI as **Versus**. Each turn plays exactly like a 30s Sprint.
-- **Progression**:
-  1. The operator enters 2–4 names (`Alt+N` adds a player).
-  2. Each player in turn does the ready check and a 30s round.
-  3. After each turn the Results screen shows that player's score. **Enter** posts it and calls the next player; **Esc** redoes the turn.
-  4. Every player after the first sees a "To beat" box with the best score so far.
-  5. The Versus standings screen ranks everyone on clean reps, then accuracy, and names the winner or a tie. **R** starts a rematch.
-- **Leaderboard**: every turn is saved to the 30-second board, like a Sprint.
+### 2.4 Duel (2 players)
+- Exactly **two** players. Each has a 30-second turn (`RoundMode::Duel`, played like a Sprint). The frontend runs the two turns; Rust sees two separate rounds.
+- Flow:
+  1. The operator enters two different names.
+  2. Player 1 does the ready check and a 30 s turn. The Results screen shows the score: **Enter** posts it and calls player 2; **Esc** redoes the turn (deletes the saved run).
+  3. Player 2 sees a "To beat" box with player 1's score.
+  4. The Duel result screen ranks them. **Winner: most valid push-ups; perfect push-ups break a tie.** Equal on both = a tie ("It's a tie! Rematch?"). **R** starts a rematch.
+- Each turn is saved on the **Duel** board, under the player's name.
+- Logic: `rankResults`, `duelOutcome`, `scoreToBeat` in `frontend/src/logic/results.ts`.
+
+---
+
+## 3. Where modes are defined
+
+- **Rust** (`backend/src/game/mode.rs`): the enum, its database name, its length, `MAX_IDLE_MS` and `MAX_CAP_MS`.
+- **Frontend** (`frontend/src/config/modes.ts`):
+  - `MENU_MODES`: key, title, blurb, number of players (1 or 2), optional note.
+  - `MODE_LABELS`: names on boards and results.
+  - `BOARDS`: leaderboard tabs — All time (`mode: null`), Sprint, Minute, Max, Duel.
+
+To add a mode: add the variant and its `as_str`/`duration_ms` in Rust, add it to `RoundMode` in `frontend/src/api/types.ts`, then add it to `MENU_MODES`, `MODE_LABELS` and `BOARDS`.

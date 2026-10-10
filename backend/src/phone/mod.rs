@@ -1,370 +1,548 @@
-//! Phone camera link: the phone streams its camera to the desktop app.
+//! Phone cameras, the way the tracker prototype (`pumpCourt/`) pairs them.
+//!
+//! The laptop opens a pairing *room* with a fresh 8-letter code and shows a QR
+//! code for `https://<laptop>:47800/phone.html?room=<code>`. The phone page
+//! (`pumpCourt/phone.html`, built into this app) then streams its camera:
 //!
 //! ```text
-//!  operator screen shows a QR code ─────────────┐
-//!                                               ▼  (scan)
-//!  phone browser ── https://<laptop-ip>:47800/?code=123456 ──▶ camera page
-//!       │                                         (served by THIS app)
-//!       └── wss://…/ws?code=123456  JPEG frames ──▶ PhoneHub (this module)
-//!                                                     ├─▶ PhoneSource → engine → referees
-//!                                                     └─▶ frontend subscribers (JS tracker, preview)
+//!  Wi-Fi (default)   phone ──WebRTC video──────────────────────────▶ app window
+//!                      └─ offer/answer/ICE: /signal-http/* ─▶ Room ─▶ app window (IPC)
+//!
+//!  Any network       phone ──JPEG frames: wss://<tunnel>/relay ─▶ Room ─▶ app window (IPC)
+//!                    (Cloudflare quick tunnel, see `tunnel.rs`)
 //! ```
 //!
-//! Everything stays on the local network: no internet, no cloud server, no
-//! database; pairing lives in memory.
+//! On Wi-Fi the video goes straight from the phone to the app window; this
+//! module only introduces the two. The app window's side of a room talks to
+//! Rust through Tauri commands and channels, never the network.
 //!
-//! **Pairing codes are single-use.** The moment a phone pairs, the 6-digit
-//! code (and the QR code on screen) changes, so the next person must scan the
-//! new one, which takes over from the previous phone. The paired phone gets a
-//! private session token so it can reconnect after a network blip without
-//! the old code.
+//! Codes are single-use in practice: every "Add camera" opens a new room, and
+//! a room closes when the laptop stops using it. A second phone on the same
+//! code replaces the first (the first is told `closed`, code 4000).
 
+pub mod net;
 pub mod server;
+pub mod tunnel;
 
-use crate::pose::inbox::Inbox;
-use serde::Serialize;
+use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, Notify};
 
 /// Port the phone connects to (HTTPS).
 pub const PORT: u16 = 47800;
-/// Frames larger than this are rejected (a 1280×720 JPEG is ~100–200 KB).
-pub const MAX_FRAME_BYTES: usize = 2 * 1024 * 1024;
+/// A phone polling over HTTP that hasn't been heard from for this long has gone.
+pub const HTTP_PEER_TIMEOUT: Duration = Duration::from_secs(15);
+/// How long a poll is held open waiting for a message.
+pub const POLL_HOLD: Duration = Duration::from_secs(20);
+/// Largest JPEG frame the relay accepts (a 960-wide frame is ~60 KB).
+pub const RELAY_MAX_FRAME: usize = 2 * 1024 * 1024;
 
-/// One camera frame from the phone.
-#[derive(Clone)]
-pub struct PhoneFrame {
-    pub jpeg: Arc<Vec<u8>>,
-    pub width: u32,
-    pub height: u32,
+const EXPIRED: &str = "This pairing code has expired. Open \"Add camera\" on the laptop and scan the new code.";
+
+/// The app window's side of a room: where messages and relay frames go.
+pub struct HostLink {
+    /// JSON messages: joined, peer-joined, peer-left, signal, phone-visit.
+    pub events: Box<dyn Fn(Value) + Send + Sync>,
+    /// Relayed JPEG frames (internet link only).
+    pub frames: Box<dyn Fn(Vec<u8>) + Send + Sync>,
 }
 
-/// What the operator sees about the phone link.
-#[derive(Debug, Clone, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PhoneStatus {
-    /// The HTTPS server is up.
-    pub listening: bool,
-    /// Why the server could not start, if it didn't.
-    pub error: Option<String>,
-    pub connected: bool,
-    /// Phone model / browser string the phone reported.
-    pub device: Option<String>,
-    pub width: u32,
-    pub height: u32,
-    /// Frames per second actually arriving.
-    pub fps: f32,
-    /// How many phones have paired since the app started.
-    pub pairings: u32,
+/// A phone signalling over plain HTTPS requests (long-polling).
+pub struct HttpPeer {
+    pub id: String,
+    room: String,
+    queue: Mutex<Vec<Value>>,
+    notify: Notify,
+    last_seen: Mutex<Instant>,
+    /// Bumped by every poll, so a newer poll replaces an older one.
+    polls: AtomicU64,
+    waiting: AtomicBool,
+    closed: AtomicBool,
 }
 
-/// The pairing details shown on the settings screen.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PhoneLink {
-    /// The address the QR code encodes.
-    pub url: String,
-    /// The current single-use pairing code.
-    pub code: String,
-    /// QR code as an SVG string, ready to drop into the page.
-    pub qr_svg: String,
-    pub status: PhoneStatus,
-}
-
-/// How a WebSocket proved it may stream.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Auth {
-    /// Used the current pairing code: a new phone (the code is now spent).
-    NewPairing,
-    /// Used the session token of the phone already paired: a reconnect.
-    Reconnect,
-}
-
-/// Result of a successful connection.
-pub struct Connection {
-    pub id: u64,
-    /// Token the phone keeps for reconnecting.
-    pub token: String,
-}
-
-struct HubState {
-    code: String,
-    /// Session token of the currently paired phone.
-    token: Option<String>,
-    ip: Option<String>,
-    status: PhoneStatus,
-    /// Id of the connection allowed to stream.
-    active_conn: u64,
-    next_conn: u64,
-    last_frame_at: Option<Instant>,
-}
-
-impl HubState {
-    fn rotate_code(&mut self) {
-        let mut code = new_code();
-        while code == self.code {
-            code = new_code();
-        }
-        self.code = code;
+impl HttpPeer {
+    fn send(&self, msg: Value) {
+        self.queue.lock().unwrap().push(msg);
+        self.notify.notify_waiters();
     }
 
-    fn drop_phone(&mut self) {
-        self.active_conn = 0;
-        self.status.connected = false;
-        self.status.device = None;
-        self.status.fps = 0.0;
-        self.last_frame_at = None;
+    /// Tells the phone it was closed (4000 = another phone took over the code).
+    fn close(&self, code: u16) {
+        self.closed.store(true, Ordering::SeqCst);
+        self.send(json!({ "type": "closed", "code": code }));
+    }
+
+    fn touch(&self) {
+        *self.last_seen.lock().unwrap() = Instant::now();
     }
 }
 
-type Listener = Box<dyn Fn(PhoneLink) + Send + Sync>;
-type FrameSubscriber = Box<dyn Fn(&PhoneFrame) -> bool + Send + Sync>;
+/// What the relay socket task should send to its phone.
+pub enum RelayOut {
+    Text(String),
+    Close(u16),
+}
 
-/// Shared between the network server, the engine and the Tauri commands.
+/// A phone sending JPEG frames over the relay WebSocket.
+struct RelayPhone {
+    id: u64,
+    tx: mpsc::UnboundedSender<RelayOut>,
+}
+
+impl RelayPhone {
+    fn send(&self, msg: Value) {
+        let _ = self.tx.send(RelayOut::Text(msg.to_string()));
+    }
+}
+
+#[derive(Default)]
+struct Room {
+    host: Option<Arc<HostLink>>,
+    phone: Option<Arc<HttpPeer>>,
+    relay: Option<RelayPhone>,
+}
+
+#[derive(Default)]
+struct Inner {
+    rooms: HashMap<String, Room>,
+    http_peers: HashMap<String, Arc<HttpPeer>>,
+    next_relay: u64,
+}
+
+/// All pairing rooms. Shared by the HTTPS server and the Tauri commands.
+#[derive(Default)]
 pub struct PhoneHub {
-    state: Mutex<HubState>,
-    /// Newest frame for the engine thread.
-    pub frames: Inbox<PhoneFrame>,
-    on_change: Mutex<Option<Listener>>,
-    subscribers: Mutex<Vec<FrameSubscriber>>,
+    inner: Mutex<Inner>,
 }
 
-fn new_code() -> String {
-    format!("{:06}", rand::random::<u32>() % 1_000_000)
+/// An 8-character code without look-alike letters (no I, O, 0, 1).
+pub fn new_room_code() -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    (0..8).map(|_| ALPHABET[rand::random::<usize>() % ALPHABET.len()] as char).collect()
 }
 
-fn new_token() -> String {
-    format!("{:032x}", rand::random::<u128>())
+/// Room codes the phone may send: what [`new_room_code`] makes, give or take.
+pub fn valid_room(room: &str) -> bool {
+    (4..=32).contains(&room.len()) && room.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
 impl PhoneHub {
     pub fn new() -> Arc<Self> {
-        Arc::new(Self {
-            state: Mutex::new(HubState {
-                code: new_code(),
-                token: None,
-                ip: None,
-                status: PhoneStatus::default(),
-                active_conn: 0,
-                next_conn: 1,
-                last_frame_at: None,
-            }),
-            frames: Inbox::new(),
-            on_change: Mutex::new(None),
-            subscribers: Mutex::new(Vec::new()),
-        })
+        Arc::new(Self::default())
     }
 
-    /// Called with the new link whenever the code or status changes
-    /// (used to emit the "phone-link" Tauri event, which redraws the QR).
-    pub fn set_change_listener(&self, f: impl Fn(PhoneLink) + Send + Sync + 'static) {
-        *self.on_change.lock().unwrap() = Some(Box::new(f));
+    // --- The app window's side ---------------------------------------------
+
+    /// Opens a room with a new code for the app window. Returns the code.
+    pub fn open_room(&self, host: HostLink) -> String {
+        let mut inner = self.inner.lock().unwrap();
+        let mut room = new_room_code();
+        while inner.rooms.contains_key(&room) {
+            room = new_room_code();
+        }
+        (host.events)(json!({ "type": "joined" }));
+        inner.rooms.insert(room.clone(), Room { host: Some(Arc::new(host)), ..Room::default() });
+        room
     }
 
-    /// Receive every frame (e.g. to forward to the frontend). The callback
-    /// returns `false` to unsubscribe.
-    pub fn subscribe(&self, f: impl Fn(&PhoneFrame) -> bool + Send + Sync + 'static) {
-        self.subscribers.lock().unwrap().push(Box::new(f));
-    }
-
-    fn update(&self, f: impl FnOnce(&mut HubState)) {
-        f(&mut self.state.lock().unwrap());
-        if let Some(listener) = self.on_change.lock().unwrap().as_ref() {
-            listener(self.link());
+    /// The app window is done with a room: its phone is told and the code stops working.
+    pub fn close_room(&self, room: &str) {
+        let mut inner = self.inner.lock().unwrap();
+        let Some(r) = inner.rooms.remove(room) else { return };
+        if let Some(phone) = r.phone {
+            phone.send(json!({ "type": "peer-left" }));
+            inner.http_peers.remove(&phone.id);
+        }
+        if let Some(relay) = r.relay {
+            relay.send(json!({ "type": "peer-left" }));
+            let _ = relay.tx.send(RelayOut::Close(1000));
         }
     }
 
-    /// Checks a WebSocket's credentials without using them up.
-    pub fn check(&self, code: Option<&str>, token: Option<&str>) -> Option<Auth> {
-        let s = self.state.lock().unwrap();
-        if token.is_some() && token == s.token.as_deref() {
-            Some(Auth::Reconnect)
-        } else if code == Some(s.code.as_str()) {
-            Some(Auth::NewPairing)
-        } else {
-            None
+    /// Passes an answer or ICE candidate from the app window to the phone.
+    pub fn host_signal(&self, room: &str, data: Value) {
+        let inner = self.inner.lock().unwrap();
+        if let Some(phone) = inner.rooms.get(room).and_then(|r| r.phone.as_ref()) {
+            phone.send(json!({ "type": "signal", "data": data }));
         }
     }
 
-    /// Makes a new pairing code and disconnects the current phone.
-    pub fn new_pairing_code(&self) {
-        self.update(|s| {
-            s.rotate_code();
-            s.token = None;
-            s.drop_phone();
+    fn host_of(&self, room: &str) -> Option<Arc<HostLink>> {
+        self.inner.lock().unwrap().rooms.get(room).and_then(|r| r.host.clone())
+    }
+
+    /// A phone loaded the pairing page: it can reach this laptop.
+    pub fn visit(&self, room: &str, from: String) {
+        if let Some(host) = self.host_of(room) {
+            (host.events)(json!({ "type": "phone-visit", "from": from }));
+        }
+    }
+
+    // --- Phones over HTTP (Wi-Fi pairing) ------------------------------------
+
+    /// A phone joins a room. Only rooms the laptop opened can be joined.
+    pub fn phone_join(&self, room: &str, role: &str) -> Result<String, String> {
+        if !valid_room(room) || role != "phone" {
+            return Err("bad join".into());
+        }
+        let mut inner = self.inner.lock().unwrap();
+        let Some(r) = inner.rooms.get_mut(room).filter(|r| r.host.is_some()) else {
+            return Err(EXPIRED.into());
+        };
+        let peer = Arc::new(HttpPeer {
+            id: format!("{:032x}", rand::random::<u128>()),
+            room: room.to_string(),
+            queue: Mutex::new(Vec::new()),
+            notify: Notify::new(),
+            last_seen: Mutex::new(Instant::now()),
+            polls: AtomicU64::new(0),
+            waiting: AtomicBool::new(false),
+            closed: AtomicBool::new(false),
         });
+        let old = r.phone.replace(peer.clone());
+        peer.send(json!({ "type": "joined" }));
+        if let Some(host) = &r.host {
+            (host.events)(json!({ "type": "peer-joined" }));
+            peer.send(json!({ "type": "peer-joined" }));
+        }
+        if let Some(old) = old {
+            old.close(4000);
+            inner.http_peers.remove(&old.id);
+        }
+        inner.http_peers.insert(peer.id.clone(), peer.clone());
+        Ok(peer.id.clone())
     }
 
-    pub fn set_listening(&self, ip: Option<String>, error: Option<String>) {
-        self.update(|s| {
-            s.status.listening = error.is_none();
-            s.status.error = error;
-            s.ip = ip;
-        });
+    fn http_peer(&self, id: &str) -> Option<Arc<HttpPeer>> {
+        self.inner.lock().unwrap().http_peers.get(id).cloned()
     }
 
-    /// A phone opened the WebSocket. Credentials are checked again here, so
-    /// two phones racing for one code can't both win. A new pairing spends
-    /// the code (a fresh one is shown) and replaces any previous phone.
-    pub fn connect(&self, code: Option<&str>, token: Option<&str>, device: String) -> Option<Connection> {
-        let mut result = None;
-        self.update(|s| {
-            let reconnect = token.is_some() && token == s.token.as_deref();
-            let pairing = !reconnect && code == Some(s.code.as_str());
-            if !reconnect && !pairing {
-                return;
+    /// Long-poll: waits up to 20 s for messages. `None` = unknown peer (HTTP 410).
+    pub async fn poll(&self, id: &str) -> Option<Vec<Value>> {
+        self.poll_for(id, POLL_HOLD).await
+    }
+
+    async fn poll_for(&self, id: &str, hold: Duration) -> Option<Vec<Value>> {
+        let peer = self.http_peer(id)?;
+        let generation = peer.polls.fetch_add(1, Ordering::SeqCst) + 1;
+        peer.notify.notify_waiters(); // an older poll returns empty
+        let _waiting = Waiting::new(&peer);
+        let deadline = tokio::time::Instant::now() + hold;
+        loop {
+            let notified = peer.notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            if peer.polls.load(Ordering::SeqCst) != generation {
+                return Some(Vec::new());
             }
-            if pairing {
-                s.rotate_code();
-                s.token = Some(new_token());
-                s.status.pairings += 1;
+            let messages = std::mem::take(&mut *peer.queue.lock().unwrap());
+            if !messages.is_empty() || peer.closed.load(Ordering::SeqCst) {
+                return Some(messages);
             }
-            s.drop_phone();
-            let id = s.next_conn;
-            s.next_conn += 1;
-            s.active_conn = id;
-            s.status.connected = true;
-            s.status.device = Some(device);
-            result = Some(Connection { id, token: s.token.clone().unwrap_or_default() });
-        });
-        result
-    }
-
-    pub fn disconnect(&self, conn: u64) {
-        let is_active = self.state.lock().unwrap().active_conn == conn;
-        if is_active {
-            self.update(|s| {
-                if s.active_conn == conn {
-                    s.drop_phone();
-                }
-            });
+            if tokio::time::timeout_at(deadline, notified).await.is_err() {
+                return Some(Vec::new());
+            }
         }
     }
 
-    /// Accepts a JPEG from connection `conn`. Returns `false` if that
-    /// connection is no longer the active one (it should hang up).
-    pub fn push_frame(&self, conn: u64, jpeg: Vec<u8>) -> bool {
-        let Some((width, height)) = jpeg_size(&jpeg) else { return true }; // skip a bad frame
-        let size_changed;
-        {
-            let mut s = self.state.lock().unwrap();
-            if s.active_conn != conn {
-                return false;
-            }
-            let now = Instant::now();
-            if let Some(prev) = s.last_frame_at {
-                let inst = 1.0 / now.duration_since(prev).as_secs_f32().max(1e-3);
-                s.status.fps = if s.status.fps == 0.0 { inst } else { s.status.fps * 0.9 + inst * 0.1 };
-            }
-            s.last_frame_at = Some(now);
-            size_changed = (s.status.width, s.status.height) != (width, height);
-            s.status.width = width;
-            s.status.height = height;
+    /// The phone's offer or ICE candidate, for the app window. `false` = unknown peer.
+    pub fn phone_send(&self, id: &str, data: Value) -> bool {
+        let Some(peer) = self.http_peer(id) else { return false };
+        peer.touch();
+        if let Some(host) = self.host_of(&peer.room) {
+            (host.events)(json!({ "type": "signal", "data": data }));
         }
-        if size_changed {
-            self.update(|_| {});
-        }
-        let frame = PhoneFrame { jpeg: Arc::new(jpeg), width, height };
-        self.subscribers.lock().unwrap().retain(|sub| sub(&frame));
-        self.frames.put(frame);
         true
     }
 
-    pub fn link(&self) -> PhoneLink {
-        let s = self.state.lock().unwrap();
-        let host = s.ip.clone().unwrap_or_else(|| "<laptop-ip>".into());
-        let url = format!("https://{host}:{PORT}/?code={}", s.code);
-        let qr_svg = qrcode::QrCode::new(url.as_bytes())
-            .map(|qr| qr.render::<qrcode::render::svg::Color>().min_dimensions(220, 220).build())
-            .unwrap_or_default();
-        PhoneLink { url, code: s.code.clone(), qr_svg, status: s.status.clone() }
+    /// The phone page closed. `false` = unknown peer.
+    pub fn phone_leave(&self, id: &str) -> bool {
+        let Some(peer) = self.http_peer(id) else { return false };
+        self.drop_http_peer(&peer);
+        true
+    }
+
+    fn drop_http_peer(&self, peer: &Arc<HttpPeer>) {
+        let host = {
+            let mut inner = self.inner.lock().unwrap();
+            if inner.http_peers.remove(&peer.id).is_none() {
+                return;
+            }
+            let Some(r) = inner.rooms.get_mut(&peer.room) else { return };
+            if !r.phone.as_ref().is_some_and(|p| Arc::ptr_eq(p, peer)) {
+                return;
+            }
+            r.phone = None;
+            r.host.clone()
+        };
+        if let Some(host) = host {
+            (host.events)(json!({ "type": "peer-left" }));
+        }
+    }
+
+    /// Drops phones that stopped polling (closed tab, lost Wi-Fi). Run every few seconds.
+    pub fn sweep(&self) {
+        let gone: Vec<_> = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .http_peers
+                .values()
+                .filter(|p| !p.waiting.load(Ordering::SeqCst) && p.last_seen.lock().unwrap().elapsed() > HTTP_PEER_TIMEOUT)
+                .cloned()
+                .collect()
+        };
+        for peer in gone {
+            self.drop_http_peer(&peer);
+        }
+    }
+
+    // --- Phones over the relay (internet link) ----------------------------------
+
+    /// A phone opened the relay socket. Returns its id and what to send it.
+    pub fn relay_connect(&self, room: &str) -> Result<(u64, mpsc::UnboundedReceiver<RelayOut>), String> {
+        let mut inner = self.inner.lock().unwrap();
+        inner.next_relay += 1;
+        let id = inner.next_relay;
+        let Some(r) = inner.rooms.get_mut(room).filter(|r| r.host.is_some()) else {
+            return Err(EXPIRED.into());
+        };
+        let (tx, rx) = mpsc::unbounded_channel();
+        let phone = RelayPhone { id, tx };
+        if let Some(old) = r.relay.replace(phone) {
+            let _ = old.tx.send(RelayOut::Close(4000));
+        }
+        if let (Some(host), Some(phone)) = (&r.host, &r.relay) {
+            (host.events)(json!({ "type": "peer-joined" }));
+            phone.send(json!({ "type": "peer-joined" }));
+        }
+        Ok((id, rx))
+    }
+
+    /// The app window's link for a room, if `id` is still the room's relay phone.
+    fn relay_host(&self, room: &str, id: u64) -> Option<Arc<HostLink>> {
+        let inner = self.inner.lock().unwrap();
+        inner.rooms.get(room).filter(|r| r.relay.as_ref().is_some_and(|p| p.id == id)).and_then(|r| r.host.clone())
+    }
+
+    /// One JPEG from the relay phone, passed to the app window as it is.
+    pub fn relay_frame(&self, room: &str, id: u64, jpeg: Vec<u8>) {
+        if let Some(host) = self.relay_host(room, id) {
+            (host.frames)(jpeg);
+        }
+    }
+
+    /// A text note from the relay phone. The only one is which way up the
+    /// phone is: `{"type": "orientation", "rotation": 0|90|180|270}`, the
+    /// clockwise turn that makes its picture upright. Anything else is dropped.
+    pub fn relay_text(&self, room: &str, id: u64, text: &str) {
+        let Ok(msg) = serde_json::from_str::<Value>(text) else { return };
+        let rotation = msg["rotation"].as_u64().filter(|r| [0, 90, 180, 270].contains(r));
+        if let (Some("orientation"), Some(rotation)) = (msg["type"].as_str(), rotation) {
+            if let Some(host) = self.relay_host(room, id) {
+                (host.events)(json!({ "type": "orientation", "rotation": rotation }));
+            }
+        }
+    }
+
+    pub fn relay_disconnect(&self, room: &str, id: u64) {
+        let host = {
+            let mut inner = self.inner.lock().unwrap();
+            let Some(r) = inner.rooms.get_mut(room) else { return };
+            if !r.relay.as_ref().is_some_and(|p| p.id == id) {
+                return;
+            }
+            r.relay = None;
+            r.host.clone()
+        };
+        if let Some(host) = host {
+            (host.events)(json!({ "type": "peer-left" }));
+        }
     }
 }
 
-/// Reads width and height from a JPEG's frame header without decoding it.
-pub fn jpeg_size(data: &[u8]) -> Option<(u32, u32)> {
-    if data.len() < 4 || data[0] != 0xFF || data[1] != 0xD8 {
-        return None;
+/// Marks a peer as polling, so the sweep leaves it alone; also when the
+/// request is dropped half-way (the phone went away).
+struct Waiting<'a>(&'a HttpPeer);
+
+impl<'a> Waiting<'a> {
+    fn new(peer: &'a HttpPeer) -> Self {
+        peer.touch();
+        peer.waiting.store(true, Ordering::SeqCst);
+        Self(peer)
     }
-    let mut i = 2;
-    while i + 9 < data.len() {
-        if data[i] != 0xFF {
-            return None;
-        }
-        let marker = data[i + 1];
-        let len = u16::from_be_bytes([data[i + 2], data[i + 3]]) as usize;
-        // SOF0..SOF15 hold the size, except DHT (C4), JPG (C8) and DAC (CC).
-        if (0xC0..=0xCF).contains(&marker) && ![0xC4, 0xC8, 0xCC].contains(&marker) {
-            let h = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
-            let w = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
-            return (w > 0 && h > 0).then_some((w, h));
-        }
-        i += 2 + len;
+}
+
+impl Drop for Waiting<'_> {
+    fn drop(&mut self) {
+        self.0.waiting.store(false, Ordering::SeqCst);
+        self.0.touch();
     }
-    None
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// SOI, an APP0 segment, then a baseline frame header for 640×360.
-    fn tiny_jpeg() -> Vec<u8> {
-        let mut j = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00];
-        j.extend([0xFF, 0xC0, 0x00, 0x11, 0x08, 0x01, 0x68, 0x02, 0x80, 0x03]);
-        j.extend([0u8; 12]);
-        j
+    /// A host that records its messages and frames.
+    fn host() -> (HostLink, Arc<Mutex<Vec<Value>>>, Arc<Mutex<Vec<Vec<u8>>>>) {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let frames = Arc::new(Mutex::new(Vec::new()));
+        let (e, f) = (events.clone(), frames.clone());
+        let link = HostLink {
+            events: Box::new(move |m| e.lock().unwrap().push(m)),
+            frames: Box::new(move |j| f.lock().unwrap().push(j)),
+        };
+        (link, events, frames)
+    }
+
+    fn types(events: &Mutex<Vec<Value>>) -> Vec<String> {
+        events.lock().unwrap().iter().map(|m| m["type"].as_str().unwrap().to_string()).collect()
+    }
+
+    fn rt() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap()
     }
 
     #[test]
-    fn reads_jpeg_size() {
-        assert_eq!(jpeg_size(&tiny_jpeg()), Some((640, 360)));
-        assert_eq!(jpeg_size(b"not a jpeg"), None);
+    fn codes_are_eight_easy_characters() {
+        let code = new_room_code();
+        assert_eq!(code.len(), 8);
+        assert!(valid_room(&code));
+        assert!(!code.contains(['I', 'O', '0', '1']));
+        assert!(!valid_room("ab") && !valid_room("../etc"));
     }
 
     #[test]
-    fn code_is_single_use() {
+    fn phone_and_laptop_exchange_signals() {
         let hub = PhoneHub::new();
-        let code = hub.link().code;
-        let first = hub.connect(Some(&code), None, "phone A".into()).expect("fresh code pairs");
-        assert_ne!(hub.link().code, code, "pairing must change the code");
-        assert!(hub.connect(Some(&code), None, "phone B".into()).is_none(), "a used code is refused");
-        assert_eq!(hub.link().status.pairings, 1);
-        assert!(hub.push_frame(first.id, tiny_jpeg()));
+        let (link, events, _) = host();
+        let room = hub.open_room(link);
+        let id = hub.phone_join(&room, "phone").unwrap();
+        assert_eq!(types(&events), ["joined", "peer-joined"]);
+
+        assert!(hub.phone_send(&id, json!({ "sdp": { "type": "offer" } })));
+        assert_eq!(events.lock().unwrap()[2], json!({ "type": "signal", "data": { "sdp": { "type": "offer" } } }));
+
+        hub.host_signal(&room, json!({ "sdp": { "type": "answer" } }));
+        let got = rt().block_on(hub.poll(&id)).unwrap();
+        let got_types: Vec<_> = got.iter().map(|m| m["type"].as_str().unwrap()).collect();
+        assert_eq!(got_types, ["joined", "peer-joined", "signal"]);
+        assert_eq!(got[2]["data"]["sdp"]["type"], "answer");
+
+        assert!(hub.phone_leave(&id));
+        assert_eq!(types(&events).last().unwrap(), "peer-left");
+        assert!(rt().block_on(hub.poll(&id)).is_none(), "a peer that left is gone (410)");
     }
 
     #[test]
-    fn next_person_scans_new_code_and_takes_over() {
+    fn only_rooms_the_laptop_opened_can_be_joined() {
         let hub = PhoneHub::new();
-        let a = hub.connect(Some(&hub.link().code), None, "phone A".into()).unwrap();
-        let b = hub.connect(Some(&hub.link().code), None, "phone B".into()).unwrap();
-        assert!(!hub.push_frame(a.id, tiny_jpeg()), "the old phone must hang up");
-        assert!(hub.push_frame(b.id, tiny_jpeg()));
-        assert!(hub.check(None, Some(&a.token)).is_none(), "the old phone's token is revoked");
-        let link = hub.link();
-        assert_eq!(link.status.device.as_deref(), Some("phone B"));
-        assert_eq!((link.status.width, link.status.height), (640, 360));
-        assert!(link.qr_svg.contains("<svg"));
+        assert!(hub.phone_join("ABCDEFGH", "phone").unwrap_err().contains("expired"));
+        let (link, _, _) = host();
+        let room = hub.open_room(link);
+        assert_eq!(hub.phone_join(&room, "host").unwrap_err(), "bad join", "the network can't act as the laptop");
+        hub.close_room(&room);
+        assert!(hub.phone_join(&room, "phone").is_err(), "a closed code stops working");
     }
 
     #[test]
-    fn paired_phone_reconnects_with_its_token() {
+    fn a_second_phone_replaces_the_first() {
         let hub = PhoneHub::new();
-        let a = hub.connect(Some(&hub.link().code), None, "phone A".into()).unwrap();
-        let code_after = hub.link().code;
-        hub.disconnect(a.id);
-        assert_eq!(hub.check(None, Some(&a.token)), Some(Auth::Reconnect));
-        let again = hub.connect(None, Some(&a.token), "phone A".into()).unwrap();
-        assert_eq!(again.token, a.token);
-        assert_eq!(hub.link().code, code_after, "a reconnect does not spend the code");
+        let (link, _, _) = host();
+        let room = hub.open_room(link);
+        let first = hub.phone_join(&room, "phone").unwrap();
+        let second = hub.phone_join(&room, "phone").unwrap();
+        // The first phone's waiting messages end with "closed 4000"; after that it is gone.
+        let msgs = rt().block_on(hub.poll_for(&first, Duration::from_millis(10)));
+        assert!(msgs.is_none(), "the replaced phone is removed");
+        assert!(!hub.phone_send(&first, json!({})));
+        assert!(hub.phone_send(&second, json!({})));
     }
 
     #[test]
-    fn new_code_disconnects_and_revokes() {
+    fn closing_the_room_tells_the_phone() {
         let hub = PhoneHub::new();
-        let a = hub.connect(Some(&hub.link().code), None, "phone".into()).unwrap();
-        hub.new_pairing_code();
-        assert!(!hub.push_frame(a.id, tiny_jpeg()));
-        assert!(hub.check(None, Some(&a.token)).is_none());
+        let (link, _, _) = host();
+        let room = hub.open_room(link);
+        let id = hub.phone_join(&room, "phone").unwrap();
+        let peer = hub.http_peer(&id).unwrap();
+        hub.close_room(&room);
+        let queued: Vec<_> = peer.queue.lock().unwrap().iter().map(|m| m["type"].clone()).collect();
+        assert_eq!(queued.last().unwrap(), "peer-left");
+    }
+
+    #[test]
+    fn an_empty_poll_returns_after_the_hold_time() {
+        let hub = PhoneHub::new();
+        let (link, _, _) = host();
+        let room = hub.open_room(link);
+        let id = hub.phone_join(&room, "phone").unwrap();
+        let rt = rt();
+        assert_eq!(rt.block_on(hub.poll(&id)).unwrap().len(), 2); // joined, peer-joined
+        let empty = rt.block_on(hub.poll_for(&id, Duration::from_millis(20))).unwrap();
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn silent_phones_are_swept() {
+        let hub = PhoneHub::new();
+        let (link, events, _) = host();
+        let room = hub.open_room(link);
+        let id = hub.phone_join(&room, "phone").unwrap();
+        hub.sweep();
+        assert!(hub.http_peer(&id).is_some(), "recently seen");
+        *hub.http_peer(&id).unwrap().last_seen.lock().unwrap() -= HTTP_PEER_TIMEOUT + Duration::from_secs(1);
+        hub.sweep();
+        assert!(hub.http_peer(&id).is_none());
+        assert_eq!(types(&events).last().unwrap(), "peer-left");
+    }
+
+    #[test]
+    fn relay_frames_reach_the_laptop() {
+        let hub = PhoneHub::new();
+        let (link, events, frames) = host();
+        let room = hub.open_room(link);
+        assert!(hub.relay_connect("NOSUCHRM").is_err());
+        let (a, mut a_rx) = hub.relay_connect(&room).unwrap();
+        hub.relay_frame(&room, a, vec![0xFF, 0xD8]);
+        let (b, _b_rx) = hub.relay_connect(&room).unwrap();
+        hub.relay_frame(&room, a, vec![1]); // the replaced phone's frames are dropped
+        hub.relay_frame(&room, b, vec![2]);
+        assert_eq!(*frames.lock().unwrap(), vec![vec![0xFF, 0xD8], vec![2]]);
+        let mut a_got = vec![];
+        while let Ok(m) = a_rx.try_recv() {
+            a_got.push(matches!(m, RelayOut::Close(4000)));
+        }
+        assert_eq!(a_got.last(), Some(&true), "the first phone is told it was replaced");
+        hub.relay_disconnect(&room, b);
+        assert_eq!(types(&events).last().unwrap(), "peer-left");
+    }
+
+    #[test]
+    fn relay_orientation_reaches_the_laptop() {
+        let hub = PhoneHub::new();
+        let (link, events, _) = host();
+        let room = hub.open_room(link);
+        let (id, _rx) = hub.relay_connect(&room).unwrap();
+        hub.relay_text(&room, id, r#"{"type":"orientation","rotation":90}"#);
+        assert_eq!(events.lock().unwrap().last().unwrap(), &json!({ "type": "orientation", "rotation": 90 }));
+        for bad in [r#"{"type":"orientation","rotation":45}"#, r#"{"type":"other"}"#, "not json"] {
+            hub.relay_text(&room, id, bad);
+        }
+        hub.relay_text(&room, id + 1, r#"{"type":"orientation","rotation":180}"#); // not this room's phone
+        assert_eq!(events.lock().unwrap().last().unwrap()["rotation"], 90, "bad notes are dropped");
+    }
+
+    #[test]
+    fn visits_are_reported() {
+        let hub = PhoneHub::new();
+        let (link, events, _) = host();
+        let room = hub.open_room(link);
+        hub.visit(&room, "192.168.1.20".into());
+        hub.visit("OTHERONE", "x".into());
+        assert_eq!(events.lock().unwrap().last().unwrap(), &json!({ "type": "phone-visit", "from": "192.168.1.20" }));
     }
 }

@@ -1,15 +1,15 @@
-# Design Tokens, Sketchbook Theme & PoseView Canvas Rendering
+# Design Tokens, Sketchbook Theme & the Camera View
 
 > **Module**: `frontend/src/theme/`, `frontend/src/ui/components/`  
-> **Key Files**: `tokens.css`, `styles.css`, `SketchDefs.tsx`, `Dragon.tsx`, `PoseView.tsx`  
+> **Key Files**: `tokens.css`, `styles.css`, `SketchDefs.tsx`, `Dragon.tsx`, `Lights.tsx`, `CameraView.tsx`  
 > **Related Documents**: [Frontend UI Overview](README.md), [Pose Tracking Overview](../pose-tracking/README.md)  
 > **Maintenance Status**: Active / Design System  
 
 ---
 
-## 1. Design Token System (`tokens.css`)
+## 1. Design Tokens (`tokens.css`)
 
-All colors, the font, corner shapes and skeleton colors are CSS custom properties in `frontend/src/theme/tokens.css`. A restyle starts there; no TSX changes are needed.
+All colors, the font and the corner shape are CSS custom properties in `frontend/src/theme/tokens.css`. A restyle starts there; no TSX changes are needed.
 
 ```css
 :root {
@@ -25,43 +25,37 @@ All colors, the font, corner shapes and skeleton colors are CSS custom propertie
   --red-light: #f6d3c8;
   --font: 'Patrick Hand', 'Comic Neue', 'Chalkboard SE', 'Comic Sans MS', cursive;
   --r: 14px 22px 12px 20px / 20px 12px 22px 14px;  /* uneven, hand-drawn corners */
-
-  /* Camera view and skeleton (read by PoseView) */
-  --video-bg: #2b2620;
-  --skeleton-bone: rgba(255, 250, 240, 0.92);
-  --skeleton-bone-lost: rgba(210, 69, 46, 0.9);
-  --skeleton-joint: #8fd17a;
-  --skeleton-label: #f6e6ab;
-
+  --video-bg: #2b2620;     /* behind the camera picture */
   --qr-bg: #ffffff;        /* phone QR code background, keep light */
 }
 ```
 
-`styles.css` holds layout and animations and uses only these tokens.
+`styles.css` holds layout and animations and uses only these tokens. The skeleton colors are **not** tokens: the skeleton is drawn by the tracker's own `pumpCourt/src/draw.ts`.
 
 ---
 
 ## 2. Sketchbook Elements
 
 - **Font**: `@fontsource/patrick-hand` is an npm package, bundled into the build. It works with no internet.
-- **Hand-drawn borders**: any element with class `sketch` gets a border drawn by `.sketch::before`. `SketchDefs.tsx` renders the SVG filters `#rough` and `#rough-sm` once per window; they roughen the border edges.
-- **Referee lights**: `Lights.tsx` draws one lamp per referee (depth, lockout, plank). White = pass, red = no-rep, dashed = waiting. A red lamp shows the measured angle and the needed angle.
-- **Dragon host**: `Dragon.tsx` is an animated SVG. Moves are CSS animations in `styles.css` under "the dragon":
+- **Hand-drawn borders**: any element with class `sketch` gets a border drawn by `.sketch::before`. `SketchDefs.tsx` renders the SVG filters `#rough` and `#rough-sm` once per window; they roughen the edges.
+- **Referee lights**: `Lights.tsx` draws one lamp per referee: **Depth, Torso, Lockout** (names and order from `@tracker/judge`). White = pass, red = fault, empty = waiting. Under the lamps, a list of the faults, e.g. "Not deep enough: elbows only bent to 104° (needs 95°; hands not visible)". The crowd window hides that list. A new `flashKey` re-flashes the lamps even when two reps get the same calls.
+- **Dragon host**: `Dragon.tsx` is an animated SVG with a speech bubble. Moves are CSS animations in `styles.css`:
   - `curl` (dumbbell curls), `cheer` (jump), `sad` (head shake + sweat), `hype` (bouncing dance + sparkles), `hurry` (frantic), `wave`, `idle`.
   - The `beat` prop replays a one-shot move, e.g. on every rep.
 - **Dragon lines**: all text the dragon says is in `ui/host.ts`.
-- **Dragon reactions**: `ui/hostMood.ts` picks the move and line during a round (no-rep → sad, clean rep → cheer, passing the best → hype, last 5 s or a slow patch → hurry). The round screen and the crowd screen share it.
-- **Reduced motion**: with the OS "reduce motion" setting on, all animations are switched off.
+- **Dragon reactions**: `ui/hostMood.ts` picks the move and line during a round: no-rep → sad (and names the red light), just passed the best → hype, last five seconds → hurry, valid rep → cheer (hype when ahead), no rep for 2.5 s → hurry. The round screen and the crowd window share it.
+- **Reduced motion**: with the OS "reduce motion" setting on, all animations and transitions are off.
 
 ---
 
-## 3. Real-Time Canvas Skeleton Rendering (`PoseView`)
+## 3. The Camera View (`CameraView`)
 
-`PoseView.tsx` draws the camera image and the skeleton on a `<canvas>` every `tick`.
+`CameraView.tsx` gives the camera a place on screen. It does not draw anything itself:
 
-1. **Background**: the latest `Tick.preview` JPEG (phone camera) if there is one; otherwise a plain `--video-bg` fill (mock athlete).
-2. **Bones**: shoulders, arms, torso and legs on both sides, skipping points with visibility below 0.3. Bones turn `--skeleton-bone-lost` when tracking is lost.
-3. **Joints**: dots on the 12 body points (`--skeleton-joint`).
-4. **Angle labels**: live elbow, hip and knee angles next to the near-side joints (`--skeleton-label`).
+1. On mount it calls `tracker.attach(element)`. `TrackerProvider` moves its single `<video>`, the rotated-picture canvas (`canvas.camera-view__frame`) and the overlay `<canvas>` into that element. Detection only runs while a view is attached. When the picture is turned (rotation not 0), the video is `hidden` and the frame canvas shows instead; `.camera-view__media [hidden]` keeps it out of sight.
+2. The tracker draws the tracked side's skeleton on the overlay canvas each frame (`drawOverlay` from `@tracker/draw`).
+3. On top, a note shows the camera error, a model error, or "Loading tracking…" until the pose model is ready.
 
-The canvas reads the color tokens with `getComputedStyle`, so it follows the theme.
+4. With `rotatable`, a row at the bottom right (`.camera-view__rotate`, cream sketch boxes) shows the turn ("90° auto"), **⟳ Rotate** and, after a manual turn, **auto**.
+
+The Round screen and the Camera screen each show one `CameraView`. The Camera screen is always `rotatable`; the Round screen only until the clock runs (`round.phase !== "running"`). See [Pose Tracking](../pose-tracking/README.md#5-picture-rotation).
