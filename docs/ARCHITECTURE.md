@@ -10,7 +10,7 @@
 Pump-Court is a Tauri 2 desktop app. The work is split in two:
 
 * **The app window (TypeScript)** sees the player. It opens the camera, runs MediaPipe pose tracking, checks the push-up position, and judges each rep with three lights. This code is the teammate's tracker in `pumpCourt/src`, imported by the frontend as `@tracker/*`.
-* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, failure: out of position, stuck, stopped), counts valid push-ups, saves posted results to SQLite, and serves phone cameras.
+* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, failure: out of position, stuck, stopped), counts points (2 per perfect rep, 1 per 2-light rep) and valid push-ups, saves posted results to SQLite, and serves phone cameras.
 
 ```text
 ┌──────────────────────────── CAMERAS ─────────────────────────────┐
@@ -75,9 +75,9 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 
 ### 2.4 Persistence (`backend/src/leaderboard.rs`)
 - **SQLite** via `rusqlite` with the `bundled` feature, file `pump-court.sqlite3` in the app data folder.
-- **One table of rounds**: `runs(id, name, mode, reps, event_id, role, team)`. Only name, mode, valid push-ups and (at an event) the event, role and team are stored.
+- **One table of rounds**: `runs(id, name, mode, reps, points, event_id, role, team)`. Only name, mode, points, valid push-ups and (at an event) the event, role and team are stored.
 - **Events** (`backend/src/events.rs`): `events` table; per-event boards per mode (Everyone and per role) and team leaderboards (members' bests added up). See [Events](features/leaderboard/events.md).
-- **Boards**: each player's best run, per mode or across all modes (all time).
+- **Boards**: each player's best run by points, per mode or across all modes (all time).
 - **Names**: 12 characters at most, blocklist checked (`validate_name`).
 - See [Leaderboard](features/leaderboard/README.md).
 

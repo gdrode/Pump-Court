@@ -52,13 +52,14 @@ export const host = {
   lastSeconds: "Last five seconds!",
 
   // after
-  results: (reps: number, rank: number | null) => {
+  results: (points: number, rank: number | null) => {
     if (rank === 1) return "A new record! Everyone look at this!";
     if (rank !== null && rank <= 3) return `Top three! You're #${rank} on the board.`;
-    if (reps === 0) return "Zero push-ups. The referees are strict!";
-    return pick(["Solid round!", "Not bad at all!", "The referees approve!"], reps);
+    if (points === 0) return "Zero points. The referees are strict!";
+    return pick(["Solid round!", "Not bad at all!", "The referees approve!"], points);
   },
-  idle: (leader: string | null, reps: number | null) =>
-    leader ? `Can anyone beat ${leader}'s ${reps}?` : "Step up and be the first on the board!",
-  posted: (name: string, reps: number, rank: number | null) => `${name} just posted ${reps}${rank ? `, that's #${rank}` : ""}!`,
+  idle: (leader: string | null, points: number | null) =>
+    leader ? `Can anyone beat ${leader}'s ${points} points?` : "Step up and be the first on the board!",
+  posted: (name: string, points: number, rank: number | null) =>
+    `${name} just scored ${points} points${rank ? `, that's #${rank}` : ""}!`,
 };

@@ -9,7 +9,7 @@
 
 ## 1. The four modes
 
-The score in every mode is the number of **valid push-ups** (2 or 3 white lights).
+The score in every mode is **points**: 2 per perfect rep (3 white lights), 1 per 2-light rep. See [Scoring & Ranking](../leaderboard/scoring-and-ranking.md#1-the-score).
 
 | Key | Mode (`RoundMode`) | Clock | Ends when | Board |
 | :--- | :--- | :--- | :--- | :--- |
@@ -45,11 +45,11 @@ Same rules for Singleplayer (the Rust `Session`) and the side-by-side Duel (`pum
 ## 3. Mode details
 
 ### 3.1 Sprint (30 seconds)
-- Most valid push-ups in 30 seconds. The main mode.
+- Most points in 30 seconds. The main mode.
 - The last five seconds beep and the clock turns red.
 
 ### 3.2 Marathon (60 seconds)
-- Most valid push-ups in 60 seconds. Pacing matters.
+- Most points in 60 seconds. Pacing matters.
 
 ### 3.3 Max (untimed)
 - The clock counts up, with no time limit. The round ends when the player fails (section 2): the window reaches its 10 s cap after 24 reps.
@@ -66,7 +66,7 @@ Same rules for Singleplayer (the Rust `Session`) and the side-by-side Duel (`pum
   1. The operator enters two different names.
   2. Player 1 does the ready check and a 30 s turn. The Results screen shows the score: **Enter** posts it and calls player 2; **Esc** redoes the turn (deletes the saved run).
   3. Player 2 sees a "To beat" box with player 1's score.
-  4. The Duel result screen ranks them. **Winner: most valid push-ups; perfect push-ups break a tie.** Equal on both = a tie ("It's a tie! Rematch?"). **R** starts a rematch.
+  4. The Duel result screen ranks them. **Winner: most points; perfect push-ups break a tie.** Equal on both = a tie ("It's a tie! Rematch?"). **R** starts a rematch.
 - Duel + Sprint is saved on the **Duel** board; Duel + Marathon or Max on that mode's board. Under each player's name either way.
 - Logic: `rankResults`, `duelOutcome`, `scoreToBeat` in `frontend/src/logic/results.ts`.
 

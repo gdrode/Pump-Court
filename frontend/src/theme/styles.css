@@ -500,7 +500,7 @@ kbd {
 .results__stats { display: flex; gap: 2.4rem; margin-bottom: 1.2rem; }
 .results__stats b { display: block; font-weight: 400; font-size: 2.6rem; line-height: 1; }
 .results__stats span { color: var(--ink-soft); font-size: 1.1rem; }
-.results__stats > div:nth-child(3) b { color: var(--purple); }
+.results__stats > div:nth-child(4) b { color: var(--purple); }
 .results__noreps h3 { font-size: 1.4rem; margin-bottom: 0.3rem; }
 .norep-row { display: grid; grid-template-columns: 6rem 1fr 2rem; align-items: center; gap: 0.8rem; padding: 0.3rem 0; font-size: 1.2rem; }
 .norep-row + .norep-row { border-top: 2px dashed var(--faint); }

@@ -1,7 +1,7 @@
 //! Scores on disk, in a small SQLite database on the game laptop.
 //!
-//! One table, one row per finished round: who, which mode, how many valid
-//! push-ups, and (for a round at an event) the event, role and team; see
+//! One table, one row per finished round: who, which mode, the points (the
+//! score: 1 per 2-light push-up, 2 per 3-light), how many valid push-ups, and (for a round at an event) the event, role and team; see
 //! `events.rs`. Survives refreshes and crashes, needs no internet, and writes a
 //! JSON backup file every hour (see the engine).
 
@@ -45,8 +45,17 @@ pub struct LeaderboardRow {
     pub name: String,
     /// "sprint", "minute", "max" or "duel".
     pub mode: String,
+    /// The score the board ranks by.
+    pub points: u32,
     /// Valid push-ups.
     pub reps: u32,
+}
+
+impl LeaderboardRow {
+    /// From `SELECT id, name, mode, points, reps` (rank set by the caller).
+    pub(crate) fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Self> {
+        Ok(Self { rank: 0, run_id: row.get(0)?, name: row.get(1)?, mode: row.get(2)?, points: row.get(3)?, reps: row.get(4)? })
+    }
 }
 
 /// A stored round, as written to the backup file.
@@ -55,6 +64,7 @@ struct BackupRun {
     id: i64,
     name: String,
     mode: String,
+    points: u32,
     reps: u32,
     event_id: Option<i64>,
     role: Option<String>,
@@ -127,6 +137,23 @@ const CREATE_RUNS: &str = "CREATE TABLE IF NOT EXISTS runs (
     reps  INTEGER NOT NULL
 );";
 
+/// Points came later: older rounds get `points = reps` (their perfect count was never stored).
+fn add_points(conn: &Connection) -> rusqlite::Result<()> {
+    let has = conn
+        .prepare("SELECT name FROM pragma_table_info('runs')")?
+        .query_map([], |r| r.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?
+        .iter()
+        .any(|c| c == "points");
+    if !has {
+        conn.execute_batch("ALTER TABLE runs ADD COLUMN points INTEGER;")?;
+    }
+    conn.execute_batch(
+        "UPDATE runs SET points = reps WHERE points IS NULL;
+         CREATE INDEX IF NOT EXISTS runs_by_points ON runs(mode, points DESC);",
+    )
+}
+
 impl Leaderboard {
     /// Opens (or creates) the database in `dir`.
     pub fn open(dir: &Path) -> rusqlite::Result<Self> {
@@ -136,6 +163,7 @@ impl Leaderboard {
         migrate(&conn)?;
         conn.execute_batch(CREATE_RUNS)?;
         conn.execute_batch("CREATE INDEX IF NOT EXISTS runs_by_mode ON runs(mode, reps DESC);")?;
+        add_points(&conn)?;
         crate::events::init(&conn)?;
         Ok(Self { conn, backup_dir: dir.join("backups") })
     }
@@ -147,9 +175,9 @@ impl Leaderboard {
         Self::open(&dir).unwrap()
     }
 
-    /// Saves a finished round. Returns the new run id.
-    pub fn save_run(&self, name: &str, mode: RoundMode, reps: u32) -> rusqlite::Result<i64> {
-        self.save_tagged_run(name, mode, reps, None, None, None)
+    /// Saves a round scored only by its points (counted as that many push-ups too). Returns the run id.
+    pub fn save_run(&self, name: &str, mode: RoundMode, points: u32) -> rusqlite::Result<i64> {
+        self.save_tagged_run(name, mode, points, points, None, None, None)
     }
 
     /// Saves a finished round played at an event, with the player's role and team.
@@ -157,34 +185,33 @@ impl Leaderboard {
         &self,
         name: &str,
         mode: RoundMode,
+        points: u32,
         reps: u32,
         event_id: Option<i64>,
         role: Option<&str>,
         team: Option<&str>,
     ) -> rusqlite::Result<i64> {
         self.conn.execute(
-            "INSERT INTO runs (name, mode, reps, event_id, role, team) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![name, mode.as_str(), reps, event_id, role, team],
+            "INSERT INTO runs (name, mode, points, reps, event_id, role, team) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![name, mode.as_str(), points, reps, event_id, role, team],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
 
-    /// Each player's best round, ranked by valid push-ups. `None` = every mode
+    /// Each player's best round, ranked by points. `None` = every mode
     /// (the all-time board). A tie goes to whoever posted first.
     pub fn top(&self, mode: Option<RoundMode>, limit: u32) -> rusqlite::Result<Vec<LeaderboardRow>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, mode, reps FROM (
-                 SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY reps DESC, id ASC) AS best
+            "SELECT id, name, mode, points, reps FROM (
+                 SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY points DESC, id ASC) AS best
                  FROM runs
                  WHERE ?1 IS NULL OR mode = ?1
              )
              WHERE best = 1
-             ORDER BY reps DESC, id ASC
+             ORDER BY points DESC, id ASC
              LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![mode.map(RoundMode::as_str), limit], |row| {
-            Ok(LeaderboardRow { rank: 0, run_id: row.get(0)?, name: row.get(1)?, mode: row.get(2)?, reps: row.get(3)? })
-        })?;
+        let rows = stmt.query_map(params![mode.map(RoundMode::as_str), limit], LeaderboardRow::from_row)?;
         let mut out = rows.collect::<rusqlite::Result<Vec<_>>>()?;
         for (i, row) in out.iter_mut().enumerate() {
             row.rank = i as u32 + 1;
@@ -221,7 +248,7 @@ impl Leaderboard {
     pub fn export_backup(&self) -> Result<PathBuf, String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT id, name, mode, reps, event_id, role, team FROM runs ORDER BY id")
+            .prepare("SELECT id, name, mode, points, reps, event_id, role, team FROM runs ORDER BY id")
             .map_err(|e| e.to_string())?;
         let runs = stmt
             .query_map([], |row| {
@@ -229,10 +256,11 @@ impl Leaderboard {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     mode: row.get(2)?,
-                    reps: row.get(3)?,
-                    event_id: row.get(4)?,
-                    role: row.get(5)?,
-                    team: row.get(6)?,
+                    points: row.get(3)?,
+                    reps: row.get(4)?,
+                    event_id: row.get(5)?,
+                    role: row.get(6)?,
+                    team: row.get(7)?,
                 })
             })
             .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>())
@@ -253,6 +281,9 @@ impl Leaderboard {
 pub struct FinishedRound {
     pub mode: RoundMode,
     pub player: String,
+    /// The score; if missing, worked out from `reps` and `perfect` (see `rep_points`).
+    #[serde(default)]
+    pub points: Option<u32>,
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,
@@ -275,17 +306,20 @@ pub struct FinishedRound {
 /// and the player's rank on that mode's board.
 pub fn save_finished(db: &Leaderboard, round: FinishedRound) -> Result<RoundResult, String> {
     let player = validate_name(&round.player)?;
+    // 2 points per perfect rep, 1 per other valid rep: reps + perfect.
+    let points = round.points.unwrap_or(round.reps + round.perfect.min(round.reps));
     let (role, team) = match round.event_id {
         Some(ev) => db.check_tags(ev, round.role.as_deref(), round.team.as_deref())?,
         None => (None, None),
     };
     let id = db
-        .save_tagged_run(&player, round.mode, round.reps, round.event_id, role.as_deref(), team.as_deref())
+        .save_tagged_run(&player, round.mode, points, round.reps, round.event_id, role.as_deref(), team.as_deref())
         .map_err(|e| e.to_string())?;
     let rank = db.rank_of(Some(round.mode), &player).ok().flatten();
     Ok(RoundResult {
         mode: round.mode,
         player,
+        points,
         reps: round.reps,
         attempts: round.attempts,
         perfect: round.perfect,
@@ -366,6 +400,24 @@ mod tests {
     }
 
     #[test]
+    fn boards_rank_by_points_not_push_ups() {
+        let db = Leaderboard::temporary();
+        db.save_tagged_run("Ana", RoundMode::Sprint, 20, 20, None, None, None).unwrap(); // 20 two-light reps
+        db.save_tagged_run("Ben", RoundMode::Sprint, 24, 12, None, None, None).unwrap(); // 12 perfect reps
+        let top = db.top(Some(RoundMode::Sprint), 10).unwrap();
+        let got: Vec<_> = top.iter().map(|r| (r.name.as_str(), r.points, r.reps)).collect();
+        assert_eq!(got, [("Ben", 24, 12), ("Ana", 20, 20)]);
+    }
+
+    #[test]
+    fn rounds_from_before_points_score_their_push_ups() {
+        let db = Leaderboard::temporary();
+        db.conn.execute("INSERT INTO runs (name, mode, reps) VALUES ('Old', 'sprint', 17)", []).unwrap();
+        add_points(&db.conn).unwrap();
+        assert_eq!(db.top(None, 10).unwrap()[0].points, 17);
+    }
+
+    #[test]
     fn names_are_checked() {
         assert_eq!(validate_name("  Jo   Lee ").unwrap(), "Jo Lee");
         assert!(validate_name("").is_err());
@@ -382,6 +434,7 @@ mod tests {
         let round = |name: &str, reps| FinishedRound {
             mode: RoundMode::Minute,
             player: name.into(),
+            points: None,
             reps,
             attempts: reps + 2,
             perfect: 1,
@@ -396,6 +449,7 @@ mod tests {
         let b = save_finished(&db, round("Ben", 25)).unwrap();
         assert!(a.run_id.is_some() && b.run_id.is_some());
         assert_eq!((b.rank, b.reps, b.attempts), (Some(1), 25, 27));
+        assert_eq!(b.points, 26, "25 valid push-ups, 1 of them perfect");
         assert_eq!(db.rank_of(Some(RoundMode::Minute), "Ana").unwrap(), Some(2));
         assert!(save_finished(&db, round("", 5)).is_err(), "names are checked like any round");
     }

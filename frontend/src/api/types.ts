@@ -51,6 +51,8 @@ export type FinishReason = "time" | "stopped" | "stuck" | "left" | "ended";
 export interface RoundResult {
   mode: RoundMode;
   player: string;
+  /** The score: 1 per 2-light rep, 2 per 3-light (perfect) rep. */
+  points: number;
   /** Valid push-ups (2–3 white lights). */
   reps: number;
   attempts: number;
@@ -72,6 +74,8 @@ export interface RoundResult {
 export interface FinishedRound {
   mode: RoundMode;
   player: string;
+  /** The score; the backend works it out from reps and perfect if missing. */
+  points?: number;
   reps: number;
   attempts: number;
   perfect: number;
@@ -119,8 +123,8 @@ export interface EventDraft {
 export interface TeamRow {
   rank: number;
   team: string;
-  /** Sum of the members' best rounds in the board's mode. */
-  reps: number;
+  /** Sum of the members' best rounds (points) in the board's mode. */
+  points: number;
   members: number;
 }
 
@@ -137,18 +141,23 @@ export interface SessionSnapshot {
   remainingMs: number | null;
   /** While running: time left before the player fails (stuck in a rep, or no push-up in time). */
   failRemainingMs: number | null;
+  /** The score so far: 1 per 2-light rep, 2 per perfect rep. */
+  points: number;
   reps: number;
   attempts: number;
   perfect: number;
   lastRep: RepVerdict | null;
 }
 
-/** One player's best round. The database keeps only name, mode and reps. */
+/** One player's best round (ranked by points). */
 export interface LeaderboardRow {
   rank: number;
   runId: number;
   name: string;
   mode: RoundMode;
+  /** The score the board ranks by. */
+  points: number;
+  /** Valid push-ups. */
   reps: number;
 }
 

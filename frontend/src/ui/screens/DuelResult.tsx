@@ -15,7 +15,7 @@ interface Props {
 const ORDINAL = ["1st", "2nd"];
 
 /**
- * Who won the Duel: most push-ups; perfect push-ups break a tie. Posting is
+ * Who won the Duel: most points; perfect push-ups break a tie. Posting is
  * opt-in: each player can post from their phone, or the operator posts the
  * scores still waiting (P).
  */
@@ -41,13 +41,15 @@ export function DuelResult({ results, onRematch, onDone }: Props) {
           >
             <span className="standing__place">{ORDINAL[i]}</span>
             <span className="standing__name">{r.player}</span>
-            <span className="standing__reps">{r.reps}</span>
-            <span className="standing__acc">{r.perfect} perfect</span>
+            <span className="standing__reps">{r.points}</span>
+            <span className="standing__acc">
+              {r.reps} push-ups · {r.perfect} perfect
+            </span>
             <span className={`standing__post is-${postOf(r).status}`}>{postLabel(postOf(r))}</span>
           </li>
         ))}
       </ol>
-      {decidedOnPerfect && <p className="muted versus__note">Tied on push-ups, decided on perfect push-ups.</p>}
+      {decidedOnPerfect && <p className="muted versus__note">Tied on points, decided on perfect push-ups.</p>}
       <div className="versus__foot">
         <button type="button" className="start-btn sketch" onClick={onRematch}>
           Rematch!

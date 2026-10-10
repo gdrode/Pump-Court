@@ -57,10 +57,14 @@ export function Results({ result, nextPlayer, onNext, onDiscard }: Props) {
         {r.finish && <p className="results__finish">{FINISH_TEXT[r.finish]}</p>}
         <p className={`results__post is-${post.status}`}>{postText(post, r.player)}</p>
         <div className="results__score">
-          <span>{r.reps}</span>
-          <small>push-ups</small>
+          <span>{r.points}</span>
+          <small>points</small>
         </div>
         <div className="results__stats">
+          <div>
+            <b>{r.reps}</b>
+            <span>push-ups</span>
+          </div>
           <div>
             <b>{r.attempts}</b>
             <span>attempts</span>
@@ -92,11 +96,11 @@ export function Results({ result, nextPlayer, onNext, onDiscard }: Props) {
 
       <div className="results__side">
         <Dragon
-          action={r.rank === 1 ? "hype" : r.reps === 0 ? "sad" : "cheer"}
+          action={r.rank === 1 ? "hype" : r.points === 0 ? "sad" : "cheer"}
           beat={r.rank ?? 0}
           size="lg"
           bubble="top"
-          says={host.results(r.reps, r.rank)}
+          says={host.results(r.points, r.rank)}
           mood={r.rank === 1 ? "good" : undefined}
         />
         <button type="button" className="start-btn sketch" onClick={() => void next()} disabled={post.status === "posting"}>

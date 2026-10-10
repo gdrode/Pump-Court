@@ -338,6 +338,7 @@ function showStats(st: PhoneRoundStats) {
   set('r-mode', st.modeLabel)
   set('r-player', st.player)
   set('r-finish', st.finishText)
+  set('r-points', st.points)
   set('r-reps', st.reps)
   set('r-attempts', st.attempts)
   set('r-perfect', st.perfect)
@@ -347,7 +348,7 @@ function showStats(st: PhoneRoundStats) {
     const bar = $(`r-${light}-bar`)
     if (bar) bar.innerHTML = '<i></i>'.repeat(Math.min(st.noReps[light], 40))
   }
-  set('say', st.reps === 0 ? 'Every champion starts somewhere!' : st.perfect === st.reps && st.reps > 0 ? 'Flawless form!' : `${st.reps} push-ups. Nice work!`)
+  set('say', st.reps === 0 ? 'Every champion starts somewhere!' : st.perfect === st.reps && st.reps > 0 ? 'Flawless form!' : `${st.points} points. Nice work!`)
   setDragon('result-view', st.reps === 0 ? 'sad' : 'cheer')
 }
 

@@ -65,7 +65,7 @@ The chosen system camera is remembered for next time. Phones must be paired agai
   │ Esc aborts (nothing saved).
   ▼
 [ RESULTS ]
-  │ Push-ups, why the round ended, attempts, perfect, red lights per referee.
+  │ Points (3 white = 2, 2 white = 1), why the round ended, push-ups, attempts, perfect, red lights.
   │ NOT saved yet: posting is opt-in. A phone camera now shows the player their stats with
   │ "Post my score" / "Don't post" (the phone stops filming and leaves the camera list).
   │ Enter: post (unless the player chose "Don't post" on their phone), then solo → leaderboard
@@ -73,7 +73,7 @@ The chosen system camera is remembered for next time. Phones must be paired agai
   │ Esc: discard the score (Duel: redo this turn).
   ▼
 [ DUEL RESULT ]  (Duel only)
-  │ Most push-ups wins; perfect push-ups break a tie. Each score shows "✓ posted" or "not posted".
+  │ Most points wins; perfect push-ups break a tie. Each score shows "✓ posted" or "not posted".
   │ P: post the scores still waiting. R: rematch. Enter/Esc: menu.
 ```
 

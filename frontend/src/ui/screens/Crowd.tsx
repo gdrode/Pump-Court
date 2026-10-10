@@ -9,7 +9,7 @@ import { Logo } from "../components/Logo";
 /**
  * The aisle-facing second window. Live round → big count, lights and the
  * dragon. Otherwise → the all-time board: each player's best round in any
- * mode (name, mode, push-ups); during an event, its boards in turn.
+ * mode (name, mode, points); during an event, its boards in turn.
  */
 export function Crowd() {
   const crowd = useCrowd();
@@ -22,7 +22,7 @@ export function Crowd() {
     const reaction = hostReaction({
       lastRep: r.lastRep,
       lastRepAt: r.lastRepAt,
-      reps: r.reps,
+      points: r.points,
       attempts: r.attempts,
       best: r.best,
       urgent,
@@ -36,13 +36,15 @@ export function Crowd() {
         </div>
         {running ? (
           <>
-            <div className="crowd__count" key={r.reps}>
-              {r.reps}
+            <div className="crowd__count" key={r.points}>
+              {r.points}
             </div>
             {secondsLeft !== null && <div className={`crowd__clock ${urgent ? "is-urgent" : ""}`}>{secondsLeft}s</div>}
             {r.best && (
-              <div className={`crowd__best ${r.reps > r.best.reps ? "is-beaten" : ""}`}>
-                {r.reps > r.best.reps ? `Passed ${r.best.name}'s ${r.best.reps}!` : `All-time best: ${r.best.name} ${r.best.reps}`}
+              <div className={`crowd__best ${r.points > r.best.points ? "is-beaten" : ""}`}>
+                {r.points > r.best.points
+                  ? `Passed ${r.best.name}'s ${r.best.points} points!`
+                  : `All-time best: ${r.best.name} ${r.best.points} points`}
               </div>
             )}
             <div className="crowd__live-row">
@@ -68,9 +70,9 @@ export function Crowd() {
 
   const posted = crowd.posted;
   const says = posted
-    ? host.posted(posted.player, posted.reps, crowd.rows.find((row) => row.runId === posted.runId)?.rank ?? null)
+    ? host.posted(posted.player, posted.points, crowd.rows.find((row) => row.runId === posted.runId)?.rank ?? null)
     : crowd.leader
-      ? host.idle(crowd.leader.name, crowd.leader.reps)
+      ? host.idle(crowd.leader.name, crowd.leader.points)
       : host.idle(null, null);
 
   return (
@@ -95,7 +97,7 @@ export function Crowd() {
           ) : (
             <>
               <div className="crowd__tabs">
-                <span className="sketch is-on">Most push-ups · all time</span>
+                <span className="sketch is-on">Most points · all time</span>
               </div>
               <LeaderboardTable rows={crowd.rows} big showMode highlight={posted?.player} />
             </>

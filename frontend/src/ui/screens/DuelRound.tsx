@@ -28,7 +28,7 @@ const WARN_MS = 3000;
 const NOTE: Record<DuelView["phase"], string> = {
   waiting: "Both players: get side-on to your camera in the push-up position, arms straight. The countdown starts when both are ready.",
   countdown: "Get ready… the countdown won't stop now.",
-  running: "Go! Most push-ups wins.",
+  running: "Go! Most points wins.",
   finished: "Done!",
 };
 
@@ -142,11 +142,11 @@ function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; 
       <div className="duel-side__panel">
         <div className="score score--you sketch">
           <span className="score__label">{p.name}</span>
-          <span className="score__num" key={p.reps}>
-            {p.reps}
+          <span className="score__num" key={p.points}>
+            {p.points}
           </span>
           <span className="score__sub">
-            push-ups · {p.perfect} perfect
+            points · {p.reps} push-ups · {p.perfect} perfect
           </span>
         </div>
         <Lights rep={p.lastRep} flashKey={p.attempts} showFaults={false} />

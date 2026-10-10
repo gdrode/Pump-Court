@@ -97,7 +97,7 @@ docs/
 | **Pose tracking** | TypeScript, MediaPipe (`@mediapipe/tasks-vision` 1.0.1) | `pumpCourt/src/{landmarker,pose,camera,draw}.ts`, `frontend/src/logic/tracker/TrackerProvider.tsx` | Camera → 33 landmarks → angles of the side nearest the camera |
 | **Ready check** | TypeScript | `pumpCourt/src/posture.ts` | Is the player in the push-up position? Plants the floor line |
 | **Referee** | TypeScript | `pumpCourt/src/judge.ts` | Splits motion into reps, gives Depth / Torso / Lockout lights |
-| **Round clock & score** | Rust (`std::thread`, `mpsc`) | `backend/src/engine.rs`, `backend/src/game/` | Get ready → countdown → running → finished; counts valid push-ups |
+| **Round clock & score** | Rust (`std::thread`, `mpsc`) | `backend/src/engine.rs`, `backend/src/game/` | Get ready → countdown → running → finished; counts points and valid push-ups |
 | **Desktop shell** | Rust / Tauri 2 | `backend/src/lib.rs`, `commands.rs` | Windows, commands, camera permission on Linux |
 | **Phone cameras** | Rust (axum, rustls, rcgen) + TypeScript | `backend/src/phone/`, `frontend/src/logic/tracker/` | HTTPS on :47800, pairing rooms, WebRTC signalling, JPEG relay, Cloudflare tunnel |
 | **Leaderboard** | Rust / SQLite (`rusqlite`, bundled) | `backend/src/leaderboard.rs` | `runs(name, mode, reps, event/role/team)`, best run per player, event / role / team boards (`events.rs`), hourly JSON backups |

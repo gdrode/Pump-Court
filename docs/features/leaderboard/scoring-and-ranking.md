@@ -9,7 +9,21 @@
 
 ## 1. The score
 
-The score is the number of **valid push-ups** in a round: reps with 2 or 3 white lights. Perfect push-ups, attempts and no-reps are shown on the Results screen but are not stored and do not affect the board.
+The score is **points**:
+
+| Rep | Points |
+| :--- | :--- |
+| 3 white lights (perfect) | **2** |
+| 2 white lights | **1** |
+| 0–1 white lights (no-rep) | 0 |
+
+So `points = valid push-ups + perfect push-ups`.
+- **Rust**: `rep_points` in `backend/src/game/session.rs`; the session counts it as reps come in. `save_round` works it out from `reps` + `perfect` if the frontend doesn't send it.
+- **TypeScript**: `repPoints` / `points` in `pumpCourt/src/game.ts`, used for the side-by-side Duel.
+
+The board stores `points` and `reps` (valid push-ups) and ranks by **points**. Attempts and no-reps show on the Results screen only.
+
+**Rounds saved before points existed** get `points = reps` when the database opens (`add_points`), because their perfect count was never stored.
 
 ---
 
@@ -30,18 +44,18 @@ The crowd screen always shows the **All time** board (top 10). The operator's Le
 ## 3. One row per player: their best run
 
 ```sql
-SELECT id, name, mode, reps FROM (
-    SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY reps DESC, id ASC) AS best
+SELECT id, name, mode, points, reps FROM (
+    SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY points DESC, id ASC) AS best
     FROM runs
     WHERE ?1 IS NULL OR mode = ?1
 )
 WHERE best = 1
-ORDER BY reps DESC, id ASC
+ORDER BY points DESC, id ASC
 LIMIT ?2;
 ```
 
 - **Same person**: names are matched ignoring upper/lower case. "Ana" and "ana" are one player; only their best run shows (under the spelling of that run).
-- **Order**: most valid push-ups first.
+- **Order**: most points first.
 - **Ties**: whoever posted first ranks higher (`id ASC`). A player's own tie between two equal runs keeps the earlier one.
 - **Rank**: 1, 2, 3… in that order, with no shared places.
 
@@ -69,7 +83,7 @@ round ends ─▶ "round-finished" (runId, rank = null) ─▶ ScorePost (fronte
 
 ## 5. Duel winner (not the board)
 
-Who wins a Duel is decided in the frontend (`duelOutcome` in `frontend/src/logic/results.ts`): most valid push-ups, then most perfect push-ups. If both are equal it is a tie. The board does not use perfect push-ups.
+Who wins a Duel is decided in the frontend (`duelOutcome` in `frontend/src/logic/results.ts`): most points, then most perfect push-ups. If both are equal it is a tie.
 
 ---
 

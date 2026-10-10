@@ -50,8 +50,8 @@ export interface GameModeInfo {
 
 /** Marathon is stored as "minute" (its id and leaderboard name in the database). */
 export const GAME_MODES: GameModeInfo[] = [
-  { id: "sprint", key: "1", title: "Sprint", blurb: "30 seconds. Most push-ups wins." },
-  { id: "minute", key: "2", title: "Marathon", blurb: "60 seconds. Most push-ups wins." },
+  { id: "sprint", key: "1", title: "Sprint", blurb: "30 seconds. Most points wins." },
+  { id: "minute", key: "2", title: "Marathon", blurb: "60 seconds. Most points wins." },
   { id: "max", key: "3", title: "Max", blurb: "No time limit. Go until you fail." },
 ];
 

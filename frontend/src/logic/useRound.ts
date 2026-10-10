@@ -123,6 +123,8 @@ export function useRound(opts: RoundOptions) {
     /** The tracker's push-up position check (for the get-ready checklist). */
     posture: tracker.live.posture,
     countdownSeconds,
+    /** The score: 1 per 2-light rep, 2 per perfect rep. */
+    points: session?.points ?? 0,
     /** Valid push-ups (2–3 white lights). */
     reps: session?.reps ?? 0,
     attempts: session?.attempts ?? 0,

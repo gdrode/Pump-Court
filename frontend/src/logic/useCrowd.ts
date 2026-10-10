@@ -60,13 +60,13 @@ export function useCrowd() {
           modeLabel: s.mode ? MODE_LABELS[s.mode] : "",
           phase: s.phase,
           countdownSeconds: s.phase === "countdown" ? Math.max(1, Math.ceil((s.countdownMs ?? 0) / 1000)) : null,
-          reps: s.reps,
+          points: s.points,
           attempts: s.attempts,
           elapsedMs: s.elapsedMs,
           lastRep: s.lastRep,
           lastRepAt,
           remainingMs: s.mode !== "max" ? s.remainingMs : null,
-          best: leader ? { name: leader.name, reps: leader.reps } : null,
+          best: leader ? { name: leader.name, points: leader.points } : null,
         }
       : null,
     /** All-time board: best round per player, any mode. */

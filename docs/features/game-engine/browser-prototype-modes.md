@@ -43,7 +43,7 @@ The failure window grows with fatigue: **4 s + 0.25 s per rep attempted**, cappe
 
 In the last 3 s before failing, the player's stage shows **"Keep going! 3…2…1"**. Leaving position mid-round shows the posture prompt. Added 2026-10-10 (failure used to apply to Max only, with fixed 5 s / 8 s windows).
 
-Score = push-ups with 2 or 3 white lights. Co-op winner: most push-ups, then most perfect (3-light) reps; equal = tie. Results show each player's push-ups, perfect reps, accuracy, light rates and every rep, plus the team total.
+Score = points (`points` in `game.ts`): 2 per 3-light rep, 1 per 2-light rep. Co-op winner: most points, then most perfect (3-light) reps; equal = tie. Results show each player's push-ups, perfect reps, accuracy, light rates and every rep, plus the team total.
 
 ## 3. State machine (`game.ts`)
 

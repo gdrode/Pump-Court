@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { addRep, clock, COUNTDOWN_MS, countdownLeft, createGame, endGame, FAILURE, failLeft, failWindow, formatClock, tick, winner, type GameState, type PlayerLive } from '../game'
+import { addRep, clock, COUNTDOWN_MS, countdownLeft, createGame, endGame, FAILURE, failLeft, failWindow, formatClock, points, repPoints, tick, winner, type GameState, type PlayerLive } from '../game'
 import type { RepResult } from '../judge'
 
 const rep = (counted = true, perfect = counted): RepResult => ({
@@ -177,11 +177,19 @@ describe('stop and winner', () => {
     expect(g.players.every((p) => p.finished === 'ended')).toBe(true)
   })
 
-  it('winner: most good reps, then most perfect; ties are null', () => {
+  it('points: 2 for a perfect rep, 1 for a 2-light rep, 0 for a no-rep', () => {
+    expect([repPoints({ counted: true, perfect: true }), repPoints({ counted: true, perfect: false }), repPoints({ counted: false, perfect: false })]).toEqual([2, 1, 0])
+    let g = tick(tick(createGame('sprint', 1), 0, [R]), COUNTDOWN_MS, [R])
+    g = addRep(g, 0, rep(), 4000)
+    g = addRep(g, 0, rep(true, false), 5000)
+    expect(points(g.players[0])).toBe(3)
+  })
+
+  it('winner: most points, then most perfect; ties are null', () => {
     let g = tick(tick(createGame('sprint', 2), 0, [R, R]), COUNTDOWN_MS, [R, R])
     g = addRep(g, 0, rep(), 4000)
     g = addRep(g, 1, rep(true, false), 4000)
-    expect(winner(g)).toBe(0) // same good reps, player 1 has the perfect one
+    expect(winner(g)).toBe(0) // 2 points (perfect) beats 1
     g = addRep(g, 1, rep(), 5000)
     expect(winner(g)).toBe(1)
     g = addRep(g, 0, rep(true, false), 6000)

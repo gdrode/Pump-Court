@@ -47,7 +47,7 @@ An event is a named contest (for example a hackathon) with its own leaderboards.
 | :--- | :--- | :--- |
 | Event · mode · Everyone | Players | Each player's best round in that mode at the event (same rule as global boards: ties go to whoever posted first). |
 | Event · mode · Role | Players | The same, only rounds posted with that role. |
-| Team · mode | Teams | **Sum of the members' best rounds** in that mode. Members are the different names that posted with the team. Team names match ignoring case; the first spelling posted is shown. A tie goes to the team that reached its score first. |
+| Team · mode | Teams | **Sum of the members' best rounds (points)** in that mode. Members are the different names that posted with the team. Team names match ignoring case; the first spelling posted is shown. A tie goes to the team that reached its score first. |
 
 - **Leaderboard screen**:
   - **Global / event** switch at the top (key **E**);
@@ -76,7 +76,7 @@ CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);  -- 'active_event'
 ALTER TABLE runs ADD COLUMN event_id INTEGER;
 ALTER TABLE runs ADD COLUMN role TEXT;
 ALTER TABLE runs ADD COLUMN team TEXT;
-CREATE INDEX runs_by_event ON runs(event_id, mode, reps DESC);
+CREATE INDEX runs_by_event ON runs(event_id, mode, points DESC);
 ```
 
 `events::init` runs on every start and only adds what is missing. Backups include `event_id`, `role` and `team` for each run.

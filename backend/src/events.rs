@@ -3,7 +3,7 @@
 //! An event picks which game modes it ranks (Sprint, Marathon, Max; never the
 //! Duel). Each picked mode gets an "Everyone" board plus one board per role
 //! (e.g. one per role the operator adds). Team leaderboards are one per mode:
-//! a team's score is the sum of its members' best rounds in that mode.
+//! a team's score is the sum of its members' best rounds (points) in that mode.
 //!
 //! A run is tagged with the event (and the player's role and team) when it is
 //! posted, so it shows on the event's boards *and* the usual global boards.
@@ -53,8 +53,8 @@ pub struct EventDraft {
 pub struct TeamRow {
     pub rank: u32,
     pub team: String,
-    /// Sum of the members' best rounds in the board's mode.
-    pub reps: u32,
+    /// Sum of the members' best rounds (points) in the board's mode.
+    pub points: u32,
     pub members: u32,
 }
 
@@ -80,7 +80,7 @@ pub fn init(conn: &Connection) -> rusqlite::Result<()> {
             conn.execute_batch(&format!("ALTER TABLE runs ADD COLUMN {col} {kind};"))?;
         }
     }
-    conn.execute_batch("CREATE INDEX IF NOT EXISTS runs_by_event ON runs(event_id, mode, reps DESC);")
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS runs_by_event ON runs(event_id, mode, points DESC);")
 }
 
 fn to_json<T: Serialize>(v: &T) -> String {
@@ -235,18 +235,16 @@ impl Leaderboard {
         limit: u32,
     ) -> rusqlite::Result<Vec<LeaderboardRow>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, mode, reps FROM (
-                 SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY reps DESC, id ASC) AS best
+            "SELECT id, name, mode, points, reps FROM (
+                 SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY points DESC, id ASC) AS best
                  FROM runs
                  WHERE event_id = ?1 AND mode = ?2 AND (?3 IS NULL OR lower(role) = lower(?3))
              )
              WHERE best = 1
-             ORDER BY reps DESC, id ASC
+             ORDER BY points DESC, id ASC
              LIMIT ?4",
         )?;
-        let rows = stmt.query_map(params![event_id, mode.as_str(), role, limit], |row| {
-            Ok(LeaderboardRow { rank: 0, run_id: row.get(0)?, name: row.get(1)?, mode: row.get(2)?, reps: row.get(3)? })
-        })?;
+        let rows = stmt.query_map(params![event_id, mode.as_str(), role, limit], LeaderboardRow::from_row)?;
         let mut out = rows.collect::<rusqlite::Result<Vec<_>>>()?;
         for (i, row) in out.iter_mut().enumerate() {
             row.rank = i as u32 + 1;
@@ -260,8 +258,8 @@ impl Leaderboard {
     pub fn team_top(&self, event_id: i64, mode: RoundMode, limit: u32) -> rusqlite::Result<Vec<TeamRow>> {
         let mut stmt = self.conn.prepare(
             "WITH best AS (
-                 SELECT lower(team) AS key, reps, id,
-                        ROW_NUMBER() OVER (PARTITION BY lower(team), lower(name) ORDER BY reps DESC, id ASC) AS n
+                 SELECT lower(team) AS key, points, id,
+                        ROW_NUMBER() OVER (PARTITION BY lower(team), lower(name) ORDER BY points DESC, id ASC) AS n
                  FROM runs
                  WHERE event_id = ?1 AND mode = ?2 AND team IS NOT NULL AND team <> ''
              ),
@@ -269,7 +267,7 @@ impl Leaderboard {
                  SELECT lower(team) AS key, team, ROW_NUMBER() OVER (PARTITION BY lower(team) ORDER BY id ASC) AS n
                  FROM runs WHERE event_id = ?1 AND team IS NOT NULL AND team <> ''
              )
-             SELECT s.team, SUM(b.reps) AS total, COUNT(*) AS members, MAX(b.id) AS last
+             SELECT s.team, SUM(b.points) AS total, COUNT(*) AS members, MAX(b.id) AS last
              FROM best b JOIN spelling s ON s.key = b.key AND s.n = 1
              WHERE b.n = 1
              GROUP BY b.key
@@ -277,7 +275,7 @@ impl Leaderboard {
              LIMIT ?3",
         )?;
         let rows = stmt.query_map(params![event_id, mode.as_str(), limit], |r| {
-            Ok(TeamRow { rank: 0, team: r.get(0)?, reps: r.get(1)?, members: r.get(2)? })
+            Ok(TeamRow { rank: 0, team: r.get(0)?, points: r.get(1)?, members: r.get(2)? })
         })?;
         let mut out = rows.collect::<rusqlite::Result<Vec<_>>>()?;
         for (i, row) in out.iter_mut().enumerate() {
@@ -352,7 +350,7 @@ mod tests {
         let db = Leaderboard::temporary();
         let ev = db.save_event(draft("Fest")).unwrap().id;
         let post = |name: &str, mode, reps, role: Option<&str>, team: Option<&str>| {
-            db.save_tagged_run(name, mode, reps, Some(ev), role, team).unwrap()
+            db.save_tagged_run(name, mode, reps, reps, Some(ev), role, team).unwrap()
         };
         post("Ana", RoundMode::Sprint, 20, Some("Alpha"), Some("Red"));
         post("Ana", RoundMode::Sprint, 25, Some("Alpha"), Some("red")); // her best counts once
@@ -362,13 +360,13 @@ mod tests {
         db.save_run("Eve", RoundMode::Sprint, 99).unwrap(); // not at the event
 
         let everyone = db.event_top(ev, RoundMode::Sprint, None, 10).unwrap();
-        let names: Vec<_> = everyone.iter().map(|r| (r.name.as_str(), r.reps)).collect();
+        let names: Vec<_> = everyone.iter().map(|r| (r.name.as_str(), r.points)).collect();
         assert_eq!(names, [("Cy", 30), ("Ana", 25), ("Ben", 18)]);
         let beta = db.event_top(ev, RoundMode::Sprint, Some("BETA"), 10).unwrap();
         assert_eq!(beta.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["Cy", "Ben"]);
 
         let teams = db.team_top(ev, RoundMode::Sprint, 10).unwrap();
-        let got: Vec<_> = teams.iter().map(|t| (t.team.as_str(), t.reps, t.members, t.rank)).collect();
+        let got: Vec<_> = teams.iter().map(|t| (t.team.as_str(), t.points, t.members, t.rank)).collect();
         assert_eq!(got, [("Red", 43, 2, 1), ("Blue", 30, 1, 2)]);
         assert_eq!(db.event_teams(ev).unwrap(), ["Blue", "Red"]);
         assert_eq!(db.top(Some(RoundMode::Sprint), 1).unwrap()[0].name, "Eve", "event rounds stay on the global boards too");

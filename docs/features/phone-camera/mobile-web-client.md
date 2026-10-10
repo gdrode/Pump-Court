@@ -76,7 +76,7 @@ Closing or reloading the page sends `leave` with `keepalive`, closes the peer co
 In the Pump Court app, when the round ends the laptop lets the phone go as a camera and sends it a `round-over` note (see [Pairing](pairing-and-websocket.md)):
 
 1. The phone **stops filming** (camera off, WebRTC closed or relay frames stopped) but keeps its link for the choice.
-2. It shows the **stats card**, like the Results screen: mode, name, why the round ended, push-ups, attempts, perfect, rank, time, and the red lights per referee. The dragon cheers (or comforts after 0).
+2. It shows the **stats card**, like the Results screen: mode, name, why the round ended, points (big), push-ups, attempts, perfect, rank, time, and the red lights per referee. The dragon cheers (or comforts after 0).
 3. **Post my score** sends `{post: true}`; **Don't post** sends `{post: false}`. Posting is opt-in: nothing is on the leaderboard until someone posts it.
 4. `post-status` notes update the card: "Posting…", "✓ Posted! You're #3 on the board." (also when the operator posted it: "(posted by the host)"), "Not posted. Only you saw this score.", "The host discarded this round.", or "Could not save the score. Try again."
 5. The laptop closes the link a few seconds after the choice (or after 10 minutes). If it closes while the score is still waiting: "The laptop has moved on: this score was not posted."

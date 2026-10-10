@@ -22,7 +22,7 @@ export function LeaderboardTable({ rows, limit = 10, showMode = false, highlight
           <th className="num">#</th>
           <th>Name</th>
           {showMode && <th>Mode</th>}
-          <th className="num">Push-ups</th>
+          <th className="num">Points</th>
         </tr>
       </thead>
       <tbody>
@@ -38,7 +38,7 @@ export function LeaderboardTable({ rows, limit = 10, showMode = false, highlight
             <td className="num">{r.rank}</td>
             <td className="board__name">{r.name}</td>
             {showMode && <td className="board__mode">{MODE_LABELS[r.mode] ?? r.mode}</td>}
-            <td className="num board__reps">{r.reps}</td>
+            <td className="num board__reps">{r.points}</td>
           </tr>
         ))}
       </tbody>
@@ -56,7 +56,7 @@ export function TeamTable({ rows, limit = 10, big }: { rows: TeamRow[]; limit?: 
           <th className="num">#</th>
           <th>Team</th>
           <th className="num">Players</th>
-          <th className="num">Push-ups</th>
+          <th className="num">Points</th>
         </tr>
       </thead>
       <tbody>
@@ -65,7 +65,7 @@ export function TeamTable({ rows, limit = 10, big }: { rows: TeamRow[]; limit?: 
             <td className="num">{r.rank}</td>
             <td className="board__name">{r.team}</td>
             <td className="num board__mode">{r.members}</td>
-            <td className="num board__reps">{r.reps}</td>
+            <td className="num board__reps">{r.points}</td>
           </tr>
         ))}
       </tbody>

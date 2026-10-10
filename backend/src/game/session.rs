@@ -87,14 +87,25 @@ pub struct NoRepCounts {
     pub lockout: u32,
 }
 
-/// Final numbers for the results screen. Only `player`, `mode` and `reps`
-/// are stored on the leaderboard.
+/// Points for one rep: 2 white lights = 1, 3 white lights (perfect) = 2, else 0.
+pub fn rep_points(counted: bool, perfect: bool) -> u32 {
+    if perfect {
+        2
+    } else {
+        u32::from(counted)
+    }
+}
+
+/// Final numbers for the results screen. Only `player`, `mode`, `points` and
+/// `reps` are stored on the leaderboard.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RoundResult {
     pub mode: RoundMode,
     pub player: String,
-    /// Valid push-ups: the score.
+    /// The score: 1 per 2-light rep, 2 per 3-light rep (see [`rep_points`]).
+    pub points: u32,
+    /// Valid push-ups (2 or 3 white lights).
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,
@@ -123,6 +134,8 @@ pub struct SessionSnapshot {
     /// While running: time left before the player fails (stuck in a rep, or no
     /// push-up in time).
     pub fail_remaining_ms: Option<i64>,
+    /// The score so far (see [`rep_points`]).
+    pub points: u32,
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,
@@ -139,6 +152,7 @@ pub struct Session {
     /// When the current phase began.
     phase_start: i64,
     now: i64,
+    points: u32,
     reps: u32,
     attempts: u32,
     perfect: u32,
@@ -168,6 +182,7 @@ impl Session {
             in_rep: false,
             phase_start: 0,
             now: 0,
+            points: 0,
             reps: 0,
             attempts: 0,
             perfect: 0,
@@ -239,6 +254,7 @@ impl Session {
         if rep.perfect {
             self.perfect += 1;
         }
+        self.points += rep_points(rep.counted, rep.perfect);
         self.no_reps.depth += u32::from(!rep.lights.depth);
         self.no_reps.torso += u32::from(!rep.lights.torso);
         self.no_reps.lockout += u32::from(!rep.lights.lockout);
@@ -271,6 +287,7 @@ impl Session {
                 Some(RoundResult {
                     mode,
                     player: self.player.clone().unwrap_or_default(),
+                    points: self.points,
                     reps: self.reps,
                     attempts: self.attempts,
                     perfect: self.perfect,
@@ -325,6 +342,7 @@ impl Session {
             elapsed_ms: elapsed,
             remaining_ms: self.mode.filter(|_| running).and_then(|m| m.duration_ms()).map(|d| (d - elapsed).max(0)),
             fail_remaining_ms: if running { self.fail_remaining(elapsed) } else { None },
+            points: self.points,
             reps: self.reps,
             attempts: self.attempts,
             perfect: self.perfect,
@@ -375,6 +393,7 @@ mod tests {
         keep_going(&mut s, t0 + 6_000, t0 + 30_000, 3_000);
         let r = s.tick(t0 + 30_100).expect("time up");
         assert_eq!((r.reps, r.attempts, r.perfect), (10, 11, 9));
+        assert_eq!(r.points, 19, "9 perfect × 2 + 1 two-light rep × 1");
         assert_eq!((r.no_reps.depth, r.no_reps.torso, r.no_reps.lockout), (2, 1, 0));
         assert_eq!((r.duration_ms, r.finish), (30_000, FinishReason::Time));
         assert!(s.tick(t0 + 31_000).is_none(), "the result comes once");

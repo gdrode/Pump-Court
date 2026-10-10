@@ -174,10 +174,16 @@ export function clock(g: GameState, now: number) {
 
 export const goodReps = (p: PlayerState) => p.results.filter((r) => r.counted).length
 
-/** Index of the winner in a 2-player round, or null for a tie / 1 player. Ties on good reps go to more perfect reps. */
+/** Points for one rep: 3 white lights (perfect) = 2, 2 white lights = 1, else 0. */
+export const repPoints = (r: { counted: boolean; perfect: boolean }) => (r.perfect ? 2 : r.counted ? 1 : 0)
+
+/** The score: 1 point per 2-light rep, 2 per 3-light (perfect) rep. */
+export const points = (p: PlayerState) => p.results.reduce((n, r) => n + repPoints(r), 0)
+
+/** Index of the winner in a 2-player round, or null for a tie / 1 player. Most points wins; a tie on points goes to more perfect reps. */
 export function winner(g: GameState): number | null {
   if (g.players.length < 2) return null
-  const score = (p: PlayerState) => goodReps(p) * 1000 + p.results.filter((r) => r.perfect).length
+  const score = (p: PlayerState) => points(p) * 1000 + p.results.filter((r) => r.perfect).length
   const [a, b] = g.players.map(score)
   return a === b ? null : a > b ? 0 : 1
 }

@@ -21,7 +21,7 @@ const WARN_MS = 3000;
 export interface Target {
   label: string;
   name: string;
-  reps: number;
+  points: number;
 }
 
 interface Props {
@@ -88,14 +88,14 @@ export function Round({ mode, player, turn, target, tags, onFinished, onAbort }:
 
   const running = round.phase === "running";
   const best = target === undefined ? (record ? { label: "Record", ...record } : null) : target;
-  const ahead = best !== null && round.reps > best.reps;
+  const ahead = best !== null && round.points > best.points;
   const urgent =
     running && (secondsLeft !== null ? secondsLeft <= 5 : round.failRemainingMs !== null && round.failRemainingMs <= WARN_MS);
   const clock = secondsLeft !== null ? String(secondsLeft) : formatElapsed(round.elapsedMs);
   const reaction = hostReaction({
     lastRep: round.lastRep,
     lastRepAt: round.lastRepAt,
-    reps: round.reps,
+    points: round.points,
     attempts: round.attempts,
     best,
     urgent: urgent && secondsLeft !== null,
@@ -129,15 +129,17 @@ export function Round({ mode, player, turn, target, tags, onFinished, onAbort }:
           <div className={`scores ${best ? "" : "scores--solo"}`}>
             <div className={`score score--you sketch ${ahead ? "is-ahead" : ""}`}>
               <span className="score__label">{ahead ? "New best!" : player}</span>
-              <span className="score__num" key={round.reps}>
-                {round.reps}
+              <span className="score__num" key={round.points}>
+                {round.points}
               </span>
-              <span className="score__sub">push-ups</span>
+              <span className="score__sub">
+                points · {round.reps} push-ups
+              </span>
             </div>
             {best && (
               <div className="score score--best sketch">
                 <span className="score__label">{best.label}</span>
-                <span className="score__num">{best.reps}</span>
+                <span className="score__num">{best.points}</span>
                 <span className="score__sub">{best.name}</span>
               </div>
             )}

@@ -6,6 +6,7 @@ import {
   endGame,
   failLeft,
   goodReps,
+  points,
   tick,
   type GameState,
   type Mode as GameMode,
@@ -133,6 +134,7 @@ export function useDuelMatch(opts: DuelOptions) {
     const results = game.players.map((p, i): RoundResult => ({
       mode,
       player: players[i],
+      points: points(p),
       reps: goodReps(p),
       attempts: p.results.length,
       perfect: p.results.filter((r) => r.perfect).length,
@@ -159,6 +161,7 @@ export function useDuelMatch(opts: DuelOptions) {
     const tracker = i === 0 ? t1 : t2;
     return {
       name: opts.players[i],
+      points: points(p),
       reps: goodReps(p),
       perfect: p.results.filter((r) => r.perfect).length,
       attempts: p.results.length,

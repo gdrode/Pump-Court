@@ -115,6 +115,7 @@ function phoneStats(r: RoundResult): PhoneRoundStats {
   return {
     player: r.player,
     modeLabel: MODE_LABELS[r.mode],
+    points: r.points,
     reps: r.reps,
     attempts: r.attempts,
     perfect: r.perfect,

@@ -29,7 +29,9 @@ export interface PhoneRoundStats {
   player: string
   /** e.g. "Sprint" */
   modeLabel: string
-  /** Valid push-ups: the score. */
+  /** The score: 1 per 2-light rep, 2 per perfect rep. */
+  points: number
+  /** Valid push-ups. */
   reps: number
   attempts: number
   perfect: number

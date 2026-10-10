@@ -2,7 +2,7 @@
 
 A push-up contest judged by software. A side-on camera (laptop webcam or a phone) tracks your body, three referee lights call each push-up, and valid push-ups go on a public leaderboard.
 
-Get into position side-on to the camera. Three referee lights (Depth, Torso, Lockout) judge every push-up. 2 of 3 white lights = it counts; 3 white = perfect. Failed lights show the reason, such as “depth” or “lockout”. Scores go on a leaderboard (name, mode, valid push-ups), and the crowd screen shows the all-time top 10.
+Get into position side-on to the camera. Three referee lights (Depth, Torso, Lockout) judge every push-up. 2 of 3 white lights = it counts; 3 white = perfect. Failed lights show the reason, such as “depth” or “lockout”. Score = points: 3 white = 2 points, 2 white = 1 point. Scores go on a leaderboard (name, mode, points), and the crowd screen shows the all-time top 10.
 
 All video is processed live on the game laptop. Nothing is recorded or uploaded.
 
@@ -109,8 +109,8 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles the a
 
 Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Marathon or Max (or click the cards), **E** events (pick the active event, or create one with per-mode, per-role and team leaderboards). The gear in the bottom-left corner opens a menu: **Leaderboard**, **Camera settings**, **Crowd screen** (opens the crowd screen as a second window; drag it to the external monitor) and the **Fixed camera** switch. Hover the gear, or tap it on a touch screen. The gear is hidden during a round and on a result. On the home screen the keys **L**, **S**, **W** and **F** do the same. **Enter** / **Esc** move through screens.
 
-The crowd screen shows the all-time leaderboard (each player's best round in any mode: name, mode, push-ups) between rounds, and the live count and lights during a round.
+The crowd screen shows the all-time leaderboard (each player's best round in any mode: name, mode, points) between rounds, and the live count and lights during a round.
 
-Modes: Sprint (30 s), Marathon (60 s) and Max (no time limit), each as Singleplayer or Duel (2 players side by side on two cameras, or taking turns on one; most push-ups wins, perfect push-ups break a tie). Every mode ends early when the player fails: out of position for 2 s, stuck in a rep, or no push-up within a window that grows with fatigue (4 s, up to 6 / 8 / 10 s).
+Modes: Sprint (30 s), Marathon (60 s) and Max (no time limit), each as Singleplayer or Duel (2 players side by side on two cameras, or taking turns on one; most points wins, perfect push-ups break a tie). Every mode ends early when the player fails: out of position for 2 s, stuck in a rep, or no push-up within a window that grows with fatigue (4 s, up to 6 / 8 / 10 s).
 
 Cameras: press **S** → **Add camera** → tabs **Phone (any network)** (default; needs `cloudflared` and internet; scan the QR code) or **USB / system camera**. A phone on its side is turned upright by itself; if not, press **⟳ Rotate** on the camera picture.

@@ -69,7 +69,7 @@ const round = useRound({
 - `phase`: `"idle" | "getReady" | "countdown" | "running" | "finished"`.
 - `posture`: the tracker's push-up position check, for the get-ready checklist.
 - `countdownSeconds`: 3, 2, 1 during the countdown, else `null`.
-- `reps` (valid push-ups), `attempts`, `perfect`, `elapsedMs`.
+- `points` (the score), `reps` (valid push-ups), `attempts`, `perfect`, `elapsedMs`.
 - `remainingMs`: time left (Sprint, Marathon, Duel), else `null`.
 - `failRemainingMs`: while running, time left before the player fails (stuck in a rep, or no push-up in time). The Round screen shows "Keep going! N" in the last 3 s.
 - `lastRep`: the latest `RepVerdict` (lights and faults); `lastRepAt`: when it arrived.
@@ -87,7 +87,7 @@ The get-ready checklist on the round screen has one row per posture state, in or
 - **`useRound`** takes optional `tags` (`EventTags`) and puts them on the finished `RoundResult`, so posting it sends `eventId`, `role` and `team`.
 - **`useBoardRecord(mode)`**: the top score on one mode's board, shown as "Record" during a solo round.
 - **`useCrowd()`**: the crowd window's data. See [Crowd Display Sync](crowd-display-sync.md).
-- **`results.ts`**: `rankResults` (push-ups, then perfect), `duelOutcome` (order, winner or tie, `decidedOnPerfect`), `scoreToBeat` (the Duel "To beat" box).
+- **`results.ts`**: `rankResults` (points, then perfect), `duelOutcome` (order, winner or tie, `decidedOnPerfect`), `scoreToBeat` (the Duel "To beat" box).
 - **`useKeys(bindings, enabled?)`**: keyboard shortcuts. Ignores key repeat. While typing in a text box only Enter, Escape and Alt combos count. Alt combos use the physical key (`"Alt+n"`). A handled key doesn't also type into the next screen.
 - **`events.ts`**: `useBackendEvent(subscribe, handler)` listens to one backend event while mounted; `useSession()` returns the latest `tick` snapshot.
 
