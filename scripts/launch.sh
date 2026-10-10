@@ -18,7 +18,11 @@ need npm "Install Node.js 18+ from https://nodejs.org"
 
 echo "==> Frontend (React + TypeScript)"
 cd "$ROOT/frontend"
-[[ -d node_modules ]] || npm install
+# Install packages when they're missing or package-lock.json changed since the
+# last install (e.g. after a pull or patch that added a package).
+if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
+  npm install
+fi
 npm run build
 
 echo "==> Desktop app (Rust + Tauri, release build; the first one takes a few minutes)"

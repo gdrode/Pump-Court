@@ -16,7 +16,12 @@ Need npm "Install Node.js 18+ from https://nodejs.org"
 Write-Host "==> Frontend (React + TypeScript)"
 Push-Location "$Root\frontend"
 try {
-  if (-not (Test-Path node_modules)) { npm install; if ($LASTEXITCODE) { throw "npm install failed" } }
+  # Install packages when they're missing or package-lock.json changed since the
+  # last install (e.g. after a pull or patch that added a package).
+  $installed = "node_modules\.package-lock.json"
+  if (-not (Test-Path $installed) -or (Get-Item package-lock.json).LastWriteTime -gt (Get-Item $installed).LastWriteTime) {
+    npm install; if ($LASTEXITCODE) { throw "npm install failed" }
+  }
   npm run build; if ($LASTEXITCODE) { throw "frontend build failed" }
 } finally { Pop-Location }
 

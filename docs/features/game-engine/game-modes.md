@@ -16,7 +16,7 @@ Pump-Court features four distinct competition formats designed for varying fitne
 | **`sprint`** | Sprint | 30.0 seconds | Timer hits zero | `Category::Sprint` |
 | **`minute`** | Minute | 60.0 seconds | Timer hits zero | `Category::Minute` |
 | **`max`** | Max Reps | 3 mins hard cap | 5.0 seconds without a clean rep | `Category::Max` |
-| **`duel`** | Duel (1v1) | 2 × 30s turns | Both players finish 30s | None (Direct Winner) |
+| **`duel`** | Versus (shown as "Versus") | 2–4 × 30s turns | Every player finishes a 30s turn | `Category::ThirtySecond` (each turn) |
 
 ---
 
@@ -40,10 +40,13 @@ Pump-Court features four distinct competition formats designed for varying fitne
   - A no-rep does *not* reset the idle timer.
   - If the idle timer hits zero (athlete collapses, rests on knees, or fails to complete a clean rep within 5 seconds), the match ends instantly with a buzzer.
 
-### 2.4 Duel (Turn-Based 1v1 Head-to-Head)
-- **Concept**: Direct bracket tournament showdown between two athletes.
+### 2.4 Versus (Turn-Based, 2–4 Players)
+- **Concept**: 2–4 athletes take turns; most clean reps wins.
+- **Backend mode**: `RoundMode::Duel` (stored as `"duel"`), shown in the UI as **Versus**. Each turn plays exactly like a 30s Sprint.
 - **Progression**:
-  1. Player 1 completes a 30s Sprint turn.
-  2. The UI pauses on an intermediate turn card showing Player 1's score.
-  3. Player 2 steps onto the mat, performs ready check, and completes their 30s Sprint turn.
-  4. The Results screen proclaims the winner, margin of victory, or tie.
+  1. The operator enters 2–4 names (`Alt+N` adds a player).
+  2. Each player in turn does the ready check and a 30s round.
+  3. After each turn the Results screen shows that player's score. **Enter** posts it and calls the next player; **Esc** redoes the turn.
+  4. Every player after the first sees a "To beat" box with the best score so far.
+  5. The Versus standings screen ranks everyone on clean reps, then accuracy, and names the winner or a tie. **R** starts a rematch.
+- **Leaderboard**: every turn is saved to the 30-second board, like a Sprint.

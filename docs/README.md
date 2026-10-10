@@ -29,7 +29,7 @@ docs/
     │   └── ready-check-calibration.md   # Plank hold detection & player-specific lockout tuning
     ├── game-engine/                     # Feature 3: Match Session State & Thread Loop
     │   ├── README.md                    # Session lifecycle & execution model
-    │   ├── game-modes.md                # Sprint, Minute, Max, and Duel game modes
+    │   ├── game-modes.md                # Sprint, Minute, Max, and Versus game modes
     │   └── engine-thread-loop.md        # Background thread, mpsc channels & 60Hz tick loop
     ├── phone-camera/                    # Feature 4: Zero-Install Wireless Video Bridge
     │   ├── README.md                    # Architecture: PhoneHub, Axum server & streaming
@@ -91,7 +91,7 @@ Depending on your role or objective, read documents in the following order:
 | **Desktop Shell** | Rust / Tauri 2 | `backend/src/lib.rs` | Window lifecycle, permissions, local OS APIs |
 | **Engine Thread** | Rust (`std::thread`, `mpsc`) | `backend/src/engine.rs` | 30–60Hz clock, frame ingestion, judging loop |
 | **Referee Core** | Rust (Pure Maths) | `backend/src/judge/` | Angle calculation, segmentation, 3-light verdict |
-| **Session Control**| Rust | `backend/src/game/` | Match state machine (Sprint, Minute, Max, Duel) |
+| **Session Control**| Rust | `backend/src/game/` | Match state machine (Sprint, Minute, Max, Versus) |
 | **Phone Gateway** | Rust / Axum / WebSockets | `backend/src/phone/` | Embedded HTTPS server, QR code pairing, binary stream |
 | **Persistence** | Rust / SQLite (`rusqlite`) | `backend/src/leaderboard.rs`| Local database, validation, hourly JSON backups |
 | **Frontend App** | TypeScript / React / Vite | `frontend/src/` | Dual UI: Operator console and Crowd stadium display |
