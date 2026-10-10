@@ -9,7 +9,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const wasmSrc = join(root, 'node_modules/@mediapipe/tasks-vision/wasm')
 const wasmDst = join(root, 'public/wasm')
 const modelsDir = join(root, 'public/models')
-const MODELS = ['lite', 'full']
+const MODELS = ['full']
 
 cpSync(wasmSrc, wasmDst, { recursive: true })
 console.log('[setup-assets] copied wasm -> public/wasm')

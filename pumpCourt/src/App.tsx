@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AddCameraDialog } from './AddCameraDialog'
 import { listCameras, loadSavedCameraId, openCamera, REQUESTED_FPS, saveCameraId, stopStream, streamSettings } from './camera'
-import { drawOverlay } from './draw'
-import { getLandmarker, type LoadedLandmarker, type ModelVariant } from './landmarker'
-import { BODY_POINTS, computeAngles, type Landmark, type PoseAngles, type SideMode } from './pose'
-import { analyse, DEFAULT_ANALYSIS, verdict, type FrameRecord, type RepLogFile } from './repLog'
-import { RepChart } from './RepChart'
 import { CameraTable, type CameraRow } from './CameraTable'
+import { drawOverlay } from './draw'
+import { DIFFICULTY, lightStates, RepJudge, summarise, type Difficulty, type RepResult, type SessionSummary } from './judge'
+import { JudgePanel, Lights, SessionReport } from './Judging'
+import { getLandmarker, MODEL, type LoadedLandmarker } from './landmarker'
+import type { PhoneLink, PhoneStatus } from './phoneLink'
+import { createSideTracker, type Landmark, type PoseAngles } from './pose'
+import { createPostureTracker, POSTURE_MESSAGE, type Posture } from './posture'
+import { analyse, DEFAULT_ANALYSIS, judgeLog, verdict, type FrameRecord, type RepLogFile } from './repLog'
+import { RepChart } from './RepChart'
+import { buzzer, ding, unlockAudio } from './sfx'
 
 interface LiveStats {
   cameraFps: number | null
@@ -13,31 +19,74 @@ interface LiveStats {
   detectMs: number | null
 }
 
+interface PhoneCamera {
+  id: string
+  label: string
+  stream: MediaStream
+  link: PhoneLink
+  status: PhoneStatus
+  detail: string
+}
+
+const PHONE_STATUS_TEXT: Record<PhoneStatus, string> = {
+  waiting: 'is waiting to pair',
+  connecting: 'is connecting',
+  connected: 'is connected',
+  disconnected: 'has disconnected',
+  failed: 'was lost',
+}
+
+const DIFFICULTY_KEY = 'pumpcourt.difficulty'
+function loadDifficulty(): Difficulty {
+  try {
+    const d = localStorage.getItem(DIFFICULTY_KEY)
+    return d && d in DIFFICULTY ? (d as Difficulty) : 'normal'
+  } catch {
+    return 'normal'
+  }
+}
+
+/** How long the lights stay lit after a rep before going dark again. */
+const LIGHTS_HOLD_MS = 2500
+
+/** Camera choice: a device the OS provides, or a paired phone. */
+type SourceKey = `dev:${string}` | `phone:${string}`
+
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
-  const [cameraId, setCameraId] = useState<string | null>(() => loadSavedCameraId())
-  // The device actually opened, which differs from cameraId when it is null or unplugged.
-  const [activeId, setActiveId] = useState<string | null>(null)
+  // --- Camera sources -------------------------------------------------------
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  const [phones, setPhones] = useState<PhoneCamera[]>([])
+  const [source, setSource] = useState<SourceKey | null>(() => {
+    const saved = loadSavedCameraId()
+    return saved ? `dev:${saved}` : null
+  })
+  // The device actually opened, which differs from `source` when it is unset or unplugged.
+  const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null)
   const [deliveredFps, setDeliveredFps] = useState<number | null>(null)
-  const [resolution, setResolution] = useState<string>('')
+  const [resolution, setResolution] = useState('')
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [addingCamera, setAddingCamera] = useState(false)
+  // Only goes up, so a removed phone's name is never reused.
+  const [phoneNumber, setPhoneNumber] = useState(1)
 
-  const [variant, setVariant] = useState<ModelVariant>('lite')
+  // --- Model ------------------------------------------------------------------
   const [model, setModel] = useState<LoadedLandmarker | null>(null)
   const [modelError, setModelError] = useState<string | null>(null)
   // Set when the GPU delegate starts failing mid-session; the model is rebuilt on CPU.
   const [cpuOnly, setCpuOnly] = useState(false)
 
-  const [sideMode, setSideMode] = useState<SideMode>('auto')
-  const [showLabels, setShowLabels] = useState(true)
+  // --- Diagnostics ------------------------------------------------------------
   const [stats, setStats] = useState<LiveStats>({ cameraFps: null, detectFps: null, detectMs: null })
-  const [visRows, setVisRows] = useState<number[]>([])
+  // Count of frames the video element has actually shown. A disconnected phone
+  // leaves currentTime ticking over a frozen frame, so this is the honest
+  // "is there a new frame" signal. -1 when the browser can't report it.
+  const presentedRef = useRef(-1)
   const [liveAngles, setLiveAngles] = useState<PoseAngles | null>(null)
-
+  const [livePosture, setLivePosture] = useState<Posture | null>(null)
   const [recording, setRecording] = useState(false)
   const recordingRef = useRef(false)
   const logRef = useRef<FrameRecord[]>([])
@@ -45,77 +94,132 @@ export default function App() {
   const [log, setLog] = useState<RepLogFile | null>(null)
   const [analysisOpts, setAnalysisOpts] = useState(DEFAULT_ANALYSIS)
 
-  // Settings read inside the frame loop without restarting it.
-  const sideModeRef = useRef(sideMode)
-  const showLabelsRef = useRef(showLabels)
-  useEffect(() => { sideModeRef.current = sideMode }, [sideMode])
-  useEffect(() => { showLabelsRef.current = showLabels }, [showLabels])
+  // --- Judging -----------------------------------------------------------------
+  const [difficulty, setDifficulty] = useState<Difficulty>(loadDifficulty)
+  const [judging, setJudging] = useState(false)
+  const judgeRef = useRef<RepJudge | null>(null)
+  const [results, setResults] = useState<RepResult[]>([])
+  const [lastRep, setLastRep] = useState<RepResult | null>(null)
+  const [lightsLit, setLightsLit] = useState(false)
+  const sessionStartRef = useRef(0)
+  const [report, setReport] = useState<{ summary: SessionSummary; results: RepResult[]; difficulty: Difficulty } | null>(null)
+  const onRepRef = useRef<(r: RepResult) => void>(() => {})
 
-  const cameraLabel = cameras.find((c) => c.deviceId === activeId)?.label || 'default camera'
+  const phone = source?.startsWith('phone:') ? phones.find((p) => `phone:${p.id}` === source) ?? null : null
+  const phoneStream = phone?.stream ?? null
+  const cameraLabel = phone
+    ? phone.label
+    : devices.find((c) => c.deviceId === activeDeviceId)?.label || 'default camera'
 
-  // --- Camera -------------------------------------------------------------
-  const refreshCameras = useCallback(async () => {
+  const refreshDevices = useCallback(async () => {
     try {
-      setCameras(await listCameras())
+      setDevices(await listCameras())
     } catch (err) {
       setCameraError(String(err))
     }
   }, [])
 
+  // Open the chosen camera. Phones already carry a live stream; devices are opened here.
   useEffect(() => {
     let cancelled = false
+    const video = videoRef.current!
+    setCameraError(null)
+    setDeliveredFps(null)
+
+    const isPhone = !!source?.startsWith('phone:')
+    const show = async (stream: MediaStream) => {
+      video.srcObject = stream
+      await video.play().catch(() => {})
+      // A phone's track settings describe the network stream, not the phone's
+      // camera, so its delivered rate isn't meaningful; the measured rate is.
+      setDeliveredFps(isPhone ? null : streamSettings(stream).frameRate ?? null)
+    }
+    // Read the size from the video itself, which follows a phone's stream as its quality adapts.
+    const onResize = () => setResolution(video.videoWidth ? `${video.videoWidth}×${video.videoHeight}` : '')
+    video.addEventListener('resize', onResize)
+
+    if (source?.startsWith('phone:')) {
+      if (!phoneStream) {
+        setSource(null)
+        return
+      }
+      stopStream(streamRef.current)
+      streamRef.current = null
+      show(phoneStream)
+      return () => { video.removeEventListener('resize', onResize) }
+    }
+
+    const wanted = source?.startsWith('dev:') ? source.slice(4) : null
     ;(async () => {
-      setCameraError(null)
-      setDeliveredFps(null)
       try {
         let stream: MediaStream
         try {
-          stream = await openCamera(cameraId)
+          stream = await openCamera(wanted)
         } catch (err) {
           // A saved camera may be unplugged; fall back to the default one.
-          if (cameraId && (err as DOMException).name === 'OverconstrainedError') stream = await openCamera(null)
+          if (wanted && (err as DOMException).name === 'OverconstrainedError') stream = await openCamera(null)
           else throw err
         }
         if (cancelled) { stopStream(stream); return }
         stopStream(streamRef.current)
         streamRef.current = stream
-        const video = videoRef.current!
-        video.srcObject = stream
-        await video.play().catch(() => {})
-        const s = streamSettings(stream)
-        setDeliveredFps(s.frameRate ?? null)
-        setResolution(s.width && s.height ? `${s.width}×${s.height}` : '')
-        // Labels are only available after permission is granted.
-        await refreshCameras()
-        setActiveId(s.deviceId ?? null)
+        await show(stream)
+        const id = streamSettings(stream).deviceId ?? null
+        setActiveDeviceId(id)
         // Replace a saved id that no longer exists, so the next load opens directly.
-        if (cameraId && s.deviceId && s.deviceId !== cameraId) saveCameraId(s.deviceId)
+        if (wanted && id && id !== wanted) saveCameraId(id)
+        // Labels are only available after permission is granted.
+        await refreshDevices()
       } catch (err) {
         if (!cancelled) setCameraError(`${(err as Error).name}: ${(err as Error).message}`)
       }
     })()
-    return () => { cancelled = true }
-  }, [cameraId, refreshCameras])
+    return () => {
+      cancelled = true
+      video.removeEventListener('resize', onResize)
+    }
+  }, [source, phoneStream, refreshDevices])
 
   useEffect(() => {
-    navigator.mediaDevices?.addEventListener('devicechange', refreshCameras)
+    navigator.mediaDevices?.addEventListener('devicechange', refreshDevices)
     return () => {
-      navigator.mediaDevices?.removeEventListener('devicechange', refreshCameras)
+      navigator.mediaDevices?.removeEventListener('devicechange', refreshDevices)
       stopStream(streamRef.current)
     }
-  }, [refreshCameras])
+  }, [refreshDevices])
 
-  const chooseCamera = (id: string) => {
-    saveCameraId(id)
-    setCameraId(id)
+  const chooseSource = (key: SourceKey) => {
+    if (key.startsWith('dev:')) saveCameraId(key.slice(4))
+    setSource(key)
   }
 
-  // --- Model (created once per variant, never in the loop) ----------------
+  const onPhone = useCallback((p: { id: string; label: string; stream: MediaStream; link: PhoneLink }) => {
+    const setStatus = (status: PhoneStatus, detail?: string) =>
+      setPhones((list) => list.map((x) => (x.id === p.id ? { ...x, status, detail: detail ?? '' } : x)))
+    // If the phone page reloads it reconnects with a new stream.
+    const setStream = (stream: MediaStream) =>
+      setPhones((list) => list.map((x) => (x.id === p.id ? { ...x, stream } : x)))
+    p.link.setHandlers({ onStatus: setStatus, onStream: setStream })
+    setPhones((list) => [...list, { ...p, status: 'connected', detail: '' }])
+    setPhoneNumber((n) => n + 1)
+    setSource(`phone:${p.id}`)
+    setAddingCamera(false)
+  }, [])
+
+  const removePhone = (id: string) => {
+    const p = phones.find((x) => x.id === id)
+    p?.link.close()
+    p?.stream.getTracks().forEach((t) => t.stop())
+    setPhones((list) => list.filter((x) => x.id !== id))
+    if (source === `phone:${id}`) setSource(activeDeviceId ? `dev:${activeDeviceId}` : null)
+  }
+
+  // --- Model (created once, never in the loop) -------------------------------
   useEffect(() => {
     let cancelled = false
     setModel(null)
     setModelError(null)
-    getLandmarker(variant, cpuOnly).then(
+    getLandmarker(MODEL, cpuOnly).then(
       (m) => { if (!cancelled) setModel(m) },
       (err) => {
         if (cancelled) return
@@ -124,7 +228,7 @@ export default function App() {
       },
     )
     return () => { cancelled = true }
-  }, [variant, cpuOnly])
+  }, [cpuOnly])
 
   // --- Camera frame rate, measured independently of detection --------------
   useEffect(() => {
@@ -135,6 +239,7 @@ export default function App() {
     let since = performance.now(), sinceFrames = -1, handle = 0, alive = true
     const onFrame = (_now: number, meta: VideoFrameCallbackMetadata) => {
       if (!alive) return
+      presentedRef.current = meta.presentedFrames
       const now = performance.now()
       if (sinceFrames < 0 || meta.presentedFrames < sinceFrames) {
         since = now; sinceFrames = meta.presentedFrames
@@ -155,16 +260,36 @@ export default function App() {
     const video = videoRef.current!
     const canvas = canvasRef.current!
     const ctx = canvas.getContext('2d')!
+    const tracker = createSideTracker()
+    const posture = createPostureTracker()
     let raf = 0
     let lastVideoTime = -1
+    let lastPresented = -1
     let lastTs = 0
     let detections = 0, detectMsSum = 0, since = performance.now(), lastUi = 0
     let failures = 0
+    let lastFrameAt = performance.now(), cleared = false
 
     const loop = () => {
       raf = requestAnimationFrame(loop)
-      if (video.readyState < 2 || video.currentTime === lastVideoTime) return
+      const presented = presentedRef.current
+      const track = (video.srcObject as MediaStream | null)?.getVideoTracks()[0]
+      const live = !!track && track.readyState === 'live' && !track.muted
+      const fresh = presented >= 0 ? presented !== lastPresented : video.currentTime !== lastVideoTime
+      if (video.readyState < 2 || !fresh || !live || !video.videoWidth) {
+        // A stalled camera (e.g. a phone dropping out) must not leave a frozen skeleton behind.
+        if (!cleared && performance.now() - lastFrameAt > 500) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height)
+          cleared = true
+          setStats((st) => ({ ...st, detectFps: 0, detectMs: null }))
+          detections = 0; detectMsSum = 0; since = performance.now()
+        }
+        return
+      }
       lastVideoTime = video.currentTime
+      lastPresented = presented
+      lastFrameAt = performance.now()
+      cleared = false
       if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
         canvas.width = video.videoWidth
         canvas.height = video.videoHeight
@@ -188,8 +313,24 @@ export default function App() {
       detectMsSum += performance.now() - t0
       detections++
 
-      const angles = pose ? computeAngles(pose, sideModeRef.current, video.videoWidth / video.videoHeight) : null
-      drawOverlay(ctx, pose, angles, showLabelsRef.current)
+      const angles = tracker.update(pose, video.videoWidth / video.videoHeight)
+      drawOverlay(ctx, pose, angles ? angles.side : null)
+      // Only a player in the push-up position, hands planted, is judged. Height is measured from the hands' floor line.
+      const pos = posture.update(ts, angles)
+
+      const judge = judgeRef.current
+      if (judge) {
+        const rep = judge.push(ts, angles && {
+          elbow: angles.elbow,
+          hip: angles.abdomen,
+          knee: angles.knee,
+          bodyOffset: angles.bodyOffset,
+          depth: pos.height,
+          shoulderY: angles.shoulderY,
+          ready: pos.ready,
+        })
+        if (rep) onRepRef.current(rep)
+      }
 
       if (recordingRef.current) {
         logRef.current.push({
@@ -199,14 +340,20 @@ export default function App() {
           hipAngle: angles && Number.isFinite(angles.hip) ? angles.hip : null,
           kneeAngle: angles && Number.isFinite(angles.knee) ? angles.knee : null,
           visibility: angles?.visibility ?? null,
+          depth: angles && Number.isFinite(angles.depth) ? angles.depth : null,
+          abdomen: angles && Number.isFinite(angles.abdomen) ? angles.abdomen : null,
+          bodyOffset: angles && Number.isFinite(angles.bodyOffset) ? angles.bodyOffset : null,
+          height: Number.isFinite(pos.height) ? pos.height : null,
+          ready: pos.ready,
         })
       }
 
       const now = performance.now()
-      if (now - lastUi > 200) {
+      // The diagnostics readout updates a few times a second, not every frame.
+      if (now - lastUi > 250) {
         lastUi = now
-        setVisRows(pose ? BODY_POINTS.map((p) => pose![p.index].visibility ?? 0) : [])
         setLiveAngles(angles)
+        setLivePosture(pos)
       }
       if (now - since >= 1000) {
         // Read the counters now: the updater runs later, after they are reset.
@@ -217,8 +364,64 @@ export default function App() {
       }
     }
     raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+    }
   }, [model])
+
+  // --- Judging -----------------------------------------------------------------
+  const lightsTimer = useRef(0)
+  const onRep = (r: RepResult) => {
+    setResults((list) => [...list, r])
+    setLastRep(r)
+    setLightsLit(true)
+    clearTimeout(lightsTimer.current)
+    lightsTimer.current = window.setTimeout(() => setLightsLit(false), LIGHTS_HOLD_MS)
+    if (r.counted) ding(r.perfect)
+    else buzzer()
+  }
+  // The frame loop calls the latest handler without restarting.
+  useEffect(() => { onRepRef.current = onRep })
+  useEffect(() => () => clearTimeout(lightsTimer.current), [])
+
+  const chooseDifficulty = (d: Difficulty) => {
+    setDifficulty(d)
+    try {
+      localStorage.setItem(DIFFICULTY_KEY, d)
+    } catch {
+      // Not saved; the choice still applies until reload.
+    }
+  }
+
+  const startJudging = () => {
+    unlockAudio()
+    judgeRef.current = new RepJudge(DIFFICULTY[difficulty])
+    sessionStartRef.current = performance.now()
+    setResults([])
+    setLastRep(null)
+    setLightsLit(false)
+    setReport(null)
+    setJudging(true)
+  }
+
+  const stopJudging = () => {
+    const judge = judgeRef.current
+    judgeRef.current = null
+    setJudging(false)
+    const last = judge?.finish() ?? null
+    const all = last ? [...results, last] : results
+    if (last) onRep(last)
+    setReport({ summary: summarise(all, performance.now() - sessionStartRef.current), results: all, difficulty })
+  }
+
+  /** Score a recorded log with the current difficulty, without sounds. */
+  const judgeRecordedLog = () => {
+    if (!log) return
+    const all = judgeLog(log.frames, new RepJudge(DIFFICULTY[difficulty]))
+    const span = log.frames.length ? log.frames[log.frames.length - 1].t - log.frames[0].t : 0
+    setReport({ summary: summarise(all, span), results: all, difficulty })
+  }
 
   // --- Fast-rep log ---------------------------------------------------------
   const startLog = useCallback(() => {
@@ -239,21 +442,10 @@ export default function App() {
       requestedFps: REQUESTED_FPS,
       deliveredFps,
       model: model ? `${model.variant}/${model.delegate}` : 'none',
-      side: sideMode,
+      side: 'auto',
       frames: logRef.current,
     })
-  }, [cameraLabel, deliveredFps, model, sideMode])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' || (e.target as HTMLElement).closest('input, select, textarea, button')) return
-      e.preventDefault()
-      if (recordingRef.current) stopLog()
-      else startLog()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [startLog, stopLog])
+  }, [cameraLabel, deliveredFps, model])
 
   const analysis = useMemo(() => (log ? analyse(log.frames, analysisOpts) : null), [log, analysisOpts])
 
@@ -287,94 +479,108 @@ export default function App() {
     model: model ? `${model.variant}/${model.delegate}` : '—',
   }
 
-  const fmt = (v: number | null | undefined, d = 0) => (v == null ? '—' : v.toFixed(d))
-  const lowFps = deliveredFps != null && deliveredFps < REQUESTED_FPS - 1
+  const fmt = (v: number | null | undefined, d = 0) => (v == null || !Number.isFinite(v) ? '—' : v.toFixed(d))
+  const sourceValue: string = source ?? (activeDeviceId ? `dev:${activeDeviceId}` : '')
 
   return (
     <div className="app">
       <header className="bar">
-        <h1>Pump-Court · camera &amp; pose</h1>
+        <h1>Pump-Court</h1>
         <label>
           Camera
-          <select value={activeId ?? cameraId ?? ''} onChange={(e) => chooseCamera(e.target.value)}>
-            {cameras.length === 0 && <option value="">(waiting for permission)</option>}
-            {cameras.map((c, i) => (
-              <option key={c.deviceId} value={c.deviceId}>{c.label || `Camera ${i + 1}`}</option>
+          <select value={sourceValue} onChange={(e) => chooseSource(e.target.value as SourceKey)}>
+            {devices.length === 0 && phones.length === 0 && <option value="">(waiting for permission)</option>}
+            {devices.map((c, i) => (
+              <option key={c.deviceId} value={`dev:${c.deviceId}`}>{c.label || `Camera ${i + 1}`}</option>
+            ))}
+            {phones.map((p) => (
+              <option key={p.id} value={`phone:${p.id}`}>
+                {p.label} (Wi-Fi){p.status === 'connected' ? '' : ` · ${p.status}`}
+              </option>
             ))}
           </select>
         </label>
-        <label>
-          Model
-          <select value={variant} onChange={(e) => setVariant(e.target.value as ModelVariant)}>
-            <option value="lite">lite (fastest)</option>
-            <option value="full">full (more accurate)</option>
-          </select>
-        </label>
-        <label>
-          Side
-          <select value={sideMode} onChange={(e) => setSideMode(e.target.value as SideMode)}>
-            <option value="auto">auto (most visible)</option>
-            <option value="left">lock left</option>
-            <option value="right">lock right</option>
-          </select>
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} />
-          visibility labels
-        </label>
+        <button onClick={() => setAddingCamera(true)}>+ Add camera</button>
+        {phone && <button className="small" onClick={() => removePhone(phone.id)}>Disconnect {phone.label}</button>}
+        <span className="model-status">
+          {model ? `Tracking ready (${model.delegate})` : modelError ? <b className="err">Tracking failed</b> : 'Loading tracking…'}
+        </span>
       </header>
 
-      <div className="stats">
-        <span className={lowFps ? 'stat warn' : 'stat'}>
-          Delivered <b>{fmt(deliveredFps)}</b> fps <small>(asked {REQUESTED_FPS})</small>
-        </span>
-        <span className="stat">Measured camera <b>{fmt(stats.cameraFps, 1)}</b> fps</span>
-        <span className="stat">Pose <b>{fmt(stats.detectFps, 1)}</b> fps · <b>{fmt(stats.detectMs, 1)}</b> ms</span>
-        <span className="stat">{resolution || '—'}</span>
-        <span className="stat">
-          Model {model ? <b>{model.variant} on {model.delegate}</b> : modelError ? <b className="err">failed</b> : 'loading…'}
-        </span>
-      </div>
       {cameraError && <p className="error">Camera: {cameraError}</p>}
       {modelError && <p className="error">Model: {modelError}</p>}
+      {phone && (phone.status !== 'connected' || phone.detail) && (
+        <p className="error">
+          {phone.label} {PHONE_STATUS_TEXT[phone.status]}. {phone.detail}
+          {phone.status !== 'connected' && ' Check the phone, or pick another camera.'}
+        </p>
+      )}
 
-      <main className="live">
-        <div className="stage">
+      <div className="arena">
+        <main className="stage">
           <video ref={videoRef} autoPlay playsInline muted />
           <canvas ref={canvasRef} />
-        </div>
-        <aside className="panel">
-          <h2>Angles</h2>
-          <dl className="angles">
-            <dt>Elbow</dt><dd>{liveAngles ? fmt(liveAngles.elbow) : '—'}°</dd>
-            <dt>Hip</dt><dd>{liveAngles ? fmt(liveAngles.hip) : '—'}°</dd>
-            <dt>Knee</dt><dd>{liveAngles ? fmt(liveAngles.knee) : '—'}°</dd>
-          </dl>
-          <h2>Visibility</h2>
-          <table className="vis">
-            <tbody>
-              {BODY_POINTS.map((p, i) => {
-                const v = visRows[i]
-                const cls = v == null ? '' : v >= 0.8 ? 'ok' : v >= 0.5 ? 'mid' : 'low'
-                return (
-                  <tr key={p.index} className={cls}>
-                    <td>{p.index}</td><td>{p.name}</td><td>{v == null ? '—' : v.toFixed(2)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </aside>
-      </main>
+          <Lights states={lightStates(lightsLit ? lastRep : null)} flash={lastRep?.rep ?? 0} />
+        </main>
+        <JudgePanel
+          judging={judging}
+          canStart={!!model}
+          difficulty={difficulty}
+          onDifficulty={chooseDifficulty}
+          onStart={startJudging}
+          onStop={stopJudging}
+          good={results.filter((r) => r.counted).length}
+          perfect={results.filter((r) => r.perfect).length}
+          attempted={results.length}
+          lastFaults={lastRep?.faults ?? null}
+          inPosition={judging ? livePosture?.ready ?? false : null}
+          waitingReason={
+            !model ? 'Waiting for pose tracking to load…'
+              : judging && livePosture && !livePosture.ready ? POSTURE_MESSAGE[livePosture.state]
+              : null
+          }
+        />
+      </div>
 
-      <section className="card">
-        <h2>Fast-rep test</h2>
-        <p className="hint">Have the player do 10 flat-out reps. Press Start (or Space), then Stop once they are back up after the last rep. A log that ends at the bottom loses that rep.</p>
+      {report && (
+        <SessionReport summary={report.summary} results={report.results} difficulty={report.difficulty} onClose={() => setReport(null)} />
+      )}
+
+      <details className="card diagnostics">
+        <summary>Diagnostics</summary>
+
+        <div className="stats">
+          <span className={deliveredFps != null && deliveredFps < REQUESTED_FPS - 1 ? 'stat warn' : 'stat'}>
+            Delivered <b>{fmt(deliveredFps)}</b> fps <small>(asked {REQUESTED_FPS})</small>
+          </span>
+          <span className="stat">Measured camera <b>{fmt(stats.cameraFps, 1)}</b> fps</span>
+          <span className="stat">Pose <b>{fmt(stats.detectFps, 1)}</b> fps · <b>{fmt(stats.detectMs, 1)}</b> ms</span>
+          <span className="stat">{resolution || '—'}</span>
+          <span className="stat">Model <b>{model ? `${model.variant} on ${model.delegate}` : '—'}</b></span>
+        </div>
+
+        <h3>Live angles</h3>
+        <dl className="angles">
+          <dt>Side</dt><dd>{liveAngles?.side ?? 'not visible'}</dd>
+          <dt>Elbow</dt><dd>{fmt(liveAngles?.elbow)}°</dd>
+          <dt>Hip</dt><dd>{fmt(liveAngles?.hip)}°</dd>
+          <dt>Knee</dt><dd>{fmt(liveAngles?.knee)}°</dd>
+          <dt>Abdomen line</dt><dd>{fmt(liveAngles?.abdomen)}°</dd>
+          <dt>Trunk tilt</dt><dd>{fmt(liveAngles?.trunkTilt)}°</dd>
+          <dt>Position</dt><dd>{livePosture ? (livePosture.ready ? 'ready' : livePosture.state) : '—'}</dd>
+          <dt>Height above floor</dt><dd>{fmt(livePosture?.height, 2)} arm</dd>
+        </dl>
+
+        <h3>Fast-rep test</h3>
+        <p className="hint">Have the player do 10 flat-out reps. Start the log, then Stop once they are back up after the last rep. A log that ends at the bottom loses that rep.</p>
         <div className="row">
           {recording
             ? <button className="rec" onClick={stopLog}>■ Stop log</button>
             : <button onClick={startLog} disabled={!model}>● Start log</button>}
           <button onClick={exportLog} disabled={!log}>Export JSON</button>
+          <button onClick={judgeRecordedLog} disabled={!log || judging} title="Score this log with the selected difficulty">
+            Judge this log ({DIFFICULTY[difficulty].label})
+          </button>
           <label className="file">
             Load JSON
             <input type="file" accept="application/json,.json" onChange={(e) => {
@@ -421,32 +627,41 @@ export default function App() {
               </div>
             </details>
             <div className="table-scroll">
-            <table className="reps">
-              <thead>
-                <tr><th>Rep</th><th>Elbow min</th><th>Elbow bottom</th><th>Shoulder bottom</th><th>Offset</th><th>Frames</th><th>Result</th></tr>
-              </thead>
-              <tbody>
-                {analysis.bottoms.map((b) => (
-                  <tr key={b.rep}>
-                    <td>{b.rep}</td>
-                    <td>{b.elbowMin.toFixed(0)}°</td>
-                    <td>{(b.elbowT / 1000).toFixed(2)} s</td>
-                    <td>{b.shoulderT == null ? '—' : `${(b.shoulderT / 1000).toFixed(2)} s`}</td>
-                    <td>{b.offsetMs == null ? '—' : `${Math.round(b.offsetMs)} ms`}</td>
-                    <td>{b.frames}</td>
-                    <td className={b.clear ? 'ok' : 'low'}>{b.clear ? '✓ clear' : `✗ ${b.reason}`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              <table className="reps">
+                <thead>
+                  <tr><th>Rep</th><th>Elbow min</th><th>Elbow bottom</th><th>Shoulder bottom</th><th>Offset</th><th>Frames</th><th>Result</th></tr>
+                </thead>
+                <tbody>
+                  {analysis.bottoms.map((b) => (
+                    <tr key={b.rep}>
+                      <td>{b.rep}</td>
+                      <td>{b.elbowMin.toFixed(0)}°</td>
+                      <td>{(b.elbowT / 1000).toFixed(2)} s</td>
+                      <td>{b.shoulderT == null ? '—' : `${(b.shoulderT / 1000).toFixed(2)} s`}</td>
+                      <td>{b.offsetMs == null ? '—' : `${Math.round(b.offsetMs)} ms`}</td>
+                      <td>{b.frames}</td>
+                      <td className={b.clear ? 'ok' : 'low'}>{b.clear ? '✓ clear' : `✗ ${b.reason}`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </>
         )}
-      </section>
 
-      <CameraTable current={currentCameraRow} />
+        <CameraTable current={currentCameraRow} />
+      </details>
 
-      <footer>Video is processed live and discarded. Nothing is recorded or uploaded; the page may only connect to this laptop.</footer>
+      {addingCamera && (
+        <AddCameraDialog
+          onClose={() => setAddingCamera(false)}
+          onPhone={onPhone}
+          onRefreshDevices={refreshDevices}
+          nextLabel={`Phone ${phoneNumber}`}
+        />
+      )}
+
+      <footer>Video is processed live and discarded. Nothing is recorded or uploaded; the page may only connect to this laptop and paired phones.</footer>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 // Plain TypeScript: the per-frame log for the fast-rep test and the analysis
 // that finds rep bottoms. No camera code; it runs the same on a saved JSON log.
+import type { JudgeInput, RepResult } from './judge'
 
 export interface FrameRecord {
   /** ms since the log started */
@@ -10,6 +11,15 @@ export interface FrameRecord {
   hipAngle: number | null
   kneeAngle: number | null
   visibility: number | null
+  /** Shoulder height above the hands in arm lengths (see pose.ts). Missing in older logs. */
+  depth?: number | null
+  /** Body line at the abdominal point (pose.ts `abdomen`). Missing in older logs. */
+  abdomen?: number | null
+  bodyOffset?: number | null
+  /** Shoulder height above the planted hands' floor line (posture.ts). */
+  height?: number | null
+  /** In the push-up position (posture.ts). */
+  ready?: boolean
 }
 
 export interface RepLogFile {
@@ -180,4 +190,26 @@ function medianFramePeriod(t: number[]) {
 export function verdict(a: Analysis, target = 10, needed = 9): 'go' | 'no-go' {
   if (a.bottoms.length < target) return 'no-go'
   return a.bottoms.slice(0, target).filter((b) => b.clear).length >= needed ? 'go' : 'no-go'
+}
+
+/** Replays a log through the referee, as if it were live. Older logs without `depth` fail the depth light. */
+export function judgeLog(frames: FrameRecord[], judge: { push(t: number, a: JudgeInput | null): RepResult | null; finish(t?: number): RepResult | null }) {
+  const results: RepResult[] = []
+  for (const f of frames) {
+    const hip = f.abdomen ?? f.hipAngle
+    const ok = f.elbow != null && hip != null
+    const r = judge.push(f.t, ok ? {
+      elbow: f.elbow!,
+      hip: hip!,
+      depth: f.height ?? f.depth ?? NaN,
+      shoulderY: f.shoulderY ?? undefined,
+      knee: f.kneeAngle ?? undefined,
+      bodyOffset: f.bodyOffset ?? undefined,
+      ready: f.ready,
+    } : null)
+    if (r) results.push(r)
+  }
+  const last = judge.finish()
+  if (last) results.push(last)
+  return results
 }

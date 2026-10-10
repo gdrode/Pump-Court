@@ -2,7 +2,10 @@
 // public/, so tracking makes no outside request.
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision'
 
-export type ModelVariant = 'lite' | 'full'
+export type ModelVariant = 'full' | 'heavy'
+
+/** The model the app runs. 'full' is the most accurate model that keeps up with 30 fps on a laptop. 'heavy' is more accurate still but much slower; to try it, download pose_landmarker_heavy.task into public/models and change this. */
+export const MODEL: ModelVariant = 'full'
 export type Delegate = 'GPU' | 'CPU'
 
 export interface LoadedLandmarker {

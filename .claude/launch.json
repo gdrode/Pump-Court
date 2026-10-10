@@ -4,8 +4,18 @@
     {
       "name": "pumpcourt",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "pumpCourt", "run", "dev", "--", "--port", "5173", "--strictPort"],
-      "port": 5173
+      "runtimeArgs": [
+        "--prefix",
+        "pumpCourt",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
+      "port": 5173,
+      "url": "https://localhost:5173"
     }
   ]
 }

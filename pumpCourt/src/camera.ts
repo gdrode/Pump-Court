@@ -1,7 +1,7 @@
 // Camera access: listing devices, opening a stream, remembering the choice.
 
 const STORAGE_KEY = 'pumpcourt.cameraId'
-export const REQUESTED_FPS = 60
+export const REQUESTED_FPS = 30
 
 export function loadSavedCameraId(): string | null {
   try {

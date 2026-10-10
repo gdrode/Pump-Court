@@ -1,41 +1,53 @@
-# Pump-Court app (camera and pose)
+# Pump-Court app
 
-Browser app for the game laptop: camera feed, MediaPipe pose overlay, live
-elbow/hip/knee angles, and the fast-rep go/no-go test. Video is processed live
-and discarded; nothing is recorded or uploaded.
+Browser app for the game laptop: camera feed (laptop, USB or a phone over
+Wi-Fi), MediaPipe pose tracking, and a three-light push-up referee. Video is
+processed live and discarded; nothing is recorded or uploaded.
 
 ## First run
 
 ```bash
-npm install      # also copies MediaPipe wasm to public/wasm and fetches models if missing
-npm run dev      # open the printed http://localhost URL in Chrome
+npm install      # also copies MediaPipe wasm to public/wasm and fetches the model if missing
+npm run dev      # open https://localhost:5173 in Chrome
 ```
 
-After `npm install`, tracking needs no network: wasm comes from `public/wasm`
-(copied from `node_modules`, git-ignored) and models from `public/models`.
+The dev server uses HTTPS with a self-signed certificate (phones need HTTPS to
+open their camera), so each browser shows a warning once: choose to continue.
+It also listens on the local network so phones can reach it.
+
+After `npm install`, tracking needs no internet. The page's Content-Security-Policy
+only allows connections back to the laptop, which also blocks MediaPipe's
+built-in usage logging.
+
+## Using it
+
+1. Pick a camera, or **+ Add camera** → *Phone over Wi-Fi* and scan the QR code.
+   Phone and laptop must be on the same network (a hotspot is most reliable).
+2. Choose a difficulty, press **Start judging**. Each rep lights three lights:
+   **Depth** (chest to floor), **Torso** (straight body), **Lockout** (straight arms).
+   2–3 white = counts (ding), 3 white = perfect, fewer = no rep (buzzer).
+3. **Stop judging** shows accuracy, perfect push-ups and attempts, with every rep's faults.
+
+**Diagnostics** (collapsed) has frame rates, live angles, the fast-rep go/no-go
+test, the camera frame-rate table, and *Judge this log* to replay a recorded log
+through the referee at any difficulty.
 
 ## Layout
 
 | File | Role |
 |---|---|
-| `src/geometry.ts` | `angle(a, b, c)` helper |
-| `src/pose.ts` | Landmark indices, side picking, `computeAngles` (plain TS, no camera) |
-| `src/repLog.ts` | Per-frame log type, rep-bottom analysis, go/no-go verdict (plain TS) |
-| `src/camera.ts` | `getUserMedia`, device list, saved camera choice |
-| `src/landmarker.ts` | Creates the Pose Landmarker once (GPU, CPU fallback) |
-| `src/draw.ts` | Skeleton, visibility and angle overlay |
-| `src/RepChart.tsx` | Elbow angle and shoulder height plotted over time |
-| `src/CameraTable.tsx` | Frame-rate table for the three camera options |
-
-## Fast-rep test
-
-1. Start log (or Space), player does 10 flat-out reps, Stop log.
-2. The app finds each elbow bottom and checks the shoulder bottom lands within
-   the sync window (default 120 ms). **Go** = at least 9 of 10 clear.
-3. Export JSON to compare runs (`replog-*.json` is git-ignored; keep it off the repo).
-   Load JSON re-plots a saved run, and the tuning fields re-run the analysis.
-
-No smoothing is applied, on purpose.
+| `src/geometry.ts` | `angle(a, b, c)` |
+| `src/pose.ts` | Tracked-side selection, angles and depth (plain TS) |
+| `src/judge.ts` | The referee: rep segmentation, three lights, difficulty, summary (plain TS) |
+| `src/repLog.ts` | Fast-rep log, rep-bottom analysis, log replay (plain TS) |
+| `src/camera.ts` | `getUserMedia`, device list, saved camera |
+| `src/landmarker.ts` | Pose Landmarker (full model), GPU with CPU fallback |
+| `src/draw.ts` | Skeleton overlay (tracked side only, no numbers) |
+| `src/sfx.ts` | Ding and buzzer, synthesised with Web Audio |
+| `src/Judging.tsx` | Lights, counters, controls, session report |
+| `src/AddCameraDialog.tsx`, `src/phoneLink.ts` | Pairing a phone (laptop side) |
+| `phone.html`, `src/phone/` | The page the phone opens |
+| `server/phoneSignal.ts` | Vite plugin: WebSocket relay that introduces phone and laptop |
 
 ## Tests
 
