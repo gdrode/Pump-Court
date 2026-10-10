@@ -1,4 +1,4 @@
-# Internet Link ("Phone · any network")
+# Internet Link ("Phone (any network)")
 
 > **Module**: `backend/src/phone/tunnel.rs`, `backend/src/phone/server.rs` (tunnel guard), `frontend/src/logic/tracker/usePhonePairing.ts` (`useInternetPairing`)  
 > **Key Types**: `Tunnel`, `TunnelState`, `TunnelStatus`  
@@ -9,9 +9,9 @@
 
 ## 1. Summary
 
-Venue and school Wi-Fi often stop devices from seeing each other, so a phone can't load the laptop's page. The **Phone · any network** tab, the default in **Add camera**, works around that with a free [Cloudflare quick tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/): `cloudflared` gives the laptop's phone server a public `https://<random>.trycloudflare.com` address with a real certificate. Any phone on any network, even mobile data, can then open the page with no warning.
+Venue and school Wi-Fi often stop devices from seeing each other, so a phone can't load the laptop's page. The **Phone (any network)** tab, the default in **Add camera** and the only phone link it offers, works around that with a free [Cloudflare quick tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/): `cloudflared` gives the laptop's phone server a public `https://<random>.trycloudflare.com` address with a real certificate. Any phone on any network, even mobile data, can then open the page with no warning.
 
-While it runs, the video of a phone using it passes through Cloudflare, encrypted and not stored. Use **Phone · same Wi-Fi (offline)** to keep everything on the local network.
+While it runs, the video of a phone using it passes through Cloudflare, encrypted and not stored. The app has no offline phone link: the Wi-Fi (WebRTC) link is still in the code but not offered in the app (untested at venues). Use a USB webcam to keep everything on the laptop.
 
 ---
 
@@ -31,7 +31,7 @@ The app looks in the usual install folders (`/opt/homebrew/bin`, `/usr/local/bin
 
 ## 3. How it runs
 
-1. Opening **Add camera** calls `tunnel_start` at once, because **Phone · any network** is the tab it opens on. It runs:
+1. Opening **Add camera** calls `tunnel_start` at once, because **Phone (any network)** is the tab it opens on. It runs:
    ```text
    cloudflared tunnel --no-autoupdate --url https://localhost:47800 --no-tls-verify
    ```

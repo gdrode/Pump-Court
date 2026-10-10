@@ -1,13 +1,13 @@
-// "Add camera": pair a phone through the "any network" link (the default: it
-// works on every network), over the same Wi-Fi with a QR code, or pick up a
-// camera the computer already has (USB etc.).
+// "Add camera": pair a phone through the "any network" link (Cloudflare
+// tunnel: the one phone link tested at venues), or pick up a camera the
+// computer already has (USB etc.). The Wi-Fi (WebRTC) tab was removed.
 // Ported from pumpCourt/src/AddCameraDialog.tsx; the logic is in
 // logic/tracker/usePhonePairing.ts.
 import { useEffect, useRef, useState } from "react";
-import { useInternetPairing, useWifiPairing, type PairingStatus } from "../../logic/tracker/usePhonePairing";
+import { useInternetPairing, type PairingStatus } from "../../logic/tracker/usePhonePairing";
 import { useTracker } from "../../logic/tracker/TrackerProvider";
 
-type Tab = "internet" | "wifi" | "system";
+type Tab = "internet" | "system";
 
 const STATUS_TEXT: Record<PairingStatus, string> = {
   starting: "Opening a pairing code…",
@@ -19,13 +19,7 @@ const STATUS_TEXT: Record<PairingStatus, string> = {
 };
 
 export function AddCameraDialog({ onClose }: { onClose: () => void }) {
-  // Any network is the default: it works on every network. Wi-Fi pairing opens only if picked.
   const [tab, setTab] = useState<Tab>("internet");
-  const [wifiOpened, setWifiOpened] = useState(false);
-  const pick = (t: Tab) => {
-    if (t === "wifi") setWifiOpened(true);
-    setTab(t);
-  };
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     dialogRef.current?.showModal();
@@ -40,25 +34,17 @@ export function AddCameraDialog({ onClose }: { onClose: () => void }) {
         </button>
       </header>
       <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === "internet"} className={`sketch ${tab === "internet" ? "is-on" : ""}`} onClick={() => pick("internet")}>
-          Phone · any network
+        <button role="tab" aria-selected={tab === "internet"} className={`sketch ${tab === "internet" ? "is-on" : ""}`} onClick={() => setTab("internet")}>
+          Phone (any network)
         </button>
-        <button role="tab" aria-selected={tab === "wifi"} className={`sketch ${tab === "wifi" ? "is-on" : ""}`} onClick={() => pick("wifi")}>
-          Phone · same Wi-Fi (offline)
-        </button>
-        <button role="tab" aria-selected={tab === "system"} className={`sketch ${tab === "system" ? "is-on" : ""}`} onClick={() => pick("system")}>
+        <button role="tab" aria-selected={tab === "system"} className={`sketch ${tab === "system" ? "is-on" : ""}`} onClick={() => setTab("system")}>
           USB / system camera
         </button>
       </div>
-      {/* Kept mounted on other tabs, so the pairing code a phone may be scanning stays valid. */}
+      {/* Kept mounted on the other tab, so the pairing code a phone may be scanning stays valid. */}
       <div hidden={tab !== "internet"}>
         <InternetPairing onDone={onClose} />
       </div>
-      {wifiOpened && (
-        <div hidden={tab !== "wifi"}>
-          <WifiPairing onTryInternet={() => pick("internet")} onDone={onClose} />
-        </div>
-      )}
       {tab === "system" && <SystemCameras onClose={onClose} />}
     </dialog>
   );
@@ -101,81 +87,6 @@ function useCloseWhenConnected(status: PairingStatus, onDone: () => void) {
   }, [status]);
 }
 
-function WifiPairing({ onTryInternet, onDone }: { onTryInternet: () => void; onDone: () => void }) {
-  const p = useWifiPairing();
-  useCloseWhenConnected(p.status, onDone);
-  return (
-    <div className="dialog__body">
-      <ol className="steps">
-        <li>
-          Put the phone on the <b>same network</b> as this laptop. A phone hotspot is the most reliable: venue and school Wi-Fi
-          often block devices from seeing each other.
-        </li>
-        <li>
-          Scan the code with the phone's camera. Safari warns that the connection is not private: tap <b>Show Details</b>, then{" "}
-          <b>visit this website</b> (Chrome: <b>Advanced → Proceed</b>).
-        </li>
-        <li>
-          Tap <b>Start camera</b> on the phone and allow camera access.
-        </li>
-      </ol>
-      {p.lan?.error && <p className="error">{p.lan.error}</p>}
-      {p.lan && p.lan.addresses.length === 0 && (
-        <p className="error">This laptop isn't on a network. Join Wi-Fi or a phone's hotspot; this list refreshes by itself.</p>
-      )}
-      {p.lan && (p.lan.addresses.length > 1 || p.lan.bonjour) && (
-        <label className="pair__pick">
-          Address in the code{" "}
-          <select value={p.host} onChange={(e) => p.setHost(e.target.value)}>
-            {p.lan.addresses.map((a) => (
-              <option key={a.address} value={a.address}>
-                {a.address} ({a.iface}, {a.label})
-              </option>
-            ))}
-            {p.lan.bonjour && <option value={p.lan.bonjour}>{p.lan.bonjour} (by name)</option>}
-          </select>
-        </label>
-      )}
-      <Pair url={p.url} qr={p.qr} room={p.room} />
-      {p.visit ? (
-        <p className="ok-text">
-          ✓ A phone reached this laptop ({p.visit}). {p.status === "waiting" ? "Now tap Start camera on the phone." : ""}
-        </p>
-      ) : (
-        p.showTrouble && (
-          <div className="trouble">
-            <p>
-              <b>No phone has reached this laptop yet.</b> If the page never loads on the phone:
-            </p>
-            <ul className="steps">
-              {p.firstThree && (
-                <li>
-                  Check the phone's address (iPhone: <i>Settings → Wi-Fi → ⓘ → IP Address</i>). It should start with{" "}
-                  <b>{p.firstThree}.</b> If not, the two are on different networks.
-                </li>
-              )}
-              <li>
-                Using an iPhone hotspot? Turn on <i>Maximize Compatibility</i>, join it from this laptop, then scan again.
-              </li>
-              <li>Turn off any VPN on the laptop and the phone.</li>
-              <li>
-                Still nothing:{" "}
-                <button type="button" className="linkish" onClick={onTryInternet}>
-                  use the Phone · any network tab
-                </button>
-                , which works on any phone and network.
-              </li>
-            </ul>
-          </div>
-        )
-      )}
-      <p className={p.status === "connected" ? "ok-text" : p.status === "failed" ? "error" : "muted"}>
-        {STATUS_TEXT[p.status]} {p.detail}
-      </p>
-    </div>
-  );
-}
-
 function InternetPairing({ onDone }: { onDone: () => void }) {
   const p = useInternetPairing();
   useCloseWhenConnected(p.status, onDone);
@@ -185,10 +96,13 @@ function InternetPairing({ onDone }: { onDone: () => void }) {
       <p>
         Works with <b>any phone on any network</b>, even mobile data. No certificate warning.
       </p>
-      <p className="muted">
-        The phone's video passes through Cloudflare's tunnel, encrypted and not stored. Use <i>Phone · same Wi-Fi</i> to keep
-        everything on this laptop.
-      </p>
+      <ol className="steps">
+        <li>Scan the code with the phone's camera (or type the address into its browser).</li>
+        <li>
+          Tap <b>Start camera</b> on the phone and allow camera access.
+        </li>
+      </ol>
+      <p className="muted">The phone's video passes through Cloudflare's tunnel, encrypted and not stored.</p>
       {t.status === "starting" && <p className="muted">Starting the internet link… (about 5–10 seconds)</p>}
       {(t.status === "missing" || t.status === "error") && <p className="error">{t.error ?? "The internet link failed."}</p>}
       <Pair url={p.url} qr={p.qr} room={p.room} />

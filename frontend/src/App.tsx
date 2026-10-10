@@ -7,6 +7,7 @@ import { scoreToBeat } from "./logic/results";
 import { TrackerProvider, useTracker } from "./logic/tracker/TrackerProvider";
 import { useGameFlow } from "./logic/useGameFlow";
 import { Crowd } from "./ui/screens/Crowd";
+import { NavMenu } from "./ui/components/NavMenu";
 import { DuelResult } from "./ui/screens/DuelResult";
 import { DuelRound } from "./ui/screens/DuelRound";
 import { Events } from "./ui/screens/Events";
@@ -111,8 +112,18 @@ function Operator() {
   }
 
   const cameraScreen = state.screen === "round" || state.screen === "settings" || state.screen === "duelRound";
+  // Hidden mid-round and on a result, so a stray click can't lose a score.
+  const showNav = !["round", "results", "duelRound", "duelResult"].includes(state.screen);
   return (
-    <div className={`app ${cameraScreen ? "app--camera" : ""}`}>
+    <div className={`app ${cameraScreen ? "app--camera" : ""} ${showNav ? "app--nav" : ""}`}>
+      {showNav && (
+        <NavMenu
+          onLeaderboard={() => flow.leaderboard()}
+          onSettings={flow.settings}
+          onCrowd={flow.openCrowd}
+          showKeys={state.screen === "home"}
+        />
+      )}
       {cameraError && !cameraScreen && (
         <button type="button" className="banner banner--bad banner--click top-banner sketch" onClick={flow.settings}>
           Camera: {cameraError} (click for camera settings)

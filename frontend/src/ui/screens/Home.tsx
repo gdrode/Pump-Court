@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { GAME_MODES, HOME_KEYS, menuMode, PLAY_STYLES, type MenuModeInfo, type PlayStyle } from "../../config/modes";
-import { useFixedCamera } from "../../logic/fixedCamera";
+import { setFixedCamera, isFixedCamera } from "../../logic/fixedCamera";
 import { useActiveEvent } from "../../logic/useEvents";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
-import { KeyHints } from "../components/KeyHints";
 import { host } from "../host";
 
 interface Props {
@@ -22,12 +21,13 @@ interface Props {
  * Operator menu, in two steps: Singleplayer or Duel in the top bar, then a
  * game mode below it (the modes light up once a play style is picked).
  * Keys: ← / → pick the play style, 1–3 the mode, so the player can stay on the mat.
+ * Leaderboard, camera, crowd screen and the Fixed camera switch live in the
+ * gear menu (top right); L, S, W and F still work here.
  */
 export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCrowd }: Props) {
   const [style, setStyle] = useState<PlayStyle | null>(null);
   const event = useActiveEvent();
-  const [fixed, setFixed] = useFixedCamera();
-  const toggleFixed = () => setFixed(!fixed);
+  const toggleFixed = () => setFixedCamera(!isFixedCamera());
 
   const pickMode = (i: number) => {
     const m = GAME_MODES[i];
@@ -82,7 +82,6 @@ export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCro
               disabled={!style}
               title={style ? undefined : "Pick Singleplayer or Duel first"}
             >
-              <span className="mode__key sketch">{m.key}</span>
               <span className="mode__label">{m.title}</span>
               <span className="mode__blurb">{m.blurb}</span>
               {m.note && <span className="mode__note">{m.note}</span>}
@@ -95,35 +94,6 @@ export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCro
           <span className="create-event__blurb">
             {event ? "Solo scores count for this event. Change or make events" : "Run a leaderboard for the event you're hosting"}
           </span>
-        </button>
-      </div>
-
-      <div className="home__foot">
-        <KeyHints
-          hints={[
-            ["← →", "singleplayer / duel"],
-            [`1–${GAME_MODES.length}`, "pick a mode"],
-            ["E", "events", onEvents],
-            ["L", "leaderboard", onLeaderboard],
-            ["S", "camera", onSettings],
-            ["W", "crowd screen", onCrowd],
-          ]}
-        />
-        <button
-          role="switch"
-          aria-checked={fixed}
-          className={`fixed-camera ${fixed ? "is-on" : ""}`}
-          onClick={toggleFixed}
-          title={
-            fixed
-              ? "On: the camera stays for every player and scores post to the leaderboard automatically"
-              : "Off: players use their own phone, see their stats on it and choose whether to post"
-          }
-        >
-          <span className="fixed-camera__track" aria-hidden="true">
-            <span className="fixed-camera__knob" />
-          </span>
-          Fixed camera <kbd>F</kbd>
         </button>
       </div>
     </div>

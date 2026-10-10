@@ -34,7 +34,7 @@ let tls = RustlsConfig::from_pem(cert.cert.pem().into_bytes(), cert.key_pair.ser
 - Each phone shows "This connection is not private" once: Safari *Show Details → visit this website*, Chrome *Advanced → Proceed*. The traffic is still encrypted.
 - If the server cannot start (for example port 47800 is taken), the error is kept in `ServerStatus` and shown in the Add camera dialog: "The phone camera server could not use port 47800: …".
 
-The **Phone · any network** link needs none of this on the phone: the Cloudflare tunnel has a real certificate. See [Internet Link](internet-link.md).
+The **Phone (any network)** link needs none of this on the phone: the Cloudflare tunnel has a real certificate. See [Internet Link](internet-link.md).
 
 ---
 
@@ -53,7 +53,7 @@ Loopback, link-local (`169.254.x.x`) and unspecified addresses are left out. Dup
 
 `bonjour_name()` (macOS only) asks `scutil --get LocalHostName` and returns e.g. `Alexs-MacBook.local`. iPhones find a `.local` name without knowing the number.
 
-### On the Add camera dialog's Wi-Fi tab
+### On the Add camera dialog's Wi-Fi tab (removed from the app; kept for reference)
 - The first address is used by default. If there are several (or a Bonjour name), a drop-down "Address in the code" lets the operator pick another.
 - Until a phone reaches the laptop, the list is refreshed every 5 s, so joining a hotspot updates the QR code by itself.
 - With no address at all: "This laptop isn't on a network. Join Wi-Fi or a phone's hotspot; this list refreshes by itself."

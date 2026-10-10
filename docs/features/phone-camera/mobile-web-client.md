@@ -40,7 +40,7 @@ include_str!(…/phone.html) in backend/src/phone/server.rs  →  GET /phone.htm
 - `httpSignal(room, "phone", …)` joins the room over `/signal-http/*` and long-polls for messages.
 - On `peer-joined` it creates an `RTCPeerConnection` (no STUN/TURN), adds the camera track, sends the offer first and then ICE candidates. Candidates that arrive before the laptop's answer are held and applied afterwards.
 - Sender tuning: `degradationPreference = "maintain-framerate"`, `maxBitrate` 4 Mbit/s, `maxFramerate` 30. Fast reps need every frame, so detail drops before frame rate.
-- Status: "Streaming to the laptop", or "Connection failed. Are the phone and laptop on the same Wi-Fi?"
+- Status: "Streaming to the laptop", or "Connection failed. Are the phone and laptop on the same Wi-Fi?" (Wi-Fi WebRTC path only, which the app no longer offers)
 - If signalling is lost while video is already flowing, the video keeps going (it doesn't need the server).
 
 ### 2.2 Any network (`mode=relay`): JPEG frames

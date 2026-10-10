@@ -1,22 +1,17 @@
 // Logic for the "Add camera" dialog (ported from pumpCourt/src/AddCameraDialog.tsx):
-// opens a pairing room, works out the address for the QR code, and hands the
-// phone's stream to the tracker once it connects.
+// starts the internet link, opens a pairing room, makes the QR code, and hands
+// the phone's stream to the tracker once it connects. Only the "any network"
+// link is offered: it is the one tested at venues.
 import QRCode from "qrcode";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { backend, errorText } from "../../api/backend";
-import type { LanInfo, TunnelStatus } from "../../api/types";
+import type { TunnelStatus } from "../../api/types";
 import { openPhoneLink, type PhoneLink, type PhoneStatus } from "./phoneLink";
 import { useTracker } from "./TrackerProvider";
 
 export type PairingStatus = PhoneStatus | "starting";
 
-/** Seconds without any phone reaching the laptop before the troubleshooting list appears. */
-export const NO_VISIT_HINT_S = 12;
-
-/**
- * One pairing room. `wifi`: the QR code points at this laptop's address.
- * `internet`: it points at the Cloudflare tunnel, and the phone sends JPEG frames.
- */
+/** One pairing room. `viaInternet`: the QR code points at the Cloudflare tunnel, and the phone sends JPEG frames. */
 function usePairingRoom(viaInternet: boolean) {
   const tracker = useTracker();
   const [room, setRoom] = useState("");
@@ -79,54 +74,6 @@ function useQr(url: string) {
     QRCode.toDataURL(url, { margin: 1, width: 240, errorCorrectionLevel: "M" }).then(setQr, () => setQr(""));
   }, [url]);
   return qr;
-}
-
-/** "Phone over Wi-Fi": the phone opens https://<laptop>:47800/phone.html and streams over WebRTC. */
-export function useWifiPairing() {
-  const pairing = usePairingRoom(false);
-  const [lan, setLan] = useState<LanInfo | null>(null);
-  const [host, setHost] = useState("");
-  const [waitedS, setWaitedS] = useState(0);
-
-  const loadLan = useCallback(() => {
-    backend
-      .phoneLan()
-      .then((d) => {
-        setLan(d);
-        setHost((cur) => {
-          const options = [...d.addresses.map((a) => a.address), ...(d.bonjour ? [d.bonjour] : [])];
-          return cur && options.includes(cur) ? cur : (d.addresses[0]?.address ?? d.bonjour ?? "");
-        });
-      })
-      .catch((e) => setLan({ addresses: [], bonjour: null, port: 47800, error: errorText(e) }));
-  }, []);
-  useEffect(loadLan, [loadLan]);
-
-  // Until a phone gets through, keep the address list fresh (e.g. the laptop just joined a hotspot).
-  useEffect(() => {
-    if (pairing.visit) return;
-    const tick = setInterval(() => setWaitedS((s) => s + 1), 1000);
-    const refresh = setInterval(loadLan, 5000);
-    return () => {
-      clearInterval(tick);
-      clearInterval(refresh);
-    };
-  }, [pairing.visit, loadLan]);
-
-  const url = host && pairing.room && lan ? `https://${host}:${lan.port}/phone.html?room=${pairing.room}` : "";
-  const chosen = lan?.addresses.find((a) => a.address === host);
-  return {
-    ...pairing,
-    lan,
-    host,
-    setHost,
-    url,
-    qr: useQr(url),
-    /** No phone has loaded the page for a while: show the troubleshooting list. */
-    showTrouble: !pairing.visit && waitedS >= NO_VISIT_HINT_S,
-    /** e.g. "192.168.1" — the phone's address should start the same way. */
-    firstThree: chosen ? chosen.address.split(".").slice(0, 3).join(".") : null,
-  };
 }
 
 /** "Any network": a public https address through Cloudflare; video comes as JPEG frames. */

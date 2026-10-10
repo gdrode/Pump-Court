@@ -8,7 +8,7 @@
 
 ## 1. Executive Summary
 
-Pump Court is built for push-up contests at events, in gyms and at school fairs. Good judging needs a camera placed side-on at about knee height, the whole body in view, even light, and (for a phone camera) internet for the default **Phone · any network** link, or a network the phone and laptop share (**Phone · same Wi-Fi**).
+Pump Court is built for push-up contests at events, in gyms and at school fairs. Good judging needs a camera placed side-on at about knee height, the whole body in view, even light, and (for a phone camera) internet for the default **Phone (any network)** link. A USB webcam needs no network.
 
 ---
 
@@ -21,7 +21,7 @@ Pump Court is built for push-up contests at events, in gyms and at school fairs.
                         [ Operator / Judge Desk ]
                          (Laptop running Pump Court)
                                     ▲
-                                    │ (any network, or same Wi-Fi / hotspot; or a USB webcam)
+                                    │ (Phone (any network) via the tunnel; or a USB webcam)
                                     ▼
        1.5m - 2.0m        [ Phone or webcam on a stand ]
  ◄──────────────────────► (Floor level, landscape)

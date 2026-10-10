@@ -41,10 +41,10 @@ The phone code was ported from the teammate's prototype (a Vite dev-server plugi
 
 | Add camera tab | Address in the QR code | Video path | Signalling |
 | :--- | :--- | :--- | :--- |
-| **Phone · any network** (default) | `https://<random>.trycloudflare.com/phone.html?room=<code>&mode=relay` | JPEG frames over `wss://…/relay` → Rust → Tauri Channel → app window | none needed |
-| **Phone · same Wi-Fi (offline)** | `https://<laptop address>:47800/phone.html?room=<code>` | WebRTC, phone → app window, no STUN/TURN, never leaves the local network | `/signal-http/*` ↔ room ↔ IPC |
+| **Phone (any network)** (default) | `https://<random>.trycloudflare.com/phone.html?room=<code>&mode=relay` | JPEG frames over `wss://…/relay` → Rust → Tauri Channel → app window | none needed |
+| ~~Phone · same Wi-Fi (offline)~~ (not offered in the app; code kept) | `https://<laptop address>:47800/phone.html?room=<code>` | WebRTC, phone → app window, no STUN/TURN, never leaves the local network | `/signal-http/*` ↔ room ↔ IPC |
 
-Venue and school Wi-Fi often stop devices from seeing each other; the phone page then never loads. That is why **Phone · any network** is the default tab: it works on every network, even mobile data. It needs `cloudflared` installed on the laptop and an internet connection. See [Internet Link](internet-link.md). Use **Phone · same Wi-Fi (offline)** to keep the video on the local network.
+Venue and school Wi-Fi often stop devices from seeing each other; the phone page then never loads. That is why **Phone (any network)** is the only phone tab: it works on every network, even mobile data. It needs `cloudflared` installed on the laptop and an internet connection. See [Internet Link](internet-link.md). The old same-Wi-Fi tab was removed from the dialog (untested at events); its server code is still there.
 
 The third tab, **USB / system camera**, is help text plus a "Refresh camera list" button. USB webcams, Continuity Camera and webcam apps (DroidCam, Camo) appear as system cameras by themselves.
 
@@ -57,7 +57,7 @@ backend/src/phone/
 ├── mod.rs      PhoneHub: pairing rooms, codes, HTTP peers, relay phones, PORT = 47800
 ├── server.rs   axum HTTPS server: routes, self-signed cert, tunnel guard, embedded page
 ├── net.rs      laptop addresses for the QR code, ranked; macOS Bonjour name
-└── tunnel.rs   Cloudflare quick tunnel ("Phone · any network")
+└── tunnel.rs   Cloudflare quick tunnel ("Phone (any network)")
 backend/build.rs            embeds frontend/dist/phone.html into the app
 frontend/scripts/build-phone.mjs   builds pumpCourt/phone.html + src/phone/main.ts into one file
 frontend/src/logic/tracker/phoneLink.ts        laptop side of one phone (WebRTC or relay)
@@ -70,13 +70,13 @@ pumpCourt/phone.html, pumpCourt/src/phone/{main,protocol}.ts   the phone page
 
 ## 4. Life of a phone camera
 
-1. **Add camera** opens on **Phone · any network**: it opens a room (`phone_open`) and starts the tunnel straight away, then shows the QR code. The Wi-Fi tab opens its own room only when it is picked. Tabs stay mounted once opened, so a code a phone is scanning stays valid while the operator switches tabs.
+1. **Add camera** opens on **Phone (any network)**: it opens a room (`phone_open`) and starts the tunnel straight away, then shows the QR code. The other tab is **USB / system camera**. Tabs stay mounted once opened, so a code a phone is scanning stays valid while the operator switches tabs.
 2. The phone loads the page. Rust tells the app `phone-visit` with the phone's address, and the dialog shows "✓ A phone reached this laptop".
-3. After 12 s without a visit (`NO_VISIT_HINT_S`), the Wi-Fi tab shows a troubleshooting list (compare address prefixes, iPhone hotspot *Maximize Compatibility*, turn off VPNs, or use the **Phone · any network** tab).
+3. (The 12 s no-visit hint belonged to the removed Wi-Fi tab.)
 4. The phone taps **Start camera**; video starts; status goes to "Connected". The dialog closes after 1.2 s and the phone is added to the camera list as "Phone 1", "Phone 2"… and becomes the camera in use.
 5. If the phone drops, the camera list marks it "disconnected", and the camera view (or, on other screens, a red banner) says so. The room stays open: if the phone page is reloaded, it joins the same room again and brings a new stream.
 6. Removing the phone (× in the camera list) closes the room; the phone is told and the code stops working.
-7. **When a round ends**, the phone that filmed it is let go (`releasePhone`): it leaves the camera list (player 1 falls back to the default camera), so the next player pairs their own phone. Its room stays open a little longer: the laptop sends the round's stats (`phone_notify`, a `round-over` note), the phone stops filming and shows them with **Post my score / Don't post**, and the choice comes back (`{post}`). The room closes a few seconds after the choice, or after 10 minutes. With **Fixed camera** on (home screen, key F) none of this happens: the phone keeps filming for the next player and the score is posted at once. See [The Phone Page](mobile-web-client.md#4-after-the-round-stats-and-posting).
+7. **When a round ends**, the phone that filmed it is let go (`releasePhone`): it leaves the camera list (player 1 falls back to the default camera), so the next player pairs their own phone. Its room stays open a little longer: the laptop sends the round's stats (`phone_notify`, a `round-over` note), the phone stops filming and shows them with **Post my score / Don't post**, and the choice comes back (`{post}`). The room closes a few seconds after the choice, or after 10 minutes. With **Fixed camera** on (gear menu, or key F on home) none of this happens: the phone keeps filming for the next player and the score is posted at once. See [The Phone Page](mobile-web-client.md#4-after-the-round-stats-and-posting).
 
 The pairing dialog closes 1.2 s after "Connected" on every screen (its timer no longer restarts when a busy screen, like the Duel's clock, redraws).
 
@@ -99,6 +99,6 @@ A phone propped on its side with rotation lock on still sends a portrait picture
 ## 6. Limits
 
 - One phone per room. A second phone on the same code replaces the first.
-- Each phone shows a certificate warning once on the Wi-Fi tab (not on the any-network tab).
+- No certificate warning: the tunnel uses Cloudflare's certificate.
 - The any-network link adds internet delay (typically 100–300 ms) and needs upload bandwidth on the phone.
 - Neither link has been tested on a real iPhone yet (2026-10-10); both were tested with a simulated phone in Chromium in the prototype. Automatic rotation has not been tested on a real phone either; the gravity sign on some phones isn't certain.

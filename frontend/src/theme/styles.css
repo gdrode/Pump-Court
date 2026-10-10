@@ -276,9 +276,7 @@ kbd {
 .create-event__blurb { color: var(--ink-soft); font-size: 1.05rem; }
 .create-event.is-on { background: var(--purple-light); }
 .create-event.is-on::before { border-style: solid; border-color: var(--purple); }
-.home__foot { grid-column: 1 / -1; align-self: end; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.home__foot > .keys { margin: 0; }
-/* Fixed camera: a small on/off switch in the bottom corner. */
+/* Fixed camera: a small on/off switch (in the gear menu). */
 .fixed-camera { display: inline-flex; align-items: center; gap: 0.45rem; border: 0; background: none; padding: 0.2rem; font-size: 1rem; color: var(--ink-soft); cursor: pointer; }
 .fixed-camera.is-on { color: var(--ink); }
 .fixed-camera__track { width: 2.1rem; height: 1.15rem; border: 2px solid var(--ink); border-radius: 999px; background: var(--card); position: relative; transition: background 120ms ease; }
@@ -286,10 +284,9 @@ kbd {
 .fixed-camera.is-on .fixed-camera__track { background: var(--purple); }
 .fixed-camera.is-on .fixed-camera__knob { transform: translateX(0.95rem); background: var(--card); }
 .fixed-camera:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.home > .keys { grid-column: 1 / -1; align-self: end; }
 .mode {
   text-align: left; cursor: pointer; border: 0; background: var(--card);
-  padding: 0.9rem 1.1rem 1rem 4.1rem; min-height: 96px;
+  padding: 0.9rem 1.1rem 1rem 1.3rem; min-height: 96px;
   display: flex; flex-direction: column; justify-content: center;
   transition: transform 120ms ease;
 }
@@ -297,11 +294,6 @@ kbd {
 .mode:nth-child(even) { transform: rotate(0.5deg); }
 .mode:not(:disabled):hover, .mode:not(:disabled):focus-visible { transform: rotate(0) translateY(-2px); outline: none; background: var(--cream); }
 .mode:not(:disabled):active { transform: translateY(1px); }
-.mode__key {
-  position: absolute; left: 1rem; top: 50%; margin-top: -1.15rem;
-  width: 2.3rem; height: 2.3rem; display: grid; place-items: center; font-size: 1.4rem;
-  border-radius: 50% 46% 52% 48%;
-}
 .mode__label { font-size: 1.9rem; line-height: 1; }
 .mode__blurb { color: var(--ink-soft); font-size: 1.1rem; }
 .mode__note { color: var(--red); font-size: 0.95rem; }
@@ -710,3 +702,37 @@ kbd {
 .event-form__role { flex: 0 1 14rem; }
 .event-form__select { font: inherit; font-size: 1.2rem; padding: 0.25rem 0.6rem; background: var(--card); border: 2px solid var(--ink); border-radius: var(--r); color: var(--ink); }
 .board-source { align-self: flex-start; }
+
+/* ---- gear menu (top right) ------------------------------------------------- */
+
+/* The camera screen fills the window: leave the gear its own strip at the top. */
+.app--camera.app--nav { padding-top: 4.4rem; }
+
+.nav {
+  position: fixed; top: 0.9rem; right: 0.9rem; z-index: 30;
+  display: flex; flex-direction: row-reverse; align-items: center;
+  background: var(--card); padding: 0.25rem;
+}
+.nav__gear {
+  width: 2.6rem; height: 2.6rem; display: grid; place-items: center;
+  border: 0; background: none; cursor: pointer; border-radius: 50%;
+  transition: transform 300ms ease;
+}
+.nav:hover .nav__gear, .nav.is-open .nav__gear, .nav__gear:focus-visible { transform: rotate(60deg); outline: none; }
+.nav__items {
+  display: flex; align-items: center; gap: 0.3rem;
+  max-width: 0; overflow: hidden; opacity: 0; white-space: nowrap;
+  transition: max-width 240ms ease, opacity 160ms ease;
+}
+.nav:hover .nav__items, .nav:focus-within .nav__items, .nav.is-open .nav__items { max-width: 60rem; opacity: 1; }
+.nav__item {
+  border: 0; background: none; cursor: pointer; font-size: 1.15rem;
+  padding: 0.3rem 0.7rem; border-radius: var(--r);
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.nav__item:hover, .nav__item:focus-visible { background: var(--cream); outline: none; }
+.nav__item kbd { font-size: 0.8rem; }
+@media (max-width: 560px) {
+  .nav__item { font-size: 0.95rem; padding: 0.3rem 0.35rem; }
+  .nav__item kbd { display: none; }
+}

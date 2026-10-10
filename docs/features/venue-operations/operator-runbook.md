@@ -1,7 +1,7 @@
 # Stage Operator Tournament Playbook
 
 > **Role**: Tournament Operator & Lead Referee  
-> **Key Shortcuts**: `1`–`4` (Modes), `Enter` (Advance), `Esc` (Back/Cancel), `L` (Board), `S` (Camera), `W` (Crowd)  
+> **Key Shortcuts**: `←`/`→` (Singleplayer/Duel), `1`–`3` (Modes), `Enter` (Advance), `Esc` (Back/Cancel), `L` (Board), `S` (Camera), `W` (Crowd), `F` (Fixed camera); the same links are in the ⚙ gear menu, top right  
 > **Related Documents**: [Venue Operations Overview](README.md), [Troubleshooting Matrix](troubleshooting.md), [Phone Cameras](../phone-camera/README.md)  
 > **Maintenance Status**: Active / Match Day Runbook  
 
@@ -16,9 +16,8 @@
    - Press **W** on the home screen to open the crowd window. Drag it onto the second screen and make it full screen (F11 / Cmd+Ctrl+F).
 2. **Camera**:
    - Press **S** to open the **Camera** screen. The camera list shows the computer's cameras (USB webcams appear by themselves). Click one to use it.
-   - For a phone, press **A** (**+ Add camera**). Tabs, in order:
-     - **Phone · any network** (opens first): works on any network, even mobile data. Needs `cloudflared` and internet on the laptop, and about 5–10 s to start. Scan the QR code, tap **Start camera**, allow camera access (and motion access on iPhone). No certificate warning.
-     - **Phone · same Wi-Fi (offline)**: keeps the video on the local network. Phone and laptop on the same Wi-Fi, or the laptop joined to the phone's hotspot. Scan the QR code. Accept the certificate warning once (Safari: *Show Details → visit this website*; Chrome: *Advanced → Proceed*). Tap **Start camera** and allow camera access. If the page never loads (venue Wi-Fi often blocks this), go back to **Phone · any network**.
+   - For a phone, press **A** (**+ Add camera**). Two tabs:
+     - **Phone (any network)** (opens first): works on any network, even mobile data. Needs `cloudflared` and internet on the laptop, and about 5–10 s to start. Scan the QR code, tap **Start camera**, allow camera access (and motion access on iPhone). No certificate warning.
      - **USB / system camera**: help text and **Refresh camera list**.
      - The dialog shows "✓ A phone reached this laptop", then "Connected", and closes. The phone is now "Phone 1" in the list and is the camera in use.
      - Close the dialog with **×** (keys are paused while it is open).
@@ -28,7 +27,7 @@
 
 The chosen system camera is remembered for next time. Phones must be paired again after a restart, **and after every round**: a phone camera is let go when its round ends, so each player can film with their own phone and see their stats on it.
 
-**Fixed camera** (press **F** on the home screen, or the small switch at the bottom): use it when one camera or phone stays mounted for everyone. When on, the camera is kept after each round and every score goes on the leaderboard automatically, without asking. The setting is remembered on this laptop.
+**Fixed camera** (press **F** on the home screen, or the switch in the gear menu, top right): use it when one camera or phone stays mounted for everyone. When on, the camera is kept after each round and every score goes on the leaderboard automatically, without asking. The setting is remembered on this laptop.
 
 ---
 
@@ -96,7 +95,7 @@ If the player walks out of view or stands up for 2 s during a round, their round
 | **`↑` / `↓`** | Players (at an event) | Pick the player's role |
 | **`E`** | Leaderboard | Switch between the global boards and the active event's |
 | **`R`** | Leaderboard (event board) | Everyone → each role |
-| **`F`** | Home | Fixed camera on/off (small switch, bottom of the screen) |
+| **`F`** | Home | Fixed camera on/off (switch in the gear menu, top right) |
 | **`L`** | Home | Leaderboard |
 | **`S`** | Home | Camera screen |
 | **`W`** | Home | Open (or bring forward) the crowd window |
@@ -112,5 +111,9 @@ If the player walks out of view or stands up for 2 s during a round, their round
 | **`↑` `↓`** | Leaderboard | Select a row |
 | **`Delete`** or **`Backspace`**, twice | Leaderboard | Delete the selected run |
 | **`B`** | Leaderboard | Write a backup file |
+
+Modes are picked by clicking their card (or keys `1`–`3`); the cards no longer show the number badges.
+
+**Gear menu (⚙, top right):** hover or click it and it slides open to the left with **Leaderboard**, **Camera settings**, **Crowd screen** and the **Fixed camera** switch. It shows on every screen except the get-ready/live round (single or duel) and the results. On the home screen the items show their keys (L, S, W, F).
 
 The crowd window has no keys. Every key hint on screen is also a button.

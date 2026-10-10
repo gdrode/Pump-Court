@@ -68,8 +68,8 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 ### 2.3 Phone cameras (`backend/src/phone/`, `frontend/src/logic/tracker/`)
 - **HTTPS server** on port `47800` (axum + rustls), self-signed certificate made with `rcgen` at start-up.
 - **Pairing rooms** with 8-character codes. The app window is the room's host and talks to Rust over IPC (commands and Tauri Channels), never over the network.
-- **Phone · any network** (the default tab): a Cloudflare quick tunnel (`cloudflared`) gives a public address. The phone sends JPEG frames over `wss://<tunnel>/relay`; Rust forwards each frame to the app window over a Channel. Text notes on the same socket (`{type: "orientation", rotation}`) are checked by `PhoneHub::relay_text` and forwarded on the events Channel.
-- **Phone · same Wi-Fi (offline)**: WebRTC video goes straight from the phone to the app window. Rust only passes the offer, answer, ICE candidates and the phone's `{orientation}` (`/signal-http/*`).
+- **Phone (any network)** (the default tab): a Cloudflare quick tunnel (`cloudflared`) gives a public address. The phone sends JPEG frames over `wss://<tunnel>/relay`; Rust forwards each frame to the app window over a Channel. Text notes on the same socket (`{type: "orientation", rotation}`) are checked by `PhoneHub::relay_text` and forwarded on the events Channel.
+- **Phone · same Wi-Fi (offline)** (not offered in the app; code kept): WebRTC video goes straight from the phone to the app window. Rust only passes the offer, answer, ICE candidates and the phone's `{orientation}` (`/signal-http/*`).
 - **Tunnel guard**: requests that come through the tunnel may only reach `/phone.html` and `/relay`.
 - See [Phone Camera](features/phone-camera/README.md).
 
@@ -124,7 +124,7 @@ Registered in `backend/src/lib.rs`, wrapped in `frontend/src/api/backend.ts`.
 | `phone_signal` | `room`, `data` | – | The app's WebRTC answer or ICE candidate, for the phone |
 | `phone_close` | `room` | – | Closes the room; the phone is told |
 | `phone_lan` | – | `LanInfo` | Laptop addresses for the QR code, Bonjour name, port, server error |
-| `tunnel_status` / `tunnel_start` / `tunnel_stop` | – | `TunnelStatus` | The "Phone · any network" Cloudflare tunnel |
+| `tunnel_status` / `tunnel_start` / `tunnel_stop` | – | `TunnelStatus` | The "Phone (any network)" Cloudflare tunnel |
 
 `open_crowd_window` must stay `async`: on Windows, creating a window inside a plain (sync) command deadlocks the app. That bug froze every button and left the crowd window blank.
 
