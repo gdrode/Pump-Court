@@ -1,5 +1,7 @@
 # Frontend structure: swapping in a new design
 
+> 💡 **Notice for AI Agents and Developers**: This guide has been incorporated into the comprehensive documentation suite. See the full feature documentation in [`docs/features/frontend-ui/`](features/frontend-ui/README.md), including [State & Hooks](features/frontend-ui/state-and-hooks.md), [Crowd Display Synchronization](features/frontend-ui/crowd-display-sync.md), and [Styling & Design Tokens](features/frontend-ui/styling-and-tokens.md).
+
 The frontend is split so that the **look** can be replaced without touching
 the **game logic**. The current screens are a working placeholder UI.
 
