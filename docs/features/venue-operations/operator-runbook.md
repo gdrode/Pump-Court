@@ -26,7 +26,7 @@
    - Check the right-hand panel: **Tracking** says "ready (GPU)" or "ready (CPU)" with poses per second, and **Player** follows the person on the mat.
 3. **Audio Check**: the countdown beeps, the chime (valid push-up) and the buzzer (no-rep) must be heard over the crowd.
 
-The chosen system camera is remembered for next time. Phones must be paired again after a restart.
+The chosen system camera is remembered for next time. Phones must be paired again after a restart, **and after every round**: a phone camera is let go when its round ends, so each player can film with their own phone and see their stats on it.
 
 ---
 
@@ -51,6 +51,7 @@ The chosen system camera is remembered for next time. Phones must be paired agai
   │ ✓ Hold still at the top, arms straight
   │ All rows ticked → countdown starts by itself. Knee push-ups never count.
   │ Picture sideways? ⟳ Rotate (bottom right of the camera picture).
+  │ Wrong camera, or the player brought their phone? Camera list + "+ Add camera" under the checklist.
   ▼
 [ COUNTDOWN ]  3 … 2 … 1 … GO  (beeps)
   ▼
@@ -63,17 +64,21 @@ The chosen system camera is remembered for next time. Phones must be paired agai
   │ Esc aborts (nothing saved).
   ▼
 [ RESULTS ]
-  │ Push-ups, why the round ended, attempts, perfect, rank, red lights per referee. Already saved.
-  │ Enter: post (solo → leaderboard with the name highlighted; Duel → next player, then the winner).
+  │ Push-ups, why the round ended, attempts, perfect, red lights per referee.
+  │ NOT saved yet: posting is opt-in. A phone camera now shows the player their stats with
+  │ "Post my score" / "Don't post" (the phone stops filming and leaves the camera list).
+  │ Enter: post (unless the player chose "Don't post" on their phone), then solo → leaderboard
+  │ with the name highlighted; Duel → next player, then the winner.
   │ Esc: discard the score (Duel: redo this turn).
   ▼
 [ DUEL RESULT ]  (Duel only)
-  │ Most push-ups wins; perfect push-ups break a tie. R: rematch. Enter/Esc: menu.
+  │ Most push-ups wins; perfect push-ups break a tie. Each score shows "✓ posted" or "not posted".
+  │ P: post the scores still waiting. R: rematch. Enter/Esc: menu.
 ```
 
 If the player walks out of view or stands up for 2 s during a round, their round ends ("Got up out of position") and the score so far is saved.
 
-**Duel**: with two cameras, both players go at once on a split screen (player 1 on top). Pick each player's camera on their half (or **+ Add camera** for a phone). The 3-2-1 starts when both are in position; Esc stops the duel and saves both scores. One camera? Press **Only one camera? Take turns instead**: the old turn-by-turn flow (results screen per player, then the winner).
+**Duel**: with two cameras, both players go at once on a split screen (player 1 on top). Pick each player's camera on their half (or **+ Add camera** for a phone). The 3-2-1 starts when both are in position and never stops once started (it covers the screen, faded). Esc stops the duel; the scores so far go to the Duel result. One camera? Press **Only one camera? Take turns instead**: the old turn-by-turn flow (results screen per player, then the winner).
 
 ---
 
@@ -91,7 +96,8 @@ If the player walks out of view or stands up for 2 s during a round, their round
 | **`Enter`** | Players | Next name / start |
 | **`Esc`** | Players, Camera screen | Back to home |
 | **`Esc`** | Get ready, live round | Abort the round (not saved) |
-| **`Enter`** / **`Esc`** | Results | Post / discard (Duel: redo turn) |
+| **`Enter`** / **`Esc`** | Results | Post (opt-in) and continue / discard (Duel: redo turn) |
+| **`P`** | Duel result | Post the scores still waiting |
 | **`R`** | Duel result | Rematch |
 | **`Enter`** / **`Esc`** | Duel result, Leaderboard | Back to home |
 | **`1`–`5`**, **`←` `→`** | Leaderboard | Tabs: All time, Sprint, Minute, Max, Duel |

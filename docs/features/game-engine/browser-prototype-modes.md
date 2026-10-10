@@ -50,7 +50,7 @@ Score = push-ups with 2 or 3 white lights. Co-op winner: most push-ups, then mos
 | Phase | Next |
 | --- | --- |
 | `waiting` | → `countdown` when every player is ready |
-| `countdown` | → `waiting` if anyone leaves position; → `running` after 3 s |
+| `countdown` | → `running` after 3 s, always (it no longer goes back to `waiting` if someone leaves position) |
 | `running` | → `finished` on time (Sprint/Marathon) or when every player has failed (any mode) |
 | `finished` | Play again / Change setup |
 

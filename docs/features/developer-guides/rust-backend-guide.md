@@ -74,7 +74,8 @@ The round commands are `check_name`, `start_round`, `cancel_round`, `set_ready`,
 The engine sends events to every window with `app.emit(name, payload)`. The frontend listens with `listen` (wrapped as `events.onTick`, `events.onRep`, `events.onRoundFinished` in `api/backend.ts`):
 - `tick`: the `SessionSnapshot`, after every command and every 100 ms while a round is on.
 - `rep`: a `RepVerdict` for each rep the window reported while the clock ran.
-- `round-finished`: the `RoundResult`, sent after the run was saved.
+- `round-finished`: the `RoundResult` when a round ends. Not saved: `run_id`/`rank` are empty.
+- `round-posted`: sent by `save_round` once a score is posted (operator or the player's phone), with `run_id` and `rank`.
 
 ### 3.3 Channels (backend → one caller)
 Phone pairing uses `tauri::ipc::Channel` instead of events: `phone_open` takes two channels, one for JSON messages and one for raw JPEG bytes (`InvokeResponseBody::Raw`). Only the window that opened the room gets them. See [Pairing & Protocol](../phone-camera/pairing-and-websocket.md).

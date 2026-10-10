@@ -12,7 +12,7 @@
 Scores are kept in a small **SQLite** database on the game laptop, through `rusqlite`. One row per finished round: who, which mode, how many valid push-ups. Nothing else about the player or the round is stored.
 
 - **No server, no internet**: SQLite is compiled into the app (`bundled` feature). Nothing needs installing.
-- **Survives crashes**: each round is saved the moment it ends, before the results screen shows. The database runs in WAL mode.
+- **Opt-in**: a round is saved only when it is posted: by the operator (Enter on the Results screen) or by the player on their phone. See [Scoring & Ranking](scoring-and-ranking.md#4-posting-is-opt-in). The database runs in WAL mode.
 - **Old databases are converted** on start-up (see §3).
 - **Hourly JSON backups** (see [Backup & Recovery](backup-and-recovery.md)).
 
@@ -80,4 +80,4 @@ pub struct LeaderboardRow {  // sent as { rank, runId, name, mode, reps }
 }
 ```
 
-Tauri commands: `get_leaderboard(mode, limit)`, `get_player_count()`, `delete_run(runId)`, `export_backup()`, `check_name(name)`. The database sits behind an `Arc<Mutex<Leaderboard>>` shared by the commands and the engine thread.
+Tauri commands: `save_round(round)` (post a finished round; emits `round-posted`), `get_leaderboard(mode, limit)`, `get_player_count()`, `delete_run(runId)`, `export_backup()`, `check_name(name)`. The database sits behind an `Arc<Mutex<Leaderboard>>` shared by the commands and the engine thread.

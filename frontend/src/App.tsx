@@ -62,14 +62,12 @@ function Operator() {
     case "results": {
       const { plan, results } = state;
       const duel = plan.players.length > 1;
-      const next = plan.players[results.length];
       screen = (
         <Results
           key={results.length}
           result={results[results.length - 1]}
-          nextLabel={!duel ? "Post score" : next ? `Post & ${next}'s turn` : "Post & see who won"}
-          discardLabel={duel ? "Redo turn" : "Discard"}
-          onPost={flow.post}
+          nextPlayer={duel ? (plan.players[results.length] ?? null) : undefined}
+          onNext={flow.next}
           onDiscard={flow.discard}
         />
       );

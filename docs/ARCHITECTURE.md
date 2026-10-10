@@ -10,7 +10,7 @@
 Pump-Court is a Tauri 2 desktop app. The work is split in two:
 
 * **The app window (TypeScript)** sees the player. It opens the camera, runs MediaPipe pose tracking, checks the push-up position, and judges each rep with three lights. This code is the teammate's tracker in `pumpCourt/src`, imported by the frontend as `@tracker/*`.
-* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, failure: out of position, stuck, stopped), counts valid push-ups, saves results to SQLite, and serves phone cameras.
+* **The Rust backend** keeps score. It runs the round clock (get ready, 3-2-1 countdown, round time, failure: out of position, stuck, stopped), counts valid push-ups, saves posted results to SQLite, and serves phone cameras.
 
 ```text
 ┌──────────────────────────── CAMERAS ─────────────────────────────┐
@@ -35,7 +35,7 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 │                                  Session: idle → getReady → countdown → running   │
 │                                           → finished                              │
 │                                  emits "tick" (~10 Hz while a round is active),   │
-│                                        "rep", "round-finished"                    │
+│                                        "rep", "round-finished", "round-posted"    │
 │                                  saves RoundResult ─▶ SQLite runs(name,mode,reps) │
 └──────────────────────────────────────┬─────────────────────────────────────────────┘
                                        │ events go to every window
@@ -61,7 +61,7 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 - **Its own thread**, named `pump-court-engine`. Tauri commands only drop an `EngineCommand` into an `mpsc` channel; the thread never waits on the UI.
 - **Clock only**: the thread wakes every 100 ms (`TICK_INTERVAL`) while a round is on, moves the `Session` clock and emits `tick`. It does no image work.
 - **Session phases**: `idle → getReady → countdown (3 s) → running → finished`. `set_ready(true)` moves get-ready to countdown. Reps only count while running.
-- **Saving**: when a round finishes, the engine saves it to SQLite first, fills in `runId` and `rank`, then emits `round-finished`.
+- **Saving is opt-in**: when a round finishes the engine emits `round-finished` with `runId`/`rank` empty. It is saved only when posted (`save_round`, by the operator or from the player's phone), which emits `round-posted`. See [Scoring & Ranking](features/leaderboard/scoring-and-ranking.md#4-posting-is-opt-in).
 - **Hourly backup**: the same thread writes a JSON backup every hour.
 - See [Game Engine](features/game-engine/README.md).
 
@@ -98,7 +98,8 @@ Rust structs and their TypeScript mirrors in `frontend/src/api/types.ts` must ma
 | :--- | :--- | :--- | :--- |
 | `tick` | about 10 times a second while a round is active, and after every engine command | `SessionSnapshot` | phase, mode, player, `inPosition`, `countdownMs`, `elapsedMs`, `remainingMs`, `failRemainingMs`, `reps`, `attempts`, `perfect`, `lastRep` |
 | `rep` | each rep reported while the clock runs | `RepVerdict` | `attempt`, `counted`, `perfect`, `lights {depth, torso, lockout}`, `faults[]` |
-| `round-finished` | once, at the end of a round (already saved) | `RoundResult` | `mode`, `player`, `reps`, `attempts`, `perfect`, `noReps {depth, torso, lockout}`, `durationMs`, `runId`, `rank` |
+| `round-finished` | once, at the end of a round (not saved: `runId`, `rank` null) | `RoundResult` | `mode`, `player`, `reps`, `attempts`, `perfect`, `noReps {depth, torso, lockout}`, `durationMs`, `runId`, `rank` |
+| `round-posted` | when a score is posted (operator or phone) | `RoundResult` | as `round-finished`, with `runId` and `rank` |
 
 ### 3.2 Tauri commands (React ➔ Rust)
 
@@ -114,6 +115,8 @@ Registered in `backend/src/lib.rs`, wrapped in `frontend/src/api/backend.ts`.
 | `get_leaderboard` | `mode: RoundMode \| null`, `limit` | `LeaderboardRow[]` | Best run per player; `null` = all time |
 | `get_player_count` | – | number | Different names that have played |
 | `delete_run` | `runId` | – | Moderation and "Discard" |
+| `save_round` | `round: FinishedRound` | `RoundResult` | Posts a finished round; emits `round-posted` |
+| `phone_notify` | `room`, `data: PhoneNote` | – | A note for the phone (its stats after the round) |
 | `export_backup` | – | file path | JSON backup now |
 | `open_crowd_window` | – | – | Opens or focuses the `crowd` window (an `async` command) |
 | `phone_open` | `events: Channel`, `frames: Channel` | 8-character room code | Opens a pairing room |

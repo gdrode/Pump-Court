@@ -53,6 +53,13 @@ export interface PhoneCamera {
   rotationHint: Rotation | null;
 }
 
+/** A phone handed back after a round (`releasePhone`): its link stays open until `done()`. */
+export interface ReleasedPhone {
+  link: PhoneLink;
+  /** Finished with the phone: closes its link (and the internet link if nothing else uses it). */
+  done(): void;
+}
+
 /** A camera the operator can pick: `device:<id>` or `phone:<id>`. */
 export interface CameraChoice {
   key: string;
@@ -71,6 +78,13 @@ interface TrackerApi {
   /** A phone finished pairing in the Add camera dialog. */
   addPhone(p: { label: string; stream: MediaStream; link: PhoneLink; viaInternet: boolean }): void;
   removePhone(id: string): void;
+  /**
+   * After a round: stop filming with the phone in use, so the next player can
+   * pair their own. The camera goes back to the default one (player 2: none).
+   * Returns the phone's link, still open, to show the player their stats; null
+   * when the camera isn't a phone.
+   */
+  releasePhone(): ReleasedPhone | null;
   /** Closes the internet link if no paired phone uses it. */
   releaseTunnel(): void;
   /** Name for the next phone, e.g. "Phone 2". */
@@ -451,6 +465,26 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
   // Close every phone link when the app closes.
   const phonesRef = useRef(phones);
   phonesRef.current = phones;
+  const currentRef = useRef(current);
+  currentRef.current = current;
+
+  const releasePhone = useCallback((): ReleasedPhone | null => {
+    const key = currentRef.current;
+    const p = key?.startsWith("phone:") ? phonesRef.current.find((x) => `phone:${x.id}` === key) : undefined;
+    if (!p) return null;
+    setPhones((ps) => ps.filter((x) => x.id !== p.id));
+    setCurrent((c) => (c === key ? null : c));
+    let closed = false;
+    return {
+      link: p.link,
+      done: () => {
+        if (closed) return;
+        closed = true;
+        p.link.close();
+        if (internetPhones.delete(p.id)) releaseTunnel();
+      },
+    };
+  }, [releaseTunnel]);
   useEffect(() => () => phonesRef.current.forEach((p) => p.link.close()), []);
 
   const cameras: CameraChoice[] = useMemo(
@@ -482,6 +516,7 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
     refreshDevices,
     addPhone,
     removePhone,
+    releasePhone,
     releaseTunnel,
     nextPhoneLabel: slot === 1 ? `P2 phone ${phoneCount.current + 1}` : `Phone ${phoneCount.current + 1}`,
     cameraError: cameraError ?? (phone && phone.status !== "connected" ? `${phone.label}: ${phone.status}. ${phone.detail}` : null),

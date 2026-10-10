@@ -22,7 +22,7 @@ laptop or phone camera ─▶ app window (TypeScript, pumpCourt/src)
                              │ set_ready / report_rep
                              ▼
                            engine thread (Rust): round clock + score
-                             ├─ "tick" / "rep" / "round-finished" events ─▶ operator + crowd windows
+                             ├─ "tick" / "rep" / "round-finished" / "round-posted" events ─▶ operator + crowd windows
                              └─ SQLite leaderboard: runs(name, mode, reps)
 ```
 

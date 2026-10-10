@@ -48,8 +48,11 @@ Messages to the app window (`PhoneRoomMessage` in `frontend/src/api/types.ts`):
 | `{type: "peer-joined"}` | a phone joined (HTTP or relay) | `connecting` |
 | `{type: "signal", data}` | the phone's WebRTC offer, ICE candidate, or `{orientation}` (Wi-Fi) | (answered; orientation → `onOrientation`) |
 | `{type: "orientation", rotation}` | any network: the clockwise turn (0/90/180/270) that makes the phone's picture upright | (`onOrientation`) |
+| `{type: "post", post}` | any network, after a round: the player tapped "Post my score" (`true`) or "Don't post" (on Wi-Fi it comes as `signal` data `{post}`) | (`onPost`) |
 | `{type: "peer-left"}` | the phone left, was swept, or its relay socket closed | `disconnected` |
 | `{type: "error", message}` | – | `failed` |
+
+The other way, `phone_notify(room, data)` sends `{type: "note", data}` to the room's phone, on Wi-Fi (in its next poll) or on the relay socket. The notes (`PhoneNote` in `pumpCourt/src/phone/protocol.ts`) are `round-over` (the player's stats, after the round) and `post-status` (posting, posted with rank, declined, discarded, failed).
 
 `connected` comes from the WebRTC connection state (Wi-Fi) or from the first relay frame drawn (any network). WebRTC `failed` shows "Could not reach the phone. Put both on the same Wi-Fi or hotspot."
 

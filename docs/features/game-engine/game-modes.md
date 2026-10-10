@@ -58,7 +58,8 @@ Same rules for Singleplayer (the Rust `Session`) and the side-by-side Duel (`pum
 - Exactly **two** players. A Duel starts as a **split screen** on two cameras (below); with only one camera the players take turns instead.
 - **Split screen (two cameras)**: `ui/screens/DuelRound.tsx`, rules in `logic/useDuelMatch.ts`.
   - The screen is cut in half **top to bottom**: player 1 on top (camera slot 0), player 2 below (slot 1). Each half has the player's camera on the left and a panel on the right with their score, three lights and, before the clock, a camera picker with **+ Add camera** (pair a phone).
-  - One clock for both, in the top bar. The 3-2-1 starts when both players hold the push-up position; each player can fail on their own. Both scores are saved through `save_round` when both are done.
+  - One clock for both, in the top bar. The 3-2-1 starts when both players hold the push-up position and then **always runs to GO**: it never stops if someone wobbles (once running, 2 s out of position is a fail). The countdown covers the whole split screen, faded, so both players stay visible; the screen layout never moves.
+  - Each player can fail on their own. When both are done, the Duel result shows; each player can post from their phone, and **P** posts the scores still waiting (posting is opt-in).
   - **Only one camera? Take turns instead** switches to the turn-based flow below.
 - **Taking turns (one camera)**: each player has a turn of the picked mode (Sprint = `RoundMode::Duel`, 30 s). The frontend runs the two turns; Rust sees two separate rounds.
 - Turn flow:

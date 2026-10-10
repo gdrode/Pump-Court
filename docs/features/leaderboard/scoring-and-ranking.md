@@ -49,9 +49,20 @@ On the all-time board, a player who has played several modes appears once, with 
 
 ---
 
-## 4. Rank after a round
+## 4. Posting is opt-in
 
-When a round ends, the engine saves it and asks `rank_of(Some(mode), player)`: the player's place on **that mode's** board. That is the `rank` in `RoundResult`, shown on the Results screen ("#3") and by the dragon ("Top three!").
+Since 2026-10-10 a finished round is **not** saved by itself. It goes on the leaderboard only when someone posts it:
+
+```text
+round ends ─▶ "round-finished" (runId, rank = null) ─▶ ScorePost (frontend/src/logic/scorePost.ts), status "pending"
+   ├─ operator presses Enter (Post) on the Results / P on the Duel result ─▶ save_round ─▶ "round-posted" ─▶ posted, rank
+   ├─ player taps "Post my score" on their phone                       ─▶ save_round ─▶ "round-posted" ─▶ posted, rank
+   └─ player taps "Don't post" on their phone                          ─▶ declined (never saved; Enter then just moves on)
+```
+
+- `save_round(round)` (`leaderboard::save_finished`): checks the name, `save_run`, `rank_of(Some(mode), player)` (the player's place on **that mode's** board), then emits `round-posted` to every window. That `rank` is shown on the Results screen ("#3"), the phone and the Duel result.
+- A score nobody posts is never saved. A player who said no on their phone is not overruled by the operator's Enter.
+- If the save fails, the status is "failed" and Enter (or the phone button) tries again.
 
 ---
 
@@ -63,6 +74,6 @@ Who wins a Duel is decided in the frontend (`duelOutcome` in `frontend/src/logic
 
 ## 6. Moderation
 
-- **Discard** on the Results screen deletes the run just saved (`delete_run`). In a Duel the button is "Redo turn" and the same player goes again.
+- **Discard** (Esc) on the Results screen throws the round away; if it was already posted (e.g. from the phone) the run is deleted (`delete_run`). In a Duel the button is "Redo turn" and the same player goes again.
 - On the Leaderboard screen: select a row with ↑/↓, press **Delete** (or Backspace) twice to remove that run. Because boards show each player's best run, removing it makes their next-best run appear.
 - `get_player_count` counts different names (ignoring case) that have ever posted; the crowd screen shows "N people have competed so far".

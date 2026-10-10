@@ -44,7 +44,10 @@ export interface NoRepCounts {
 /** Why a round ended. backend/src/game/session.rs `FinishReason`; same names as the tracker's game.ts. */
 export type FinishReason = "time" | "stopped" | "stuck" | "left" | "ended";
 
-/** A finished round (`round-finished` event). Already saved when it arrives. */
+/**
+ * A finished round (`round-finished` event). Not saved yet: `runId` and `rank`
+ * are null until it is posted (`save_round`, which emits `round-posted`).
+ */
 export interface RoundResult {
   mode: RoundMode;
   player: string;
@@ -61,7 +64,7 @@ export interface RoundResult {
   rank: number | null;
 }
 
-/** A round the frontend played and asks the backend to save (`save_round`). backend/src/commands.rs `FinishedRound`. */
+/** A finished round to post to the leaderboard (`save_round`). backend/src/leaderboard.rs `FinishedRound`. */
 export interface FinishedRound {
   mode: RoundMode;
   player: string;
@@ -138,10 +141,20 @@ export type PhoneRoomMessage =
   | { type: "signal"; data: SignalData }
   | { type: "phone-visit"; from: string }
   /** Any network: the phone says which way to turn its picture (clockwise degrees). */
-  | { type: "orientation"; rotation: number };
+  | { type: "orientation"; rotation: number }
+  /** Any network, after a round: the player's choice on the phone to post the score. */
+  | { type: "post"; post: boolean };
 
 /**
  * Passed between phone and laptop through the room: WebRTC offer/answer, ICE
- * candidate, or (phone → laptop) the clockwise turn that makes the picture upright.
+ * candidate, or (phone → laptop) the clockwise turn that makes the picture
+ * upright, or the player's choice to post their score.
  */
-export type SignalData = { sdp: RTCSessionDescriptionInit } | { candidate: RTCIceCandidateInit } | { orientation: number };
+export type SignalData =
+  | { sdp: RTCSessionDescriptionInit }
+  | { candidate: RTCIceCandidateInit }
+  | { orientation: number }
+  | { post: boolean };
+
+/** Laptop → phone notes (`phoneNotify`): pumpCourt/src/phone/protocol.ts `PhoneNote`. */
+export type { PhoneNote, PhoneRoundStats, PostStatus } from "@tracker/phone/protocol";

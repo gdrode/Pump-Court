@@ -63,7 +63,7 @@ loop {
 
 - **`handle(cmd)`** applies the command to the `Session` with the current time, emits `rep` if a reported rep was counted, then emits a `tick` snapshot. So the UI sees every change at once, not only on the next tick.
 - **`tick()`** does nothing while no round is active. During a round it calls `session.tick(now)` (countdown → running, time up, failure) and emits a `tick`.
-- **When a round ends**, `save()` locks the database, stores `(player, mode, reps)`, sets `run_id` and `rank` (`rank_of` on that mode's board), and only then emits `round-finished`. A failed save leaves both `null`; the result is still shown.
+- **When a round ends**, the engine emits `round-finished` with the result. It does **not** save it: posting is opt-in (`save_round`, see [Scoring & Ranking](../leaderboard/scoring-and-ranking.md#4-posting-is-opt-in)).
 - **Time** is one steady clock (`Instant`) started with the engine, in milliseconds.
 
 ---

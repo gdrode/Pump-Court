@@ -10,12 +10,43 @@ export type ServerMessage =
   | { type: 'phone-visit'; from: string }
   /** HTTP transport only: the server closed this peer (4000 = another phone took over the code). */
   | { type: 'closed'; code: number }
+  /** Laptop → phone: something to show the player (Pump Court app only, see PhoneNote). */
+  | { type: 'note'; data: PhoneNote }
 
 export type SignalData =
   | { sdp: RTCSessionDescriptionInit }
   | { candidate: RTCIceCandidateInit }
   /** Phone → laptop: clockwise turn (0/90/180/270) that makes the picture upright. */
   | { orientation: number }
+  /** Phone → laptop, after a round: the player's choice to post the score or not. */
+  | { post: boolean }
+
+/** Where a finished round's score stands. Nothing is on the leaderboard until it is posted. */
+export type PostStatus = 'pending' | 'posting' | 'posted' | 'declined' | 'discarded' | 'failed'
+
+/** One finished round, as the phone shows it to the player. */
+export interface PhoneRoundStats {
+  player: string
+  /** e.g. "Sprint" */
+  modeLabel: string
+  /** Valid push-ups: the score. */
+  reps: number
+  attempts: number
+  perfect: number
+  noReps: { depth: number; torso: number; lockout: number }
+  durationMs: number
+  /** Why the round ended, in plain words ("Time!"). */
+  finishText: string
+}
+
+/**
+ * Laptop → phone notes (Pump Court app). When the round ends the laptop stops
+ * using the phone as a camera, sends `round-over`, and the phone shows the
+ * stats with "Post my score" / "Don't post". `post-status` follows each change.
+ */
+export type PhoneNote =
+  | { type: 'round-over'; stats: PhoneRoundStats; status: PostStatus }
+  | { type: 'post-status'; status: PostStatus; rank: number | null; by: 'phone' | 'host' }
 
 export function signalUrl() {
   return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/signal`

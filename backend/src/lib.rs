@@ -62,6 +62,7 @@ pub fn run() {
             commands::open_crowd_window,
             commands::phone_open,
             commands::phone_signal,
+            commands::phone_notify,
             commands::phone_close,
             commands::phone_lan,
             commands::tunnel_status,

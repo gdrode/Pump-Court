@@ -5,14 +5,14 @@
 //!                                                     │
 //!                         "tick" ~10× a second ◀──────┤  (timer, count, lights)
 //!                         "rep" per judged rep  ◀─────┤
-//!                         "round-finished"      ◀─────┘  (saved to SQLite first)
+//!                         "round-finished"      ◀─────┘  (not saved: see `save_round`)
 //! ```
 //!
 //! Events go to every window, so the operator screen and the crowd screen
 //! always agree. Tauri commands only drop an [`EngineCommand`] into a channel;
 //! nothing here ever waits on the UI.
 
-use crate::game::{RepReport, RoundMode, RoundResult, Session};
+use crate::game::{RepReport, RoundMode, Session};
 use crate::leaderboard::Leaderboard;
 use serde::Serialize;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
@@ -102,20 +102,11 @@ impl Engine {
         }
         let finished = self.session.tick(self.now());
         self.emit("tick", self.session.snapshot());
+        // Not saved here: a score goes on the leaderboard only when someone
+        // posts it (`save_round`), so `run_id` and `rank` are still empty.
         if let Some(result) = finished {
-            let result = self.save(result);
             self.emit("round-finished", result);
         }
-    }
-
-    /// Posts the round to the leaderboard and fills in its rank.
-    fn save(&self, mut result: RoundResult) -> RoundResult {
-        let db = self.db.lock().unwrap();
-        if let Ok(id) = db.save_run(&result.player, result.mode, result.reps) {
-            result.run_id = Some(id);
-            result.rank = db.rank_of(Some(result.mode), &result.player).ok().flatten();
-        }
-        result
     }
 
     fn emit<T: Serialize + Clone>(&self, event: &str, payload: T) {

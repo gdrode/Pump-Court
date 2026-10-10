@@ -170,6 +170,21 @@ impl PhoneHub {
         }
     }
 
+    /// A note from the app window for the phone, whichever way it is linked
+    /// (Wi-Fi or the relay): `{"type": "note", "data": …}`. Used after a
+    /// round to show the player their stats and ask whether to post them.
+    pub fn host_notify(&self, room: &str, data: Value) {
+        let inner = self.inner.lock().unwrap();
+        let Some(r) = inner.rooms.get(room) else { return };
+        let msg = json!({ "type": "note", "data": data });
+        if let Some(phone) = &r.phone {
+            phone.send(msg.clone());
+        }
+        if let Some(relay) = &r.relay {
+            relay.send(msg);
+        }
+    }
+
     fn host_of(&self, room: &str) -> Option<Arc<HostLink>> {
         self.inner.lock().unwrap().rooms.get(room).and_then(|r| r.host.clone())
     }
@@ -334,16 +349,22 @@ impl PhoneHub {
         }
     }
 
-    /// A text note from the relay phone. The only one is which way up the
-    /// phone is: `{"type": "orientation", "rotation": 0|90|180|270}`, the
-    /// clockwise turn that makes its picture upright. Anything else is dropped.
+    /// A text note from the relay phone. Two kinds, anything else is dropped:
+    /// * which way up the phone is: `{"type": "orientation", "rotation": 0|90|180|270}`,
+    ///   the clockwise turn that makes its picture upright;
+    /// * after a round, the player's choice: `{"type": "post", "post": true|false}`.
     pub fn relay_text(&self, room: &str, id: u64, text: &str) {
         let Ok(msg) = serde_json::from_str::<Value>(text) else { return };
-        let rotation = msg["rotation"].as_u64().filter(|r| [0, 90, 180, 270].contains(r));
-        if let (Some("orientation"), Some(rotation)) = (msg["type"].as_str(), rotation) {
-            if let Some(host) = self.relay_host(room, id) {
-                (host.events)(json!({ "type": "orientation", "rotation": rotation }));
-            }
+        let note = match msg["type"].as_str() {
+            Some("orientation") => msg["rotation"]
+                .as_u64()
+                .filter(|r| [0, 90, 180, 270].contains(r))
+                .map(|rotation| json!({ "type": "orientation", "rotation": rotation })),
+            Some("post") => msg["post"].as_bool().map(|post| json!({ "type": "post", "post": post })),
+            _ => None,
+        };
+        if let (Some(note), Some(host)) = (note, self.relay_host(room, id)) {
+            (host.events)(note);
         }
     }
 
@@ -534,6 +555,37 @@ mod tests {
         }
         hub.relay_text(&room, id + 1, r#"{"type":"orientation","rotation":180}"#); // not this room's phone
         assert_eq!(events.lock().unwrap().last().unwrap()["rotation"], 90, "bad notes are dropped");
+    }
+
+    #[test]
+    fn relay_post_choice_reaches_the_laptop() {
+        let hub = PhoneHub::new();
+        let (link, events, _) = host();
+        let room = hub.open_room(link);
+        let (id, _rx) = hub.relay_connect(&room).unwrap();
+        hub.relay_text(&room, id, r#"{"type":"post","post":true}"#);
+        assert_eq!(events.lock().unwrap().last().unwrap(), &json!({ "type": "post", "post": true }));
+        hub.relay_text(&room, id, r#"{"type":"post","post":"yes"}"#);
+        assert_eq!(events.lock().unwrap().last().unwrap()["post"], true, "not a yes/no: dropped");
+    }
+
+    #[test]
+    fn notes_reach_the_phone_either_way() {
+        let rt = rt();
+        let hub = PhoneHub::new();
+        let (link, _, _) = host();
+        let room = hub.open_room(link);
+        let wifi = hub.phone_join(&room, "phone").unwrap();
+        let (_, mut relay_rx) = hub.relay_connect(&room).unwrap();
+        hub.host_notify(&room, json!({ "type": "round-over" }));
+        let polled = rt.block_on(hub.poll(&wifi)).unwrap();
+        assert!(polled.contains(&json!({ "type": "note", "data": { "type": "round-over" } })));
+        let mut relayed = vec![];
+        while let Ok(RelayOut::Text(t)) = relay_rx.try_recv() {
+            relayed.push(serde_json::from_str::<Value>(&t).unwrap());
+        }
+        assert_eq!(relayed.last().unwrap()["data"]["type"], "round-over");
+        hub.host_notify("NOSUCHRM", json!({})); // unknown room: nothing happens
     }
 
     #[test]

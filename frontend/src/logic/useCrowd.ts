@@ -34,9 +34,10 @@ export function useCrowd() {
     return () => clearTimeout(t);
   }, [posted]);
 
-  useBackendEvent(events.onRoundFinished, (r) => {
+  // Scores reach the board only when posted (operator or the player's phone).
+  useBackendEvent(events.onRoundPosted, (r) => {
     refresh();
-    if (r.runId != null) setPosted(r);
+    setPosted(r);
   });
   useBackendEvent(events.onRep, () => setLastRepAt(performance.now()));
 

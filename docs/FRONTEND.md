@@ -73,7 +73,7 @@ the functions the hooks give them. They never call the backend directly.
 | Home | `MENU_MODES` from config | modes, keys | `onPick`, `onLeaderboard`, `onSettings`, `onCrowd` |
 | Players | `useNameEntry` | `names`, `multi`, `active`, `error`, `maxLength` | `setName`, `setActive`, `enter`, `start` |
 | Round | `useRound` | `phase`, `posture`, `countdownSeconds`, `reps`, `attempts`, `perfect`, `elapsedMs`, `remainingMs`, `failRemainingMs`, `lastRep`, `lastRepAt` | `cancel`; optional `onRep`, `onCountdown`, `onGo` callbacks for sound and animation |
-| Results | props from `App.tsx` | `result` (incl. `rank`, `noReps`) | `onPost`, `onDiscard` |
+| Results | `useScorePosts` (logic/scorePost.ts) | `result`, post status (`pending`/`posted`/`declined`…), `rank` once posted | `onNext(posted)`, `onDiscard` |
 | Duel result | `duelOutcome` | `ranked`, `winner`, `decidedOnPerfect` | `onRematch`, `onDone` |
 | Leaderboard | `useLeaderboard` | `mode` (`null` = all time), `rows`, `message` | `setMode`, `remove`, `exportBackup` |
 | Crowd | `useCrowd` | `round` (live, or null), `rows`, `leader`, `playerCount`, `posted` | none (no keys) |

@@ -27,9 +27,10 @@ There is no shared "view" state. Both windows listen to the same backend events:
 
 - `tick` (via `useSession`): the live round snapshot (phase, player, mode, reps, clock, last lights).
 - `rep`: when a rep was judged, so the dragon reacts at the same moment as on the operator screen.
-- `round-finished`: the round ended and was saved.
+- `round-finished`: the round ended (not saved yet).
+- `round-posted`: a score was posted to the leaderboard (operator or the player's phone).
 
-The board is read with `get_leaderboard(null, 10)` (all time, `CROWD_ROWS`) and `get_player_count()`, at start, after every `round-finished`, and every **10 s**. The poll also picks up deletes and discards made on the operator screen.
+The board is read with `get_leaderboard(null, 10)` (all time, `CROWD_ROWS`) and `get_player_count()`, at start, after every `round-posted`, and every **10 s**. The poll also picks up deletes and discards made on the operator screen.
 
 ---
 
@@ -38,7 +39,7 @@ The board is read with `get_leaderboard(null, 10)` (all time, `CROWD_ROWS`) and 
 - Title, the dragon, and **Most push-ups · all time**: each player's best round in any mode, top 10, with name, mode and push-ups.
 - "N people have competed so far" under the board.
 - The dragon says "Can anyone beat Rosa's 19?" (or "Step up and be the first on the board!" on an empty board).
-- **Just posted**: when a round is saved (`round-finished` with a `runId`), its player's row is highlighted and the dragon dances and says "Rosa just posted 19, that's #2!" for 8 s (`CROWD_POSTED_MS`). The `#2` is the round's place on the all-time board shown beside it (looked up by `runId` in the board rows; left out if the round is not in the top 10).
+- **Just posted**: when a score is posted (`round-posted`), its player's row is highlighted and the dragon dances and says "Rosa just posted 19, that's #2!" for 8 s (`CROWD_POSTED_MS`). The `#2` is the round's place on the all-time board shown beside it (looked up by `runId` in the board rows; left out if the round is not in the top 10).
 
 A discarded run is deleted a moment later; the next poll takes it off the board.
 

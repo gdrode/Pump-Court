@@ -103,8 +103,8 @@ export function tick(g: GameState, now: number, live: PlayerLive[]): GameState {
       return live.length >= g.players.length && live.every((l) => l.ready) ? { ...g, phase: 'countdown', countdownStart: now } : g
 
     case 'countdown':
-      // Someone left position during the 3-2-1: wait for them again.
-      if (!live.every((l) => l.ready)) return { ...g, phase: 'waiting', countdownStart: null }
+      // Once the 3-2-1 has started it always runs to GO, even if someone wobbles out
+      // of position (they then have FAILURE.outOfPositionMs to get back once it runs).
       if (now - g.countdownStart! < COUNTDOWN_MS) return g
       return { ...g, phase: 'running', startT: now, players: g.players.map((p) => ({ ...p, lastRepT: now })) }
 

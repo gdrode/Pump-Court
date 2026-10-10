@@ -1,5 +1,6 @@
 import type { RoundResult } from "../../api/types";
 import { duelOutcome } from "../../logic/results";
+import { useScorePosts, type ScorePost } from "../../logic/scorePost";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
@@ -13,10 +14,18 @@ interface Props {
 
 const ORDINAL = ["1st", "2nd"];
 
-/** Who won the Duel: most push-ups; perfect push-ups break a tie. */
+/**
+ * Who won the Duel: most push-ups; perfect push-ups break a tie. Posting is
+ * opt-in: each player can post from their phone, or the operator posts the
+ * scores still waiting (P).
+ */
 export function DuelResult({ results, onRematch, onDone }: Props) {
   const { ranked, winner, decidedOnPerfect } = duelOutcome(results);
-  useKeys({ Enter: onDone, Escape: onDone, r: onRematch });
+  const posts = useScorePosts(results);
+  const postOf = (r: RoundResult) => posts[results.indexOf(r)];
+  const waiting = posts.filter((p) => p.status === "pending" || p.status === "failed");
+  const postAll = () => waiting.forEach((p) => void p.post("host"));
+  useKeys({ Enter: onDone, Escape: onDone, r: onRematch, p: postAll });
 
   return (
     <div className="versus">
@@ -34,6 +43,7 @@ export function DuelResult({ results, onRematch, onDone }: Props) {
             <span className="standing__name">{r.player}</span>
             <span className="standing__reps">{r.reps}</span>
             <span className="standing__acc">{r.perfect} perfect</span>
+            <span className={`standing__post is-${postOf(r).status}`}>{postLabel(postOf(r))}</span>
           </li>
         ))}
       </ol>
@@ -44,6 +54,7 @@ export function DuelResult({ results, onRematch, onDone }: Props) {
         </button>
         <KeyHints
           hints={[
+            ...(waiting.length ? [["P", waiting.length > 1 ? "Post both scores" : "Post score", postAll] as [string, string, () => void]] : []),
             ["R", "Rematch", onRematch],
             ["Enter", "Menu", onDone],
           ]}
@@ -51,4 +62,22 @@ export function DuelResult({ results, onRematch, onDone }: Props) {
       </div>
     </div>
   );
+}
+
+/** One player's score: on the leaderboard or not. */
+function postLabel(p: ScorePost): string {
+  switch (p.status) {
+    case "posted":
+      return p.saved?.rank ? `✓ posted · #${p.saved.rank}` : "✓ posted";
+    case "posting":
+      return "posting…";
+    case "declined":
+      return "not posted";
+    case "failed":
+      return "couldn't save";
+    case "discarded":
+      return "discarded";
+    case "pending":
+      return p.onPhone ? "📱 not posted yet" : "not posted yet";
+  }
 }

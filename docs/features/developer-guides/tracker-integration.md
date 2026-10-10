@@ -22,7 +22,7 @@ useRound ─▶ @tracker/judge RepJudge(REFEREE_RULES)
          │ invoke("set_ready", { ready, inRep }) when posture.ready or "in a rep" changes
          │ invoke("report_rep", { rep })      for every judged rep
          ▼
-Rust engine: countdown, clock, score, save ─▶ tick / rep / round-finished
+Rust engine: countdown, clock, score ─▶ tick / rep / round-finished (saved only when posted: save_round)
 ```
 
 Rust never sees landmarks or angles. It trusts the window's `RepReport { counted, perfect, lights, faults }` and only counts reps while the clock runs.

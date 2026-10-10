@@ -5,6 +5,7 @@ import { MODE_LABELS, formatElapsed } from "../../config/modes";
 import { useKeys } from "../../logic/useKeys";
 import { useRound } from "../../logic/useRound";
 import { useBoardRecord } from "../../logic/useBoardRecord";
+import { CameraPicker } from "../components/CameraPicker";
 import { CameraView } from "../components/CameraView";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
@@ -210,6 +211,7 @@ function ReadyPanel({
           );
         })}
       </ul>
+      {!counting && <CameraPicker label="Camera for this round" />}
       <KeyHints hints={[["Esc", "Back", onBack]]} />
     </aside>
   );

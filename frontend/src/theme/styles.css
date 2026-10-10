@@ -374,6 +374,9 @@ kbd {
 
 .countdown { grid-area: camera; z-index: 2; display: grid; place-items: center; background: rgba(243, 236, 217, 0.82); border-radius: var(--r); }
 .countdown__n { font-size: min(44vh, 28vw); line-height: 1; color: var(--ink); animation: count 700ms ease-out; }
+/* Duel: the 3-2-1 sits over the whole split screen, faded so both players stay visible. */
+.duel .countdown { position: fixed; inset: 0; z-index: 20; border-radius: 0; background: rgba(243, 236, 217, 0.35); pointer-events: none; }
+.duel .countdown__n { text-shadow: 0 0 18px var(--paper), 0 0 4px var(--paper); }
 @keyframes count { from { transform: scale(1.35) rotate(-6deg); opacity: 0; } 40% { opacity: 1; } to { transform: none; } }
 
 /* ---- lights ----------------------------------------------------------------- */
@@ -424,6 +427,9 @@ kbd {
 .results__main { background: var(--card); padding: 1.8rem 2.2rem; transform: rotate(-0.4deg); }
 .results__name { font-size: clamp(2.6rem, 5vw, 3.6rem); }
 .results__finish { margin: 0.2rem 0 0; font-size: 1.3rem; color: var(--ink-soft); }
+.results__post { margin: 0.3rem 0 0; font-size: 1.15rem; color: var(--ink-soft); }
+.results__post.is-posted { color: var(--green); }
+.results__post.is-failed { color: var(--red); }
 .results__score { display: flex; align-items: flex-end; gap: 1rem; margin: 0.4rem 0 1.2rem; }
 .results__score span { font-size: clamp(7rem, 20vh, 11rem); line-height: 0.82; }
 .results__score small { font-size: 1.4rem; color: var(--ink-soft); padding-bottom: 0.7rem; }
@@ -472,7 +478,7 @@ kbd {
 .versus__head { display: flex; justify-content: center; }
 .standings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
 .standing {
-  display: grid; grid-template-columns: 4.5rem 1fr auto 4.5rem; align-items: center; gap: 1rem;
+  display: grid; grid-template-columns: 4.5rem 1fr auto 4.5rem auto; align-items: center; gap: 1rem;
   background: var(--card); padding: 0.5rem 1.3rem; font-size: 1.6rem;
   animation: say 380ms ease-out backwards;
 }
@@ -480,6 +486,9 @@ kbd {
 .standing__name { font-size: 2rem; }
 .standing__reps { font-size: 2.6rem; }
 .standing__acc { color: var(--ink-soft); font-size: 1.2rem; text-align: right; }
+.standing__post { font-size: 1rem; color: var(--ink-soft); white-space: nowrap; }
+.standing__post.is-posted { color: var(--green); }
+.standing__post.is-failed { color: var(--red); }
 .standing.is-winner { background: var(--cream); transform: rotate(-0.6deg) scale(1.02); }
 .standing.is-winner .standing__place { color: var(--ink); }
 .versus__note { margin: 0; text-align: center; font-size: 1.1rem; }
@@ -529,6 +538,7 @@ kbd {
   .players--multi .name-input { font-size: 1.6rem; }
   .standing { grid-template-columns: 2.6rem minmax(0, 1fr) auto; padding: 0.4rem 0.9rem; }
   .standing__acc { display: none; }
+  .standing__post { grid-column: 2 / -1; }
   .crowd__body { grid-template-columns: 1fr; }
 }
 
@@ -640,6 +650,6 @@ kbd {
 .duel-side__panel .lights { gap: 0.5rem; }
 .duel-side__panel .light__lamp { max-width: min(84px, 8vh); }
 .duel-side__panel .light__label { font-size: 1rem; }
-.duel-side__pick { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-.duel-side__pick select { flex: 1; min-width: 0; font: inherit; font-size: 1.1rem; padding: 0.3rem 0.6rem; background: var(--card); border: 0; }
-.duel-side__pick button { font: inherit; font-size: 1.1rem; padding: 0.3rem 0.8rem; background: var(--card); border: 0; cursor: pointer; }
+.camera-pick { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.camera-pick select { flex: 1; min-width: 0; font: inherit; font-size: 1.1rem; padding: 0.3rem 0.6rem; background: var(--card); border: 0; }
+.camera-pick button { font: inherit; font-size: 1.1rem; padding: 0.3rem 0.8rem; background: var(--card); border: 0; cursor: pointer; }

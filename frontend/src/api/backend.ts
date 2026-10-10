@@ -8,6 +8,7 @@ import type {
   FinishedRound,
   LanInfo,
   LeaderboardRow,
+  PhoneNote,
   PhoneRoomMessage,
   RepReport,
   RepVerdict,
@@ -28,9 +29,9 @@ export const backend = {
   /** The tracker judged a rep. Counted only while the clock runs. */
   reportRep: (rep: RepReport) => invoke<void>("report_rep", { rep }),
   /**
-   * Saves a round the frontend played itself (a side-by-side Duel) to the
-   * leaderboard. Returns it with its database id and rank, and tells every
-   * window ("round-finished"), like a backend round.
+   * Posts a finished round to the leaderboard. Returns it with its database
+   * id and rank, and tells every window ("round-posted"). Rounds are never
+   * saved by themselves; see logic/scorePost.ts.
    */
   saveRound: (round: FinishedRound) => invoke<RoundResult>("save_round", { round }),
 
@@ -54,6 +55,8 @@ export const backend = {
   },
   /** The laptop's WebRTC answer or ICE candidate, for the phone. */
   phoneSignal: (room: string, data: SignalData) => invoke<void>("phone_signal", { room, data }),
+  /** A note for the phone (e.g. its round's stats when the round ends). */
+  phoneNotify: (room: string, data: PhoneNote) => invoke<void>("phone_notify", { room, data }),
   phoneClose: (room: string) => invoke<void>("phone_close", { room }),
   phoneLan: () => invoke<LanInfo>("phone_lan"),
   tunnelStatus: () => invoke<TunnelStatus>("tunnel_status"),
@@ -64,7 +67,10 @@ export const backend = {
 export const events = {
   onTick: (cb: (s: SessionSnapshot) => void): Promise<UnlistenFn> => listen<SessionSnapshot>("tick", (e) => cb(e.payload)),
   onRep: (cb: (v: RepVerdict) => void) => listen<RepVerdict>("rep", (e) => cb(e.payload)),
+  /** A round ended (not saved yet). */
   onRoundFinished: (cb: (r: RoundResult) => void) => listen<RoundResult>("round-finished", (e) => cb(e.payload)),
+  /** A score was posted to the leaderboard (`runId` and `rank` set). */
+  onRoundPosted: (cb: (r: RoundResult) => void) => listen<RoundResult>("round-posted", (e) => cb(e.payload)),
 };
 
 /** True in the second, crowd-facing window (opened by `openCrowdWindow`). */

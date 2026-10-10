@@ -6,7 +6,7 @@ import { MODE_LABELS, formatElapsed } from "../../config/modes";
 import { TrackerSlot, useTracker } from "../../logic/tracker/TrackerProvider";
 import { useDuelMatch, type DuelView } from "../../logic/useDuelMatch";
 import { useKeys } from "../../logic/useKeys";
-import { AddCameraDialog } from "../components/AddCameraDialog";
+import { CameraPicker } from "../components/CameraPicker";
 import { CameraView } from "../components/CameraView";
 import { KeyHints } from "../components/KeyHints";
 import { Lights } from "../components/Lights";
@@ -24,6 +24,13 @@ interface Props {
 
 /** Show "Keep going!" this long before a player would fail. */
 const WARN_MS = 3000;
+
+const NOTE: Record<DuelView["phase"], string> = {
+  waiting: "Both players: get side-on to your camera in the push-up position, arms straight. The countdown starts when both are ready.",
+  countdown: "Get ready… the countdown won't stop now.",
+  running: "Go! Most push-ups wins.",
+  finished: "Done!",
+};
 
 /**
  * Split-screen Duel: both players at once, each on their own camera. The
@@ -68,11 +75,8 @@ export function DuelRound({ mode, players, onFinished, onAbort, onTakeTurns }: P
         <KeyHints hints={[["Esc", duel.phase === "waiting" ? "Back" : "Stop", stopOrBack]]} />
       </header>
 
-      {duel.phase === "waiting" && (
-        <p className="duel__note">
-          Both players: get side-on to your camera in the push-up position, arms straight. The countdown starts when both are ready.
-        </p>
-      )}
+      {/* Always there (only the words change), so the split screen never moves. */}
+      <p className="duel__note">{NOTE[duel.phase]}</p>
 
       <div className="duel__sides" aria-label="Split screen: player 1 on top, player 2 below">
         {[0, 1].map((i) => (
@@ -90,14 +94,11 @@ export function DuelRound({ mode, players, onFinished, onAbort, onTakeTurns }: P
         </div>
       )}
 
-      {duel.phase === "waiting" && (
-        <div className="duel__foot">
-          <button type="button" className="add-player sketch" onClick={onTakeTurns}>
-            Only one camera? Take turns instead
-          </button>
-        </div>
-      )}
-      {duel.saving && <p className="duel__note">Saving scores…</p>}
+      <div className="duel__foot" style={{ visibility: duel.phase === "waiting" ? "visible" : "hidden" }}>
+        <button type="button" className="add-player sketch" onClick={onTakeTurns} disabled={duel.phase !== "waiting"}>
+          Only one camera? Take turns instead
+        </button>
+      </div>
     </div>
   );
 }
@@ -109,7 +110,6 @@ export function DuelRound({ mode, players, onFinished, onAbort, onTakeTurns }: P
  */
 function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; pickCamera: boolean }) {
   const tracker = useTracker();
-  const [adding, setAdding] = useState(false);
   const p = duel.players[index];
 
   let banner: string | null = null;
@@ -152,28 +152,9 @@ function DuelSide({ index, duel, pickCamera }: { index: number; duel: DuelView; 
         <Lights rep={p.lastRep} flashKey={p.attempts} showFaults={false} />
 
         {pickCamera && (
-          <div className="duel-side__pick">
-            <select
-              className="sketch"
-              value={tracker.current ?? ""}
-              onChange={(e) => e.target.value && tracker.choose(e.target.value)}
-              aria-label={`Camera for player ${index + 1}`}
-            >
-              <option value="">{index === 0 ? "Default camera" : "Choose a camera…"}</option>
-              {tracker.cameras.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
-                  {c.note ? ` (${c.note})` : ""}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="sketch" onClick={() => setAdding(true)}>
-              + Add camera
-            </button>
-          </div>
+          <CameraPicker label={`Camera for player ${index + 1}`} emptyLabel={index === 0 ? "Default camera" : "Choose a camera…"} />
         )}
       </div>
-      {adding && <AddCameraDialog onClose={() => setAdding(false)} />}
     </section>
   );
 }

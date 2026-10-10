@@ -68,12 +68,13 @@ pub fn report_rep(state: State<AppState>, rep: RepReport) -> CmdResult<()> {
     state.send(EngineCommand::ReportRep(rep))
 }
 
-/// Saves a round the frontend played itself (a side-by-side Duel) and tells
-/// every window, like the engine does when one of its rounds ends.
+/// Posts a finished round to the leaderboard and tells every window
+/// ("round-posted"). Rounds are never saved by themselves: this runs when the
+/// operator presses Post, or the player taps "Post my score" on their phone.
 #[tauri::command]
 pub fn save_round(app: AppHandle, state: State<AppState>, round: leaderboard::FinishedRound) -> CmdResult<RoundResult> {
     let result = leaderboard::save_finished(&state.db.lock().unwrap(), round)?;
-    let _ = app.emit("round-finished", result.clone());
+    let _ = app.emit("round-posted", result.clone());
     Ok(result)
 }
 
@@ -141,6 +142,12 @@ pub fn phone_open(state: State<AppState>, events: Channel<Value>, frames: Channe
 #[tauri::command]
 pub fn phone_signal(state: State<AppState>, room: String, data: Value) {
     state.phone.host_signal(&room, data);
+}
+
+/// A note for the phone in `room` (e.g. the round's stats after it ends).
+#[tauri::command]
+pub fn phone_notify(state: State<AppState>, room: String, data: Value) {
+    state.phone.host_notify(&room, data);
 }
 
 /// Done with a room: the phone is told and the code stops working.

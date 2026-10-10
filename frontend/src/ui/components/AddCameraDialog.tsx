@@ -86,13 +86,19 @@ function Pair({ url, qr, room }: { url: string; qr: string; room: string }) {
   );
 }
 
-/** Closes the dialog a moment after the phone connects. */
+/**
+ * Closes the dialog a moment after the phone connects. `onDone` is read from a
+ * ref: screens that redraw often (a running clock) pass a new function each
+ * time, which must not restart the timer.
+ */
 function useCloseWhenConnected(status: PairingStatus, onDone: () => void) {
+  const done = useRef(onDone);
+  done.current = onDone;
   useEffect(() => {
     if (status !== "connected") return;
-    const t = setTimeout(onDone, 1200);
+    const t = setTimeout(() => done.current(), 1200);
     return () => clearTimeout(t);
-  }, [status, onDone]);
+  }, [status]);
 }
 
 function WifiPairing({ onTryInternet, onDone }: { onTryInternet: () => void; onDone: () => void }) {

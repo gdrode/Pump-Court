@@ -9,7 +9,7 @@
 
 ## 1. Summary
 
-The page the phone opens is the teammate's phone page, unchanged. The app builds it into **one HTML file** and bakes that file into the executable, so the Rust server can serve it without any other files.
+The page the phone opens is the teammate's phone page, restyled to look like the game: same font, colours, hand-drawn borders and the dragon host. After a round it shows the player their stats and lets them post the score. The app builds it into **one HTML file** and bakes that file into the executable, so the Rust server can serve it without any other files.
 
 ```text
 pumpCourt/phone.html  +  pumpCourt/src/phone/main.ts (imports protocol.ts)
@@ -22,6 +22,7 @@ include_str!(…/phone.html) in backend/src/phone/server.rs  →  GET /phone.htm
 ```
 
 - `build-phone.mjs` runs at the end of `npm run build` and before Vite in `npm run dev`. It replaces `<script type="module" src="/src/phone/main.ts">` with the bundled script, and stops with an error if `phone.html` no longer contains that tag.
+- It also gives the page the app's look: `<!-- app-style -->` becomes the Patrick Hand font (inlined as base64), `frontend/src/theme/tokens.css` and `styles.css`; `<!-- app-defs -->` becomes the sketch-border SVG filters plus the dragon in three moods (`<template id="dragon-wave|cheer|sad">`), rendered once with React from `ui/components/Dragon.tsx`; each `data-host="…"` box gets its dragon. The page is about 120 KB. Opened from the prototype's dev server (no build) it keeps working with plain colours.
 - If `frontend/dist/phone.html` doesn't exist when Rust compiles, `build.rs` embeds a placeholder page that says "The phone page isn't built yet. On the laptop, run `npm run build` in the frontend folder, then rebuild the app."
 - The page has a Content-Security-Policy `connect-src 'self'`: it can only talk back to the address it was loaded from.
 
@@ -69,7 +70,21 @@ Closing or reloading the page sends `leave` with `keepalive`, closes the peer co
 
 ---
 
-## 4. Tips for the venue
+## 4. After the round: stats and posting
+
+In the Pump Court app, when the round ends the laptop lets the phone go as a camera and sends it a `round-over` note (see [Pairing](pairing-and-websocket.md)):
+
+1. The phone **stops filming** (camera off, WebRTC closed or relay frames stopped) but keeps its link for the choice.
+2. It shows the **stats card**, like the Results screen: mode, name, why the round ended, push-ups, attempts, perfect, rank, time, and the red lights per referee. The dragon cheers (or comforts after 0).
+3. **Post my score** sends `{post: true}`; **Don't post** sends `{post: false}`. Posting is opt-in: nothing is on the leaderboard until someone posts it.
+4. `post-status` notes update the card: "Posting…", "✓ Posted! You're #3 on the board." (also when the operator posted it: "(posted by the host)"), "Not posted. Only you saw this score.", "The host discarded this round.", or "Could not save the score. Try again."
+5. The laptop closes the link a few seconds after the choice (or after 10 minutes). If it closes while the score is still waiting: "The laptop has moved on: this score was not posted."
+
+In this mode, `peer-left`, `closed` and a dropped relay socket no longer reset the page to **Start camera**; the stats stay on screen.
+
+---
+
+## 5. Tips for the venue
 
 - Prop the phone side-on to the player, in landscape. Rotation lock can stay on: the laptop turns the picture, and **⟳ Rotate** on the laptop fixes it if the automatic turn is wrong.
 - Keep the page open and in front; the screen stays on while streaming.

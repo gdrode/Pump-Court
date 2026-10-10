@@ -67,13 +67,15 @@ The code has three layers:
 | :--- | :--- | :--- |
 | Home | `ui/screens/Home.tsx` | Title with three lights, dragon. Two steps: a top bar **Singleplayer / Duel**, then the mode cards **Sprint / Minute / Max** (dimmed until a play style is picked, then they light up). Under them a dashed **Create event** button: a placeholder for per-event leaderboards, shows "coming soon". |
 | Players | `ui/screens/Players.tsx` | Name entry: one name, or two for a Duel |
-| Round | `ui/screens/Round.tsx` | Camera on the left (with **⟳ Rotate** until the clock runs). Side panel: get-ready checklist, then the clock, score vs record (or "To beat" in a Duel), lights and dragon. 3-2-1 / GO overlay. |
-| Duel round | `ui/screens/DuelRound.tsx` | Split screen for a two-camera Duel, cut in half top to bottom: player 1 on top, player 2 below. Each half: camera on the left (with **⟳ Rotate** until the clock runs), and on the right the score, lights and, before the clock, a camera picker with **+ Add camera**. One clock in the top bar. |
-| Results | `ui/screens/Results.tsx` | Push-ups, attempts, perfect, rank, red lights per referee |
-| Duel result | `ui/screens/DuelResult.tsx` | Both players in order, the winner or a tie, rematch |
+| Round | `ui/screens/Round.tsx` | Camera on the left (with **⟳ Rotate** until the clock runs). Side panel: get-ready checklist with a camera picker and **+ Add camera** (`ui/components/CameraPicker.tsx`), then the clock, score vs record (or "To beat" in a Duel), lights and dragon. 3-2-1 / GO overlay. |
+| Duel round | `ui/screens/DuelRound.tsx` | Split screen for a two-camera Duel, cut in half top to bottom: player 1 on top, player 2 below. Each half: camera on the left (with **⟳ Rotate** until the clock runs), and on the right the score, lights and, before the clock, a camera picker with **+ Add camera** (`CameraPicker`). One clock in the top bar. The 3-2-1 covers the whole split screen, faded, and the layout never moves between phases (the note above and the "Take turns" button below keep their space). |
+| Results | `ui/screens/Results.tsx` | Push-ups, why the round ended, whether it is posted (opt-in: "📱 Ana can post this from their phone", "✓ Posted"…), attempts, perfect, rank once posted, red lights per referee. Enter posts (unless the player said no on the phone), Esc discards. |
+| Duel result | `ui/screens/DuelResult.tsx` | Both players in order, the winner or a tie, each score's post status, **P** posts the scores still waiting, rematch |
 | Leaderboard | `ui/screens/Leaderboard.tsx` | Five tabs (All time, Sprint, Minute, Max, Duel), select + delete, backup |
 | Crowd | `ui/screens/Crowd.tsx` | Second window: live round, or the all-time board |
 | Camera | `ui/screens/Settings.tsx` | Camera picture with **⟳ Rotate**, camera list, **Add camera**, tracking status, the player's posture (file and flow state are still called "settings") |
+
+The **phone page** (what a phone camera shows) uses the same look: `frontend/scripts/build-phone.mjs` inlines the font, `tokens.css`, `styles.css`, the sketch filters and the dragon into it. See [The Phone Page](../phone-camera/mobile-web-client.md).
 
 If the camera has a problem while another screen is showing, a red banner at the top says so; clicking it opens the Camera screen.
 

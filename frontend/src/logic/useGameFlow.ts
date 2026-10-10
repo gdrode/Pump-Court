@@ -29,9 +29,10 @@ export type FlowState =
  * The operator window's screen-to-screen flow. UI-free: App.tsx maps each
  * `state.screen` to a component and wires these actions to its buttons.
  *
- * Scores are saved by the backend the moment a round ends (so nothing is lost
- * if the laptop crashes). "Post" on the results screen just moves on;
- * "Discard" deletes that saved run.
+ * Posting is opt-in (logic/scorePost.ts): a score goes on the leaderboard only
+ * when the operator posts it on the results screen or the player taps "Post my
+ * score" on their phone. The screens post or discard; these actions only move
+ * between screens.
  */
 export function useGameFlow() {
   const [state, setState] = useState<FlowState>({ screen: "home" });
@@ -57,7 +58,7 @@ export function useGameFlow() {
         if (players.length > 1) return { screen: "duelRound", plan: { mode: s.mode, players, together: true }, attempt: 0 };
         return { screen: "round", plan: { mode: s.mode, players }, results: [], attempt: 0 };
       }),
-    /** Side-by-side Duel finished (both scores already saved) → who won. */
+    /** Side-by-side Duel finished → who won (and posting the two scores). */
     finishDuel: (results: RoundResult[]) =>
       setState((s) => (s.screen === "duelRound" ? { screen: "duelResult", plan: s.plan, results } : s)),
     /** Side-by-side Duel → take turns on one camera instead (no second camera). */
@@ -69,21 +70,23 @@ export function useGameFlow() {
     finishRound: (result: RoundResult) =>
       setState((s) => (s.screen === "round" ? { screen: "results", plan: s.plan, results: [...s.results, result] } : s)),
 
-    /** Results → next Duel turn, the Duel result, or the leaderboard. */
-    post: () => {
+    /**
+     * Results → next Duel turn, the Duel result, or (solo) the leaderboard if
+     * the score was posted, else home.
+     */
+    next: (posted: boolean) => {
       if (state.screen !== "results") return;
       const { plan, results } = state;
       const latest = results[results.length - 1];
       if (results.length < plan.players.length) return round(plan, results);
       if (plan.players.length > 1) return setState({ screen: "duelResult", plan, results });
-      setState({ screen: "leaderboard", mode: latest.mode, highlight: latest.player });
+      if (posted) setState({ screen: "leaderboard", mode: latest.mode, highlight: latest.player });
+      else home();
     },
-    /** Results → throw the score away: solo goes home, a Duel redoes the turn. */
+    /** Results → the score was thrown away: solo goes home, a Duel redoes the turn. */
     discard: () => {
       if (state.screen !== "results") return;
       const { plan, results } = state;
-      const id = results[results.length - 1]?.runId;
-      if (id != null) void backend.deleteRun(id);
       if (plan.players.length > 1) return round(plan, results.slice(0, -1));
       home();
     },

@@ -59,7 +59,7 @@ The phone page is baked into the Rust binary when it compiles. After changing `p
 cd backend
 cargo test
 ```
-27 tests. They cover the round session (phases, countdown, modes, ending rules), the leaderboard (names, migration, ranking, backups), pairing rooms and HTTP signalling, the relay's orientation notes (`relay_orientation_reaches_the_laptop`), the server's tunnel guard, laptop address ranking, and the tunnel's URL and DNS parsing.
+34 tests. They cover the round session (phases, countdown, modes, ending rules), the leaderboard (names, migration, ranking, backups), pairing rooms and HTTP signalling, the relay's orientation notes (`relay_orientation_reaches_the_laptop`), the server's tunnel guard, laptop address ranking, and the tunnel's URL and DNS parsing.
 
 ### 3.2 Tracker and referee (the teammate's code)
 ```bash

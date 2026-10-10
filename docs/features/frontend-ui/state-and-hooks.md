@@ -32,12 +32,12 @@ export type FlowState =
 | `pickMode(mode)` | home → names |
 | `start(players)` | names → round (turn 1) |
 | `finishRound(result)` | round → results |
-| `post()` | results → next Duel turn, the Duel result, or the leaderboard on that mode with the player highlighted |
-| `discard()` | results → deletes the saved run; solo goes home, a Duel redoes the turn |
+| `next(posted)` | results → next Duel turn, the Duel result, or (solo) the leaderboard on that mode with the player highlighted if posted, else home |
+| `discard()` | results → solo goes home, a Duel redoes the turn (the screen throws the score away first) |
 | `rematch()` | Duel result → turn 1 with the same players |
 | `home()`, `leaderboard(mode?, highlight?)`, `settings()`, `openCrowd()` | navigation |
 
-**Saving**: the backend saves each finished round before it tells the window, so nothing is lost if the laptop crashes. "Post" only moves on. "Discard" deletes the run with `backend.deleteRun(runId)`.
+**Posting is opt-in** (`logic/scorePost.ts`): a finished round is not saved. `useRound` / `useDuelMatch` start a `ScorePost` for it with `startScorePost(result, tracker.releasePhone())`: if the round was filmed with a phone, the phone is taken out of the camera list (the next player pairs their own) and gets the stats with **Post my score / Don't post**. The Results screen's Enter posts (`post("host")`) unless the player already chose; Esc calls `discard()` (deletes the run if it was posted). `useScorePosts(results)` re-renders on every change. Details: [Scoring & Ranking](../leaderboard/scoring-and-ranking.md#4-posting-is-opt-in).
 
 ---
 
@@ -90,7 +90,7 @@ The get-ready checklist on the round screen has one row per posture state, in or
 - **`events.ts`**: `useBackendEvent(subscribe, handler)` listens to one backend event while mounted; `useSession()` returns the latest `tick` snapshot.
 
 ### Tracker hooks (`logic/tracker/`)
-- **`useTracker()`**: cameras, `choose(key)`, `refreshDevices()`, `addPhone` / `removePhone`, `cameraError`, `modelStatus`, `live` (posture and poses per second), `resetPosture()`, `attach(el)`, and the picture's turn: `rotation` (0/90/180/270), `rotationAuto`, `rotate()` (90° clockwise, kept per camera), `rotateAuto()` (back to the phone's own value).
+- **`useTracker()`**: cameras, `choose(key)`, `refreshDevices()`, `addPhone` / `removePhone`, `releasePhone()` (after a round: stop filming with the phone in use and hand back its open link), `cameraError`, `modelStatus`, `live` (posture and poses per second), `resetPosture()`, `attach(el)`, and the picture's turn: `rotation` (0/90/180/270), `rotationAuto`, `rotate()` (90° clockwise, kept per camera), `rotateAuto()` (back to the phone's own value).
 - **`useTrackerFrames(cb)`**: calls `cb({ t, angles, posture })` for every tracked frame.
 - **`usePhonePairing`**: the Add camera dialog's logic. See [Phone Cameras](../phone-camera/README.md).
 

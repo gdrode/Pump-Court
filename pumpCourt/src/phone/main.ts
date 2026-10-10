@@ -1,10 +1,24 @@
-// Runs on the phone: opens its camera and streams it to the laptop over WebRTC.
-import { httpSignal, PHONE_FPS, RTC_CONFIG, type ServerMessage, type SignalChannel, type SignalData } from './protocol'
+// Runs on the phone: opens its camera and streams it to the laptop over WebRTC
+// (or JPEG frames through the relay). In the Pump Court app, when the round
+// ends the laptop stops filming and sends the player's stats: the page then
+// shows them, with "Post my score" / "Don't post" (see PhoneNote).
+import {
+  httpSignal,
+  PHONE_FPS,
+  RTC_CONFIG,
+  type PhoneNote,
+  type PhoneRoundStats,
+  type PostStatus,
+  type ServerMessage,
+  type SignalChannel,
+  type SignalData,
+} from './protocol'
 
 const statusEl = document.getElementById('status')!
 const preview = document.getElementById('preview') as HTMLVideoElement
 const startBtn = document.getElementById('start') as HTMLButtonElement
 const flipBtn = document.getElementById('flip') as HTMLButtonElement
+const $ = (id: string) => document.getElementById(id)
 
 const room = new URLSearchParams(location.search).get('room') ?? ''
 /** 'relay' when opened through the internet link: frames go through the server instead of WebRTC. */
@@ -18,10 +32,12 @@ let relay: WebSocket | null = null
 let relayTimer = 0
 // ICE candidates that arrive before the laptop's answer, applied once it lands.
 let pendingCandidates: RTCIceCandidateInit[] = []
+/** The round is over: the page shows the stats and the link is only used for the post choice. */
+let resultMode = false
 
 function status(text: string, kind: '' | 'ok' | 'err' = '') {
   statusEl.textContent = text
-  statusEl.className = kind
+  statusEl.className = `host__bubble sketch ${kind === 'ok' ? 'is-good' : kind ? 'is-bad' : ''}`
 }
 
 async function openCamera() {
@@ -113,6 +129,11 @@ function connect() {
   status('Connecting to the laptop…')
   const me = httpSignal(room, 'phone', (msg: ServerMessage) => {
     if (me !== channel) return // torn down on purpose
+    if (msg.type === 'note') return onNote(msg.data)
+    if (resultMode) {
+      if (msg.type === 'peer-left' || msg.type === 'closed' || msg.type === 'error') linkGone()
+      return
+    }
     if (msg.type === 'peer-joined') chain = chain.then(startPeer).catch((err) => status(String(err), 'err'))
     else if (msg.type === 'signal') chain = chain.then(() => onSignal(msg.data)).catch(() => {})
     else if (msg.type === 'peer-left') teardown('The laptop closed this camera. Scan a new code to reconnect.')
@@ -176,12 +197,16 @@ function connectRelay() {
     relayTimer = window.setInterval(sendFrame, 1000 / PHONE_FPS)
   }
   ws.onmessage = (e) => {
-    const msg = JSON.parse(String(e.data)) as { type: string; message?: string }
-    if (msg.type === 'error') teardown(msg.message ?? 'Could not connect.', 'err')
+    const msg = JSON.parse(String(e.data)) as { type: string; message?: string; data?: PhoneNote }
+    if (msg.type === 'note' && msg.data) onNote(msg.data)
+    else if (resultMode) {
+      if (msg.type === 'peer-left' || msg.type === 'error') linkGone()
+    } else if (msg.type === 'error') teardown(msg.message ?? 'Could not connect.', 'err')
     else if (msg.type === 'peer-left') teardown('The laptop closed this camera. Scan a new code to reconnect.')
   }
   ws.onclose = (e) => {
     if (relay !== ws) return // closed on purpose
+    if (resultMode) return linkGone()
     teardown(e.code === 4000 ? 'Another phone took over this code.' : 'Lost the connection to the laptop. Reload to try again.', 'err')
   }
 }
@@ -275,3 +300,115 @@ window.addEventListener('pagehide', () => {
   pc?.close()
   stopRelay()
 })
+
+// --- After the round: the player's stats, and posting them ---------------------
+
+/** Stops filming but keeps the link to the laptop, for the post choice. */
+function stopFilming() {
+  clearInterval(relayTimer)
+  const peer = pc
+  pc = null
+  peer?.close()
+  stream?.getTracks().forEach((t) => t.stop())
+  stream = null
+  preview.srcObject = null
+  void wakeLock?.release()
+  wakeLock = null
+}
+
+/** Shows one of the dragons the build put in the page (wave, cheer, sad) in a host box. */
+function setDragon(view: string, action: 'wave' | 'cheer' | 'sad') {
+  const host = document.querySelector(`#${view} [data-host]`)
+  const art = (document.getElementById(`dragon-${action}`) as HTMLTemplateElement | null)?.content.firstElementChild
+  if (!host || !art) return
+  host.querySelector('svg')?.remove()
+  host.prepend(art.cloneNode(true))
+}
+
+function formatTime(ms: number) {
+  const s = Math.max(0, Math.round(ms / 1000))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+function showStats(st: PhoneRoundStats) {
+  const set = (id: string, text: string | number) => {
+    const el = $(id)
+    if (el) el.textContent = String(text)
+  }
+  set('r-mode', st.modeLabel)
+  set('r-player', st.player)
+  set('r-finish', st.finishText)
+  set('r-reps', st.reps)
+  set('r-attempts', st.attempts)
+  set('r-perfect', st.perfect)
+  set('r-time', formatTime(st.durationMs))
+  for (const light of ['depth', 'torso', 'lockout'] as const) {
+    set(`r-${light}`, st.noReps[light])
+    const bar = $(`r-${light}-bar`)
+    if (bar) bar.innerHTML = '<i></i>'.repeat(Math.min(st.noReps[light], 40))
+  }
+  set('say', st.reps === 0 ? 'Every champion starts somewhere!' : st.perfect === st.reps && st.reps > 0 ? 'Flawless form!' : `${st.reps} push-ups. Nice work!`)
+  setDragon('result-view', st.reps === 0 ? 'sad' : 'cheer')
+}
+
+const POST_TEXT: Record<PostStatus, string> = {
+  pending: 'Your score is not on the leaderboard yet. Post it?',
+  posting: 'Posting…',
+  posted: '✓ Posted to the leaderboard!',
+  declined: 'Not posted. Only you saw this score.',
+  discarded: 'The host discarded this round.',
+  failed: 'Could not save the score. Try again.',
+}
+
+let postStatus: PostStatus = 'pending'
+let rank: number | null = null
+let linkClosed = false
+
+function showPostStatus(by?: 'phone' | 'host') {
+  const el = $('post-status')!
+  let text = POST_TEXT[postStatus]
+  if (postStatus === 'posted') text = rank ? `✓ Posted! You're #${rank} on the board.` : text
+  if (postStatus === 'posted' && by === 'host') text += ' (posted by the host)'
+  if ((postStatus === 'pending' || postStatus === 'failed') && linkClosed) text = 'The laptop has moved on: this score was not posted.'
+  el.textContent = text
+  el.className = `phone__status is-${postStatus}`
+  const open = (postStatus === 'pending' || postStatus === 'failed') && !linkClosed
+  $('post-buttons')!.hidden = !open && postStatus !== 'posting'
+  for (const id of ['post', 'skip']) ($(id) as HTMLButtonElement).disabled = !open
+}
+
+function onNote(note: PhoneNote) {
+  if (note.type === 'round-over') {
+    resultMode = true
+    stopFilming()
+    postStatus = note.status
+    showStats(note.stats)
+    $('camera-view')!.hidden = true
+    $('result-view')!.hidden = false
+    window.scrollTo(0, 0)
+    showPostStatus()
+  } else if (note.type === 'post-status') {
+    postStatus = note.status
+    rank = note.rank
+    showPostStatus(note.by)
+  }
+}
+
+/** The laptop closed the link (after the choice, or it moved on). */
+function linkGone() {
+  linkClosed = true
+  stopRelay()
+  channel?.close()
+  channel = null
+  showPostStatus()
+}
+
+function sendChoice(post: boolean) {
+  if (relayMode) {
+    if (relay?.readyState === WebSocket.OPEN) relay.send(JSON.stringify({ type: 'post', post }))
+  } else send({ post })
+  postStatus = post ? 'posting' : 'declined'
+  showPostStatus()
+}
+;($('post') as HTMLButtonElement).onclick = () => sendChoice(true)
+;($('skip') as HTMLButtonElement).onclick = () => sendChoice(false)

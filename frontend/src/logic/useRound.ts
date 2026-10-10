@@ -4,12 +4,13 @@ import { backend, events } from "../api/backend";
 import type { RepVerdict, RoundMode, RoundResult } from "../api/types";
 import { REFEREE_RULES } from "../config/modes";
 import { useBackendEvent, useSession } from "./events";
+import { startScorePost } from "./scorePost";
 import { useTracker, useTrackerFrames } from "./tracker/TrackerProvider";
 
 export interface RoundOptions {
   mode: RoundMode;
   player: string;
-  /** The round ended (already saved by the backend). */
+  /** The round ended. Not saved yet: see logic/scorePost.ts (started here). */
   onFinished: (result: RoundResult) => void;
   /** Hooks for sound or animation; all optional. */
   onRep?: (rep: RepVerdict) => void;
@@ -91,6 +92,8 @@ export function useRound(opts: RoundOptions) {
   useBackendEvent(events.onRoundFinished, (r) => {
     if (done.current || r.player !== optsRef.current.player) return;
     done.current = true;
+    // A phone camera is let go now (the next player pairs their own) and shows this player their stats.
+    startScorePost(r, tracker.releasePhone());
     optsRef.current.onFinished(r);
   });
 

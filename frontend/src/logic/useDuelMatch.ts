@@ -14,9 +14,9 @@ import {
 import { RepJudge, type RepResult } from "@tracker/judge";
 import type { Posture } from "@tracker/posture";
 import { useEffect, useRef, useState } from "react";
-import { backend } from "../api/backend";
 import type { RepVerdict, RoundMode, RoundResult } from "../api/types";
 import { REFEREE_RULES } from "../config/modes";
+import { startScorePost } from "./scorePost";
 import { useTracker, useTrackerFrames, type TrackerFrame } from "./tracker/TrackerProvider";
 
 export interface DuelOptions {
@@ -24,7 +24,7 @@ export interface DuelOptions {
   mode: RoundMode;
   /** Two validated names: player 1 on camera slot 0, player 2 on slot 1. */
   players: string[];
-  /** Both rounds ended and were saved to the leaderboard. */
+  /** Both rounds ended. Not saved yet: see logic/scorePost.ts (started here). */
   onFinished: (results: RoundResult[]) => void;
   onRep?: (player: number, rep: RepVerdict) => void;
   /** Once per countdown number (3, 2, 1). */
@@ -46,7 +46,7 @@ const NOT_LIVE: PlayerLive = { ready: false, inRep: false };
  * push-up position, one clock for both, and each player can fail on their own
  * (gets up, gets stuck, stops; the failure window grows with fatigue). Each
  * player has their own tracker (camera slot) and referee. When both are done,
- * the two scores are saved through the backend's `save_round`.
+ * the two scores go to the results; they are posted only on request.
  */
 export function useDuelMatch(opts: DuelOptions) {
   const optsRef = useRef(opts);
@@ -60,8 +60,7 @@ export function useDuelMatch(opts: DuelOptions) {
   const judges = useRef<(RepJudge | null)[]>([null, null]);
   const live = useRef<PlayerLive[]>([NOT_LIVE, NOT_LIVE]);
   const [lastRep, setLastRep] = useState<(RepVerdict | null)[]>([null, null]);
-  const [saving, setSaving] = useState(false);
-  const saved = useRef(false);
+  const handedOn = useRef(false);
 
   // Fresh floor lines for both players when the duel screen opens.
   useEffect(() => {
@@ -125,14 +124,13 @@ export function useDuelMatch(opts: DuelOptions) {
     if (countdownSeconds === null) lastCount.current = null;
   }, [countdownSeconds]);
 
-  // Both done: save the two scores, then hand them on.
+  // Both done: hand the two scores on (posting is opt-in, see logic/scorePost.ts).
   useEffect(() => {
-    // An operator Stop before the clock started saves nothing (the screen goes back by itself).
-    if (!finished || saved.current || game.startT == null) return;
-    saved.current = true;
-    setSaving(true);
+    // An operator Stop before the clock started has nothing to show (the screen goes back by itself).
+    if (!finished || handedOn.current || game.startT == null) return;
+    handedOn.current = true;
     const { mode, players } = optsRef.current;
-    const rounds = game.players.map((p, i) => ({
+    const results = game.players.map((p, i): RoundResult => ({
       mode,
       player: players[i],
       reps: goodReps(p),
@@ -145,13 +143,14 @@ export function useDuelMatch(opts: DuelOptions) {
       },
       durationMs: Math.max(0, (p.finishedAt ?? game.endT ?? 0) - (game.startT ?? game.endT ?? 0)),
       finish: p.finished ?? "ended",
+      runId: null,
+      rank: null,
     }));
-    void Promise.all(
-      rounds.map((r) => backend.saveRound(r).catch((): RoundResult => ({ ...r, runId: null, rank: null }))),
-    ).then((results) => {
-      setSaving(false);
-      optsRef.current.onFinished(results);
-    });
+    // Each player's phone camera is let go and shows them their own stats.
+    startScorePost(results[0], t1.releasePhone());
+    startScorePost(results[1], t2.releasePhone());
+    optsRef.current.onFinished(results);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished, game]);
 
   const players = [0, 1].map((i) => {
@@ -177,8 +176,7 @@ export function useDuelMatch(opts: DuelOptions) {
     clockMs: clock(game, now),
     timed: game.mode !== "max",
     players,
-    saving,
-    /** The operator stopped the duel. Saves whatever was scored if the clock had started. */
+    /** The operator stopped the duel. The scores so far go to the results if the clock had started. */
     stop: () => setGame((g) => endGame(g, performance.now())),
   };
 }

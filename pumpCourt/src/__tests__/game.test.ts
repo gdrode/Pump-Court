@@ -36,11 +36,13 @@ describe('waiting and countdown', () => {
     expect(g.startT).toBe(COUNTDOWN_MS)
   })
 
-  it('a player leaving position during the countdown sends it back to waiting', () => {
+  it('once started, the countdown runs to GO even if a player leaves position', () => {
     let g = tick(createGame('sprint', 2), 0, [R, R])
     g = tick(g, 1000, [R, OUT])
-    expect(g.phase).toBe('waiting')
-    expect(g.countdownStart).toBeNull()
+    expect(g.phase).toBe('countdown')
+    expect(g.countdownStart).toBe(0)
+    g = tick(g, COUNTDOWN_MS, [R, OUT])
+    expect(g.phase).toBe('running')
   })
 
   it('reps before the start do not count', () => {

@@ -6,7 +6,7 @@
 //   Any network: phone ──JPEG frames──▶ Rust relay ──IPC──▶ here (drawn to a canvas stream)
 import { RTC_CONFIG } from "@tracker/phone/protocol";
 import { backend } from "../../api/backend";
-import type { PhoneRoomMessage, SignalData } from "../../api/types";
+import type { PhoneNote, PhoneRoomMessage, SignalData } from "../../api/types";
 
 export type PhoneStatus = "waiting" | "connecting" | "connected" | "disconnected" | "failed";
 
@@ -17,6 +17,8 @@ export interface PhoneLinkHandlers {
   onVisit?(from: string): void;
   /** The phone says how to turn its picture upright (clockwise degrees: 0, 90, 180, 270). */
   onOrientation?(rotation: number): void;
+  /** After a round: the player tapped "Post my score" (true) or "Don't post" (false). */
+  onPost?(post: boolean): void;
 }
 
 export interface PhoneLink {
@@ -24,6 +26,8 @@ export interface PhoneLink {
   room: string;
   /** Point status updates somewhere else, e.g. from the pairing dialog to the camera list. */
   setHandlers(h: PhoneLinkHandlers): void;
+  /** Shows the player something on the phone (their round's stats). */
+  notify(note: PhoneNote): void;
   close(): void;
 }
 
@@ -78,6 +82,8 @@ export async function openPhoneLink(handlers: PhoneLinkHandlers): Promise<PhoneL
       pending = [];
     } else if ("orientation" in data) {
       orientation(data.orientation);
+    } else if ("post" in data) {
+      if (typeof data.post === "boolean") h.onPost?.(data.post);
     } else if ("candidate" in data) {
       if (!pc?.remoteDescription) pending.push(data.candidate);
       else await pc.addIceCandidate(data.candidate).catch(() => {});
@@ -89,6 +95,7 @@ export async function openPhoneLink(handlers: PhoneLinkHandlers): Promise<PhoneL
     if (msg.type === "joined") h.onStatus("waiting");
     else if (msg.type === "phone-visit") h.onVisit?.(msg.from);
     else if (msg.type === "orientation") orientation(msg.rotation);
+    else if (msg.type === "post") h.onPost?.(msg.post);
     else if (msg.type === "peer-joined") {
       relay.reset();
       h.onStatus("connecting");
@@ -109,6 +116,9 @@ export async function openPhoneLink(handlers: PhoneLinkHandlers): Promise<PhoneL
     setHandlers(next) {
       h = next;
       if (lastOrientation != null) h.onOrientation?.(lastOrientation);
+    },
+    notify(note) {
+      if (room && !closed) void backend.phoneNotify(room, note).catch(() => {});
     },
     close() {
       if (closed) return;
