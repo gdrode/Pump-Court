@@ -316,3 +316,75 @@ describe('GET /api/lan', () => {
     expect(body.port).toBe(Number(base.split(':')[1]))
   })
 })
+
+describe('HTTP signaling (/signal-http)', () => {
+  const post = async (path: string, body: unknown) => {
+    const res = await fetch(`http://${base}/signal-http/${path}`, { method: 'POST', body: JSON.stringify(body) })
+    return { status: res.status, body: (await res.json()) as Record<string, unknown> }
+  }
+  const poll = async (id: string) => {
+    const res = await fetch(`http://${base}/signal-http/poll?id=${encodeURIComponent(id)}`)
+    return { status: res.status, body: (await res.json()) as { messages?: Msg[]; error?: string } }
+  }
+  const join = async (room: string, role: string) => {
+    const r = await post('join', { room, role })
+    expect(r.body.id).toEqual(expect.any(String))
+    return r.body.id as string
+  }
+
+  it('rejects bad joins and a phone without a host', async () => {
+    expect((await post('join', { room: 'a!', role: 'phone' })).status).toBe(400)
+    expect((await post('join', { room: newRoom(), role: 'x' })).status).toBe(400)
+    expect((await post('join', {})).status).toBe(400)
+    expect((await post('join', { room: newRoom(), role: 'phone' })).body.error).toMatch(/expired/)
+    expect((await poll('nope')).status).toBe(410)
+    expect((await post('send', { id: 'nope', data: {} })).status).toBe(410)
+  })
+
+  it('relays both ways between an HTTP host and phone, and leave notifies the other side', async () => {
+    const room = newRoom()
+    const host = await join(room, 'host')
+    expect((await poll(host)).body.messages).toEqual([{ type: 'joined' }])
+    const phone = await join(room, 'phone')
+    expect((await poll(host)).body.messages).toEqual([{ type: 'peer-joined' }])
+    expect((await poll(phone)).body.messages).toEqual([{ type: 'joined' }, { type: 'peer-joined' }])
+    const offer = { sdp: { type: 'offer', sdp: 'v=0' } }
+    await post('send', { id: phone, data: offer })
+    expect((await poll(host)).body.messages).toEqual([{ type: 'signal', data: offer }])
+    // A held poll wakes up as soon as a message arrives.
+    const held = poll(phone)
+    await new Promise((r) => setTimeout(r, 50))
+    const answer = { sdp: { type: 'answer', sdp: 'v=0' } }
+    await post('send', { id: host, data: answer })
+    expect((await held).body.messages).toEqual([{ type: 'signal', data: answer }])
+    expect((await post('leave', { id: phone })).status).toBe(200)
+    expect((await poll(host)).body.messages).toEqual([{ type: 'peer-left' }])
+    expect((await poll(phone)).status).toBe(410)
+  })
+
+  it('a WebSocket host and an HTTP phone share a room', async () => {
+    const room = newRoom()
+    const host = new Client()
+    await host.join(room, 'host')
+    expect(await host.next()).toEqual({ type: 'joined' })
+    const phone = await join(room, 'phone')
+    expect(await host.next()).toEqual({ type: 'peer-joined' })
+    await post('send', { id: phone, data: { candidate: { candidate: 'c' } } })
+    expect(await host.next()).toEqual({ type: 'signal', data: { candidate: { candidate: 'c' } } })
+    host.send({ type: 'signal', data: { sdp: { type: 'answer' } } })
+    expect((await poll(phone)).body.messages).toEqual([{ type: 'joined' }, { type: 'peer-joined' }, { type: 'signal', data: { sdp: { type: 'answer' } } }])
+    await host.close()
+    expect((await poll(phone)).body.messages).toEqual([{ type: 'peer-left' }])
+  })
+
+  it('a phone replaced while not polling still learns why (closed 4000) on its next poll', async () => {
+    const room = newRoom()
+    const host = await join(room, 'host')
+    const first = await join(room, 'phone')
+    await join(room, 'phone')
+    expect((await poll(first)).body.messages).toEqual([{ type: 'joined' }, { type: 'peer-joined' }, { type: 'closed', code: 4000 }])
+    expect((await poll(first)).status).toBe(410)
+    expect((await post('send', { id: first, data: {} })).status).toBe(410)
+    await post('leave', { id: host })
+  })
+})

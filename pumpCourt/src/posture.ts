@@ -73,7 +73,7 @@ export function createPostureTracker() {
   const problem = (a: PoseAngles | null): PostureState | null => {
     if (!a) return 'no-player'
     if (!(a.wristVisibility >= POSTURE.minWristVisibility)) return 'no-hands'
-    if (!(a.trunkTilt <= POSTURE.maxTrunkTilt && a.bodyTilt <= POSTURE.maxBodyTilt)) return 'not-down'
+    if (!((ready || a.trunkTilt <= POSTURE.maxTrunkTilt) && a.bodyTilt <= POSTURE.maxBodyTilt)) return 'not-down'
     // A plank, not a kneeling push-up: the countdown and the judging both need straight legs.
     if (!(a.knee >= POSTURE.minKnee)) return 'knees-down'
     // Hands on the floor: below the shoulders, and not far out in front of them.
@@ -92,7 +92,7 @@ export function createPostureTracker() {
           return result('ready', a)
         }
         if (!Number.isFinite(lostSince)) lostSince = t
-        if (t - lostSince <= POSTURE.graceMs) return result('ready', a, false)
+        if (t - lostSince <= POSTURE.graceMs) return result('ready', a, bad === 'no-hands')
         ready = false
         settle = []
         return result(bad ?? 'hands-off-floor', a)

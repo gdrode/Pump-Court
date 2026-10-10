@@ -275,8 +275,13 @@ function attach(server: ViteDevServer | PreviewServer) {
         close(code) {
           this.closed = true
           this.queue.push({ type: 'closed', code })
-          flush(this)
-          httpPeers.delete(this.id)
+          // Without a poll waiting, keep the peer until its next poll collects
+          // the 'closed' message (or the sweep drops it), so a replaced phone
+          // learns why instead of just getting "gone".
+          if (this.waiting) {
+            flush(this)
+            httpPeers.delete(this.id)
+          }
         },
       }
       const err = join(p, room, role)
@@ -295,7 +300,11 @@ function attach(server: ViteDevServer | PreviewServer) {
       res.on('close', () => {
         if (p.waiting === res) { p.waiting = null; p.lastSeen = Date.now() }
       })
-      if (p.queue.length) return flush(p)
+      if (p.queue.length) {
+        flush(p)
+        if (p.closed) httpPeers.delete(p.id)
+        return
+      }
       p.holdTimer = setTimeout(() => {
         if (p.waiting !== res) return
         p.waiting = null
@@ -308,7 +317,7 @@ function attach(server: ViteDevServer | PreviewServer) {
     if (req.method === 'POST' && (path === '/send' || path === '/leave')) {
       const body = await readJson(req)
       const p = httpPeers.get(typeof body?.id === 'string' ? body.id : '')
-      if (!p) return json(res, 410, { error: 'gone' })
+      if (!p || p.closed) return json(res, 410, { error: 'gone' })
       p.lastSeen = Date.now()
       if (path === '/send') relay(p.room, p.role, body?.data)
       else dropHttpPeer(p)

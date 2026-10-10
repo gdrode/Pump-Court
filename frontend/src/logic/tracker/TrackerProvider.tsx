@@ -243,7 +243,9 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
               ? "Camera access was refused. Allow it for Pump Court in the system settings, then restart the app."
               : err?.name === "NotFoundError" || err?.name === "OverconstrainedError"
                 ? "No camera found. Plug one in or add a phone camera."
-                : `Could not open the camera: ${String(err)}`,
+                : err?.name === "NotReadableError"
+                  ? "The camera is busy: another app or browser tab is using it (Chrome, Teams, Zoom, the Camera app, or the other player's slot). Close it, then pick the camera again."
+                  : `Could not open the camera: ${String(err)}`,
           );
         });
     }

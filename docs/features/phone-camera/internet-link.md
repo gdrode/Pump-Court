@@ -33,8 +33,10 @@ The app looks in the usual install folders (`/opt/homebrew/bin`, `/usr/local/bin
 
 1. Opening **Add camera** calls `tunnel_start` at once, because **Phone · any network** is the tab it opens on. It runs:
    ```text
-   cloudflared tunnel --no-autoupdate --url https://localhost:47800 --no-tls-verify
+   cloudflared tunnel --no-autoupdate --url https://127.0.0.1:47800 --no-tls-verify
    ```
+
+`127.0.0.1`, not `localhost`: the phone server listens on IPv4 only, and on Windows `localhost` can resolve to IPv6 (`::1`) first. cloudflared then can't reach the app and the phone shows Cloudflare's "Tunnel error" page.
    (on Windows without a console window). A second start while it runs does nothing.
 2. Status becomes `starting`. The dialog polls `tunnel_status` every second.
 3. Rust reads cloudflared's output for the `https://<name>.trycloudflare.com` address (`find_url`).

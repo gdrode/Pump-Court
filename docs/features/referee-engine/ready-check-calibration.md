@@ -39,7 +39,7 @@ The Round screen's get-ready panel (`ReadyPanel` in `ui/screens/Round.tsx`) show
 
 | Constant | Value | Meaning |
 | :--- | :--- | :--- |
-| `maxTrunkTilt` | 40° | Trunk (shoulder → hip) must tilt less than this from horizontal. Sitting or standing is near 90°. |
+| `maxTrunkTilt` | 40° | Trunk (shoulder → hip) must tilt less than this from horizontal. Sitting or standing is near 90°. Checked only while getting ready: a sagging rep tilts the trunk past 40°, and must show as a Torso fault, not vanish. |
 | `maxBodyTilt` | 35° | Whole body (shoulder → ankle) must tilt less than this |
 | `minKnee` | 150° | Legs straight: knee angle at least this (a plank, not knee push-ups) |
 | `minWristVisibility` | 0.5 | Wrist must be at least this visible to find the floor |

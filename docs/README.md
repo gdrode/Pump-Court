@@ -17,6 +17,7 @@ docs/
 ├── README.md                            # 📍 You are here: portal & index
 ├── ARCHITECTURE.md                      # System architecture, data flow, IPC contract
 ├── AGENTS.md                            # AI agent operating manual & doc upkeep rules
+├── CHANGELOG.md                         # Plain-words log of each work session
 ├── FRONTEND.md                          # Short guide: swapping in a new design
 ├── INTEGRATION.md                       # Short guide: how the tracker is wired in
 ├── PHONE_CAMERA.md                      # Short guide: phone cameras

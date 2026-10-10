@@ -103,7 +103,9 @@ impl Tunnel {
         s.run += 1;
         let run = s.run;
         let mut cmd = Command::new(cloudflared());
-        cmd.args(["tunnel", "--no-autoupdate", "--url", &format!("https://localhost:{}", self.port), "--no-tls-verify"])
+        // 127.0.0.1, not localhost: the phone server listens on IPv4 only, and on
+        // Windows "localhost" can resolve to IPv6 first, so Cloudflare can't reach it.
+        cmd.args(["tunnel", "--no-autoupdate", "--url", &format!("https://127.0.0.1:{}", self.port), "--no-tls-verify"])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

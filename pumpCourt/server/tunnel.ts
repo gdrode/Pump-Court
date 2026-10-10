@@ -96,7 +96,7 @@ function attach(server: ViteDevServer | PreviewServer) {
     url = null
     error = null
     // --no-tls-verify: the dev server's own certificate is self-signed; Cloudflare's edge has a real one.
-    const child = spawn(findCloudflared(), ['tunnel', '--no-autoupdate', '--url', `${https ? 'https' : 'http'}://localhost:${port}`, '--no-tls-verify'], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(findCloudflared(), ['tunnel', '--no-autoupdate', '--url', `${https ? 'https' : 'http'}://127.0.0.1:${port}`, '--no-tls-verify'], { stdio: ['ignore', 'pipe', 'pipe'] })
     proc = child
     let found = false
     const onData = (buf: Buffer) => {
