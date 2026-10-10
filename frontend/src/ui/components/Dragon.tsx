@@ -35,7 +35,7 @@ const CREAM = '#f6e3a6';
 const HORN = '#f1dc9c';
 const CHEEK = '#f3a3a0';
 const EYE = '#5a2a1a';
-const BAND = '#f08a3c';
+const BAND = '#6b3fd4'; // Knight Hacks purple (--purple in tokens.css)
 
 /** Expressions: which face goes with which action. */
 const FACE: Record<DragonAction, 'happy' | 'sad' | 'grit'> = {

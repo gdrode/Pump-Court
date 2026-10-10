@@ -1,7 +1,9 @@
 /*
  * Design tokens: every colour, font and key size in one place.
  * Sketchbook look from the frontend design: paper, ink and a handwritten
- * font. One accent colour (dragon green) plus red for no-reps.
+ * font. Purple is the main accent (Knight Hacks purple: buttons, picks,
+ * highlights, the dragon's bandana); green means "good" (ready, valid, posted);
+ * red is for no-reps.
  */
 :root {
   --paper: #f3ecd9;
@@ -9,6 +11,8 @@
   --ink: #241f1a;
   --ink-soft: #6e665a;
   --faint: #d9cfb6;
+  --purple: #6b3fd4;
+  --purple-light: #e4dbf8;
   --green: #4f9a3e;
   --green-light: #dcedc8;
   --cream: #f6e6ab;

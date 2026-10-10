@@ -33,7 +33,7 @@ docs/
     │   └── browser-prototype-judge.md   # The standalone pumpCourt app: Hard rules, tests, log replay
     ├── game-engine/                     # Feature 3: Round clock & score (Rust)
     │   ├── README.md                    # Session phases, SessionSnapshot, RoundResult
-    │   ├── game-modes.md                # Sprint, Minute, Max, Duel
+    │   ├── game-modes.md                # Sprint, Marathon, Max, Duel
     │   ├── engine-thread-loop.md        # Engine thread, commands, 100 ms tick
     │   └── browser-prototype-modes.md   # The standalone pumpCourt app's modes and co-op (not used by the app)
     ├── phone-camera/                    # Feature 4: Phones as cameras

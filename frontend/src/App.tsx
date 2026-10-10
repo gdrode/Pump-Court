@@ -37,7 +37,7 @@ function Operator() {
   let screen: React.ReactNode = null;
   switch (state.screen) {
     case "home":
-      screen = <Home onPick={flow.pickMode} onLeaderboard={() => flow.leaderboard()} onSettings={flow.settings} onCrowd={flow.openCrowd} />;
+      screen = <Home visit={state.visit} onPick={flow.pickMode} onLeaderboard={() => flow.leaderboard()} onSettings={flow.settings} onCrowd={flow.openCrowd} />;
       break;
     case "names":
       screen = <Players mode={state.mode} onStart={flow.start} onBack={flow.home} />;

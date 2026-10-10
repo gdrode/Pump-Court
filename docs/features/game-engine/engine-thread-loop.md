@@ -77,7 +77,7 @@ loop {
 | `COUNTDOWN_MS` | `game/session.rs` | 3000 ms |
 | `OUT_OF_POSITION_MS` | `game/mode.rs` | 2000 ms |
 | `FAIL_BASE_MS` / `FAIL_PER_REP_MS` | `game/mode.rs` | 4000 ms + 250 ms per rep |
-| `fail_cap_ms()` | `game/mode.rs` | 6000 (Sprint, Duel) / 8000 (Minute) / 10000 (Max) ms |
+| `fail_cap_ms()` | `game/mode.rs` | 6000 (Sprint, Duel) / 8000 (Marathon) / 10000 (Max) ms |
 
 ---
 

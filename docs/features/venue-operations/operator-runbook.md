@@ -36,9 +36,9 @@ The chosen system camera is remembered for next time. Phones must be paired agai
 
 ```text
 [ HOME ]
-  │ ← Singleplayer / → Duel, then 1 Sprint (30 s), 2 Minute (60 s), 3 Max (no time limit)
+  │ ← Singleplayer / → Duel, then 1 Sprint (30 s), 2 Marathon (60 s), 3 Max (no time limit)
   │ Every mode ends early when the player fails: out of position 2 s, stuck in a rep,
-  │ or no push-up for 4 s (+0.25 s per rep, up to 6 s Sprint / 8 s Minute / 10 s Max)
+  │ or no push-up for 4 s (+0.25 s per rep, up to 6 s Sprint / 8 s Marathon / 10 s Max)
   ▼
 [ PLAYERS ]
   │ Type the name (max 12 characters). Duel: two names; Enter moves to the next empty one.
@@ -89,7 +89,7 @@ If the player walks out of view or stands up for 2 s during a round, their round
 | Key | Where | Action |
 | :--- | :--- | :--- |
 | **`←` / `→`** | Home | Singleplayer / Duel (the mode buttons light up once one is picked) |
-| **`1`–`3`** | Home | Sprint, Minute, Max (for the picked play style) |
+| **`1`–`3`** | Home | Sprint, Marathon, Max (for the picked play style) |
 | **`E`** | Home | Create event (placeholder: "coming soon") |
 | **`F`** | Home | Fixed camera on/off (small switch, bottom of the screen) |
 | **`L`** | Home | Leaderboard |
@@ -103,7 +103,7 @@ If the player walks out of view or stands up for 2 s during a round, their round
 | **`P`** | Duel result | Post the scores still waiting |
 | **`R`** | Duel result | Rematch |
 | **`Enter`** / **`Esc`** | Duel result, Leaderboard | Back to home |
-| **`1`–`5`**, **`←` `→`** | Leaderboard | Tabs: All time, Sprint, Minute, Max, Duel |
+| **`1`–`5`**, **`←` `→`** | Leaderboard | Tabs: All time, Sprint, Marathon, Max, Duel |
 | **`↑` `↓`** | Leaderboard | Select a row |
 | **`Delete`** or **`Backspace`**, twice | Leaderboard | Delete the selected run |
 | **`B`** | Leaderboard | Write a backup file |

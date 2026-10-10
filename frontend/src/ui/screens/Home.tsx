@@ -7,6 +7,8 @@ import { KeyHints } from "../components/KeyHints";
 import { host } from "../host";
 
 interface Props {
+  /** How many times the menu has been opened; picks the dragon's line. */
+  visit: number;
   onPick: (mode: MenuModeInfo) => void;
   onLeaderboard: () => void;
   onSettings: () => void;
@@ -18,7 +20,7 @@ interface Props {
  * game mode below it (the modes light up once a play style is picked).
  * Keys: ← / → pick the play style, 1–3 the mode, so the player can stay on the mat.
  */
-export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
+export function Home({ visit, onPick, onLeaderboard, onSettings, onCrowd }: Props) {
   const [style, setStyle] = useState<PlayStyle | null>(null);
   const [eventNote, setEventNote] = useState(false);
   const [fixed, setFixed] = useFixedCamera();
@@ -40,7 +42,7 @@ export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
     [HOME_KEYS.crowd]: onCrowd,
   });
 
-  const says = eventNote ? host.eventSoon : style ? host.homeMode(style === "duel") : host.home;
+  const says = eventNote ? host.eventSoon : host.home(visit);
 
   return (
     <div className="home">
@@ -72,14 +74,14 @@ export function Home({ onPick, onLeaderboard, onSettings, onCrowd }: Props) {
           {GAME_MODES.map((m, i) => (
             <button
               key={m.id}
-              className={`mode sketch ${m.id === "sprint" ? "mode--main" : ""}`}
+              className={`mode sketch mode--${m.id} ${m.id === "sprint" ? "mode--main" : ""}`}
               onClick={() => pickMode(i)}
               disabled={!style}
               title={style ? undefined : "Pick Singleplayer or Duel first"}
             >
               <span className="mode__key sketch">{m.key}</span>
               <span className="mode__label">{m.title}</span>
-              <span className="mode__blurb">{style === "duel" ? m.duelBlurb : m.blurb}</span>
+              <span className="mode__blurb">{m.blurb}</span>
               {m.note && <span className="mode__note">{m.note}</span>}
             </button>
           ))}

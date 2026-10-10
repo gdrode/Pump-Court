@@ -16,7 +16,7 @@
 | Referee | `judge.ts`, always **Hard** (`DIFFICULTY.hard`, no toggle) | `judge.ts`, always **Normal** (`REFEREE_RULES = DIFFICULTY.normal`) |
 | Posture check | `posture.ts` | `posture.ts` (same file) |
 | Pose model | `landmarker.ts`, `full`, one per player | `landmarker.ts`, `full` (same file), one camera |
-| Game rules | `game.ts`: Sprint / Marathon / Max, single or co-op | Rust engine: Sprint / Minute / Max / Duel ([Game Modes](../game-engine/game-modes.md)) |
+| Game rules | `game.ts`: Sprint / Marathon / Max, single or co-op | Rust engine: Sprint / Marathon / Max / Duel ([Game Modes](../game-engine/game-modes.md)) |
 | Score keeping | results in the page | Rust engine, SQLite leaderboard |
 | Phone pairing | Vite dev-server plugin (`server/phoneSignal.ts`, `server/tunnel.ts`) | Rust port in `backend/src/phone/` |
 | Picture rotation | `useLane.ts` (`rotation`) | ported to `TrackerProvider.tsx` |

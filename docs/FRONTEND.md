@@ -20,7 +20,7 @@ frontend/src/
 │   ├── useRound.ts      a live round: runs the referee, sends set_ready/report_rep
 │   ├── useNameEntry.ts  one name, or two for a Duel (backend has the final say)
 │   ├── results.ts       Duel winner ("most push-ups, perfect breaks ties"), score to beat
-│   ├── useLeaderboard.ts  tabs (All time, Sprint, Minute, Max, Duel), delete, backup
+│   ├── useLeaderboard.ts  tabs (All time, Sprint, Marathon, Max, Duel), delete, backup
 │   ├── useBoardRecord.ts  the mode's record, shown during a round
 │   ├── useCrowd.ts      crowd screen: live round or all-time board, new-score highlight
 │   ├── useKeys.ts       keyboard shortcuts helper (ignores typing)

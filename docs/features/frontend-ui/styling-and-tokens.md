@@ -18,7 +18,9 @@ All colors, the font and the corner shape are CSS custom properties in `frontend
   --ink: #241f1a;          /* lines and text */
   --ink-soft: #6e665a;     /* secondary text */
   --faint: #d9cfb6;        /* dashed rules */
-  --green: #4f9a3e;        /* the one accent (dragon green) */
+  --purple: #6b3fd4;       /* main accent (Knight Hacks purple): buttons, picks, highlights, eyebrow underline */
+  --purple-light: #e4dbf8; /* picked buttons, "you" rows, the splash behind the dragon */
+  --green: #4f9a3e;        /* means "good": ready ticks, posted, valid */
   --green-light: #dcedc8;
   --cream: #f6e6ab;        /* hover / highlight */
   --red: #d2452e;          /* no-reps */
@@ -30,7 +32,7 @@ All colors, the font and the corner shape are CSS custom properties in `frontend
 }
 ```
 
-`styles.css` holds layout and animations and uses only these tokens. The skeleton colors are **not** tokens: the skeleton is drawn by the tracker's own `pumpCourt/src/draw.ts`.
+`styles.css` holds layout and animations and uses only these tokens. The dragon's bandana uses the same purple (`BAND` in `ui/components/Dragon.tsx`); the dragon itself stays green. The skeleton colors are **not** tokens: the skeleton is drawn by the tracker's own `pumpCourt/src/draw.ts`.
 
 ---
 

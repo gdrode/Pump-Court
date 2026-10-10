@@ -70,7 +70,7 @@ const round = useRound({
 - `posture`: the tracker's push-up position check, for the get-ready checklist.
 - `countdownSeconds`: 3, 2, 1 during the countdown, else `null`.
 - `reps` (valid push-ups), `attempts`, `perfect`, `elapsedMs`.
-- `remainingMs`: time left (Sprint, Minute, Duel), else `null`.
+- `remainingMs`: time left (Sprint, Marathon, Duel), else `null`.
 - `failRemainingMs`: while running, time left before the player fails (stuck in a rep, or no push-up in time). The Round screen shows "Keep going! N" in the last 3 s.
 - `lastRep`: the latest `RepVerdict` (lights and faults); `lastRepAt`: when it arrived.
 - `cancel()`: stops the round without saving.

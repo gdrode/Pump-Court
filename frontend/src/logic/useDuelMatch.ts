@@ -173,7 +173,7 @@ export function useDuelMatch(opts: DuelOptions) {
   return {
     phase,
     countdownSeconds,
-    /** Clock to show: time left (Sprint, Minute) or time elapsed (Max), ms. */
+    /** Clock to show: time left (Sprint, Marathon) or time elapsed (Max), ms. */
     clockMs: clock(game, now),
     timed: game.mode !== "max",
     players,

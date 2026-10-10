@@ -19,7 +19,7 @@ The score is the number of **valid push-ups** in a round: reps with 2 or 3 white
 | :--- | :--- | :--- |
 | **All time** | `null` | each player's best round in **any** mode, with a Mode column |
 | **Sprint** | `"sprint"` | each player's best Sprint round |
-| **Minute** | `"minute"` | each player's best Minute round |
+| **Marathon** | `"minute"` | each player's best Marathon round |
 | **Max** | `"max"` | each player's best Max round |
 | **Duel** | `"duel"` | each player's best Duel turn |
 

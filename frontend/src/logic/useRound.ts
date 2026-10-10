@@ -125,7 +125,7 @@ export function useRound(opts: RoundOptions) {
     perfect: session?.perfect ?? 0,
     /** ms since the clock started. */
     elapsedMs: session?.elapsedMs ?? 0,
-    /** Time left in ms (Sprint, Minute, Duel), else null. */
+    /** Time left in ms (Sprint, Marathon, Duel), else null. */
     remainingMs: opts.mode !== "max" ? (session?.remainingMs ?? null) : null,
     /** ms left before the player fails (stuck in a rep, or no push-up in time), else null. */
     failRemainingMs: session?.failRemainingMs ?? null,

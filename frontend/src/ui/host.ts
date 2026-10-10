@@ -10,10 +10,28 @@ const NO_REP_TIP: Record<Light, string> = {
   lockout: "Lock those arms out!",
 };
 
+/** The dragon's main-menu lines. */
+const HOME_LINES = [
+  "As seen on TV!",
+  "Warning: May contain nuts.",
+  "Water proof!",
+  "Finger-Licking!",
+  "Dont look directly at the bugs...",
+  "Now in 1D.",
+  "Press alt-f4",
+  "9 + 1 = 11",
+  'print("Hello World")',
+  "Shoutout to bench press",
+  "dont ask me about my leg days...",
+  "All rumors are true!",
+  "Im just here for the vibes...",
+  "shoutout to claude",
+  "GO KNIGHTS!",
+];
+
 export const host = {
-  home: "Welcome to Pump Court! Three referees, one mat. Two white lights and it counts.",
-  /** Home screen, after Singleplayer or Duel is picked. */
-  homeMode: (duel: boolean) => (duel ? "A duel! Pick the game you'll fight over." : "Flying solo? Pick a game mode."),
+  /** Home screen: a different line each time the menu opens, in order. */
+  home: (visit: number) => HOME_LINES[Math.abs(visit) % HOME_LINES.length],
   /** Create event isn't built yet. */
   eventSoon: "Events are coming soon! You'll be able to run your own leaderboard.",
   who: (duel: boolean) => (duel ? "A duel! Who are the two challengers?" : "What do I call you?"),

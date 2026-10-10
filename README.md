@@ -107,10 +107,10 @@ Frontend alone (from `frontend/`): `npm run build` type-checks and bundles the a
 
 ## Using it
 
-Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Minute or Max, **E** create event (coming soon), **L** leaderboard, **S** camera, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. **Enter** / **Esc** move through screens.
+Operator keys on the home screen: **← / →** pick Singleplayer or Duel, then **1–3** pick Sprint, Marathon or Max, **E** create event (coming soon), **L** leaderboard, **S** camera, **W** opens the crowd screen as a second window (drag it to the external monitor). Every key hint on screen is also a clickable button. **Enter** / **Esc** move through screens.
 
 The crowd screen shows the all-time leaderboard (each player's best round in any mode: name, mode, push-ups) between rounds, and the live count and lights during a round.
 
-Modes: Sprint (30 s), Minute (60 s) and Max (no time limit), each as Singleplayer or Duel (2 players side by side on two cameras, or taking turns on one; most push-ups wins, perfect push-ups break a tie). Every mode ends early when the player fails: out of position for 2 s, stuck in a rep, or no push-up within a window that grows with fatigue (4 s, up to 6 / 8 / 10 s).
+Modes: Sprint (30 s), Marathon (60 s) and Max (no time limit), each as Singleplayer or Duel (2 players side by side on two cameras, or taking turns on one; most push-ups wins, perfect push-ups break a tie). Every mode ends early when the player fails: out of position for 2 s, stuck in a rep, or no push-up within a window that grows with fatigue (4 s, up to 6 / 8 / 10 s).
 
 Cameras: press **S** → **Add camera** → tabs **Phone · any network** (default; needs `cloudflared` and internet), **Phone · same Wi-Fi (offline)** (scan the QR on a shared network), or **USB / system camera**. A phone on its side is turned upright by itself; if not, press **⟳ Rotate** on the camera picture.

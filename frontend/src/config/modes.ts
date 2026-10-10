@@ -43,29 +43,23 @@ export interface GameModeInfo {
   /** Key the operator presses on the home screen. */
   key: string;
   title: string;
+  /** Same words for Singleplayer and Duel. */
   blurb: string;
-  /** Blurb when picked for a Duel. */
-  duelBlurb: string;
   note?: string;
 }
 
+/** Marathon is stored as "minute" (its id and leaderboard name in the database). */
 export const GAME_MODES: GameModeInfo[] = [
-  { id: "sprint", key: "1", title: "Sprint", blurb: "Most push-ups in 30 seconds", duelBlurb: "30 seconds, side by side. Most push-ups wins" },
-  { id: "minute", key: "2", title: "Minute", blurb: "Most push-ups in 60 seconds", duelBlurb: "60 seconds, side by side. Most push-ups wins" },
-  {
-    id: "max",
-    key: "3",
-    title: "Max",
-    blurb: "No time limit. Go until you fail",
-    duelBlurb: "No time limit, side by side. Most push-ups wins",
-  },
+  { id: "sprint", key: "1", title: "Sprint", blurb: "30 seconds. Most push-ups wins." },
+  { id: "minute", key: "2", title: "Marathon", blurb: "60 seconds. Most push-ups wins." },
+  { id: "max", key: "3", title: "Max", blurb: "No time limit. Go until you fail." },
 ];
 
 /**
  * What gets played for a home-screen pick. A Duel is played side by side on
  * two cameras (or as two turns on one camera, if the operator picks that).
  * Duel + Sprint keeps the backend's "duel" mode (its own leaderboard); Duel +
- * Minute or Max is saved to that mode's board.
+ * Marathon or Max is saved to that mode's board.
  */
 export function menuMode(style: PlayStyle, mode: GameModeInfo): MenuModeInfo {
   if (style === "single") return { id: mode.id, key: mode.key, title: mode.title, blurb: mode.blurb, players: 1, note: mode.note };
@@ -73,7 +67,7 @@ export function menuMode(style: PlayStyle, mode: GameModeInfo): MenuModeInfo {
     id: mode.id === "sprint" ? "duel" : mode.id,
     key: mode.key,
     title: `Duel · ${mode.title}`,
-    blurb: mode.duelBlurb,
+    blurb: mode.blurb,
     players: 2,
     note: mode.note,
   };
@@ -82,7 +76,7 @@ export function menuMode(style: PlayStyle, mode: GameModeInfo): MenuModeInfo {
 /** How each mode is named on boards and results. */
 export const MODE_LABELS: Record<RoundMode, string> = {
   sprint: "Sprint",
-  minute: "Minute",
+  minute: "Marathon",
   max: "Max",
   duel: "Duel",
 };
@@ -91,7 +85,7 @@ export const MODE_LABELS: Record<RoundMode, string> = {
 export const BOARDS: { mode: RoundMode | null; title: string }[] = [
   { mode: null, title: "All time" },
   { mode: "sprint", title: "Sprint" },
-  { mode: "minute", title: "Minute" },
+  { mode: "minute", title: "Marathon" },
   { mode: "max", title: "Max" },
   { mode: "duel", title: "Duel" },
 ];

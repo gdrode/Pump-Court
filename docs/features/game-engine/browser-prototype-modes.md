@@ -7,7 +7,7 @@
 
 ---
 
-> **Note**: this page describes the teammate's standalone prototype only. The Pump Court app uses its own modes (Sprint, Minute, Max, Duel; see [Game Modes](game-modes.md)), kept by the Rust engine. It does not use the prototype's `game.ts`, co-op or failure windows. It does use the same referee (`judge.ts`, on Normal rather than Hard) and posture check.
+> **Note**: this page describes the teammate's standalone prototype only. The Pump Court app uses its own modes (Sprint, Marathon, Max, Duel; see [Game Modes](game-modes.md)), kept by the Rust engine. It does not use the prototype's `game.ts`, co-op or failure windows. It does use the same referee (`judge.ts`, on Normal rather than Hard) and posture check.
 
 ## 1. Flow
 

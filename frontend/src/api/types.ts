@@ -85,7 +85,7 @@ export interface SessionSnapshot {
   inPosition: boolean;
   countdownMs: number | null;
   elapsedMs: number;
-  /** Time left (Sprint, Minute, Duel); null for Max (no time limit). */
+  /** Time left (Sprint, Marathon, Duel); null for Max (no time limit). */
   remainingMs: number | null;
   /** While running: time left before the player fails (stuck in a rep, or no push-up in time). */
   failRemainingMs: number | null;

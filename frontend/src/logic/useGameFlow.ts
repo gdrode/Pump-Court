@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { backend } from "../api/backend";
 import type { RoundMode, RoundResult } from "../api/types";
 import type { MenuModeInfo } from "../config/modes";
@@ -13,7 +13,8 @@ export interface Plan {
 
 /** Which screen the operator window shows, and the data it needs. */
 export type FlowState =
-  | { screen: "home" }
+  /** `visit` counts trips to the menu (the dragon says a new line each time). */
+  | { screen: "home"; visit: number }
   | { screen: "names"; mode: MenuModeInfo }
   /** `results` are the finished turns before this one; `attempt` remounts the round on a redo. */
   | { screen: "round"; plan: Plan; results: RoundResult[]; attempt: number }
@@ -35,9 +36,13 @@ export type FlowState =
  * between screens.
  */
 export function useGameFlow() {
-  const [state, setState] = useState<FlowState>({ screen: "home" });
-
-  const home = useCallback(() => setState({ screen: "home" }), []);
+  const [state, setState] = useState<FlowState>({ screen: "home", visit: 0 });
+  // Counted here, in the action (not in a state updater, which React may run twice).
+  const visits = useRef(0);
+  const home = useCallback(() => {
+    visits.current += 1;
+    setState({ screen: "home", visit: visits.current });
+  }, []);
   const round = (plan: Plan, results: RoundResult[]) =>
     setState((s) => ({ screen: "round", plan, results, attempt: s.screen === "round" ? s.attempt + 1 : 0 }));
 

@@ -111,7 +111,7 @@ Only `player`, `mode` and `reps` are stored in the database. The rest is for the
 
 ## 4. Ending a round
 
-- **Time up**: `elapsed ≥ mode.duration_ms()` (Sprint, Minute, Duel). `durationMs` is capped at the mode's length.
+- **Time up**: `elapsed ≥ mode.duration_ms()` (Sprint, Marathon, Duel). `durationMs` is capped at the mode's length.
 - **Failure**, every mode: out of position 2 s, stuck in a rep or no rep for the failure window (4 s + 0.25 s per rep, capped at 6 / 8 / 10 s). Checked on each tick by `Session::check_finish`. Details: [Game Modes](game-modes.md#2-failure-when-a-round-ends-early-every-mode).
 - **Operator abort** (`cancel_round`, Esc on the Round screen, or leaving the screen): back to `Idle`, nothing saved.
 - **Posting**: nothing is saved until the score is posted (operator Enter, or the player's phone). "Discard" (or "Redo turn" in a Duel) throws the round away. See [Scoring & Ranking](../leaderboard/scoring-and-ranking.md#4-posting-is-opt-in).
