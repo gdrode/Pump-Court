@@ -93,3 +93,12 @@ flexion (piking) and belly sag / crunching were slipping through.
 | Easy | 145° | 140° | 145° | 0.55 |
 | Normal | 155° | 150° | 155° | 0.42 |
 | Hard | 165° | 160° | 165° | 0.30 |
+
+**Known weak spot:** on Normal, sag and pike are lenient. A sag of ~12 % of body
+length can still score perfect; a pike needs the hips ~20 % up to fail. The
+abdomen angle sees only ~⅔ of the bend at the hip. `hipFlex` is computed but
+not used yet.
+
+**Smoothing note:** the judge median-filters elbow and depth only at high frame
+rates. Its buffers now update on every frame, so turning smoothing back on
+never uses stale values (this caused extra reps at ~20 fps).

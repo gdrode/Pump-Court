@@ -17,4 +17,11 @@ Short, plain-words log of each work session. Newest first.
 
 - Fix: a phone replaced by a second phone now learns why (it used to just get "gone"). Tested end to end in a real browser: QR → phone page → live video → close tab = laptop sees "disconnected".
 
-**Checks:** `npm test` in `pumpCourt/` → 213 / 213 pass, `tsc -b` clean.
+- Judge stress test: 68 new tests (sitting, curls, shrugs, kneeling, sag, pike, half reps, dropped frames, 15–60 fps). 3 bugs fixed:
+  - Extra reps at ~20 fps (stale smoothing values).
+  - Big hip sag made reps vanish instead of showing a fault.
+  - A few broken frames during a still hold could fake a rep.
+
+**Still weak (not fixed yet):** camera tilt ≥ 10°, knee push-ups from all fours, sag/pike lenient on Normal, reps lost after > 0.6 s tracking loss. See [Ready check](features/referee-engine/ready-check-calibration.md) and [Angles](features/referee-engine/angles-and-biomechanics.md).
+
+**Checks:** `npm test` in `pumpCourt/` → 285 / 285 pass, `tsc -b` clean.

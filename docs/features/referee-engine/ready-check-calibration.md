@@ -75,7 +75,7 @@ push-ups. Elbow points jitter, and the judge only looked at the elbow. Now no
 rep can start until the player is really in the push-up position.
 
 **Rule, in plain words:**
-- Trunk (shoulder → hip) close to flat: tilt under `maxTrunkTilt` = **40°**. Sitting or standing ≈ 90°.
+- Trunk (shoulder → hip) close to flat: tilt under `maxTrunkTilt` = **40°**. Sitting or standing ≈ 90°. Checked **only while getting ready**: a sagging rep tilts the trunk past 40°, and that must show as a Torso fault, not make the rep vanish.
 - Whole body (shoulder → ankle) close to flat: under `maxBodyTilt` = **35°**.
 - Near wrist visible (`minWristVisibility` = **0.5**), below the shoulder, and not more than one arm length in front of it.
 - Arms nearly straight (`readyDepth` = **0.7** arm lengths) and held still for `settleMs` = **500 ms**.
@@ -86,7 +86,9 @@ lengths (≈ 1 at the top, ≈ 0 chest on floor). Steadier than the raw wrist po
 
 **Losing it:** hands drift more than `handDrift` (**8 %** of frame height), or
 the position is lost for more than `graceMs` (**600 ms**) → not ready. A rep in
-progress is dropped if it stays not-ready.
+progress is dropped if it stays not-ready. During the grace time, shoulder
+height is left blank (unless only the hand is hidden), so a few frames of
+broken tracking can't fake a drop.
 
 **States** (`PostureState`, shown to the player as `POSTURE_MESSAGE`):
 `no-player` → `no-hands` → `not-down` → `hands-off-floor` → `settle` → `ready`.
@@ -94,3 +96,8 @@ progress is dropped if it stays not-ready.
 **Extra phantom-rep guard** (`pumpCourt/src/judge.ts`, `SEGMENT`): the shoulders
 must really drop `minDepthDrop` = **0.25** arm lengths towards the floor. A
 glitching elbow alone no longer makes a rep.
+
+**Known weak spots** (from the stress tests, `pumpCourt/src/__tests__/posture.stress.test.ts`; tests marked `KNOWN:` pin today's behaviour):
+- Camera tilted (rolled) 10° or more upwards → may never get ready.
+- Knee push-ups from all fours pass the gate and count on 2 of 3 lights.
+- Tracking lost > 600 ms mid-set → reps lost until the player pauses at the top again.

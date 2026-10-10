@@ -67,7 +67,7 @@ export function createPostureTracker() {
   const problem = (a: PoseAngles | null): PostureState | null => {
     if (!a) return 'no-player'
     if (!(a.wristVisibility >= POSTURE.minWristVisibility)) return 'no-hands'
-    if (!(a.trunkTilt <= POSTURE.maxTrunkTilt && a.bodyTilt <= POSTURE.maxBodyTilt)) return 'not-down'
+    if (!((ready || a.trunkTilt <= POSTURE.maxTrunkTilt) && a.bodyTilt <= POSTURE.maxBodyTilt)) return 'not-down'
     // Hands on the floor: below the shoulders, and not far out in front of them.
     if (!(a.wrist.y > a.shoulderY) || Math.abs(a.wrist.x - a.shoulderX) > a.armLength) return 'hands-off-floor'
     return null
@@ -84,7 +84,7 @@ export function createPostureTracker() {
           return result('ready', a)
         }
         if (!Number.isFinite(lostSince)) lostSince = t
-        if (t - lostSince <= POSTURE.graceMs) return result('ready', a)
+        if (t - lostSince <= POSTURE.graceMs) return result('ready', bad === 'no-hands' ? a : null)
         ready = false
         settle = []
         return result(bad ?? 'hands-off-floor', a)

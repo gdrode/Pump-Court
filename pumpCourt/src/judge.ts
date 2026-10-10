@@ -193,9 +193,8 @@ export class RepJudge {
     // Typical spacing of recent frames decides whether smoothing is safe.
     if (gap > 0 && gap < SEGMENT.maxGapMs) this.frameMs = this.frameMs ? this.frameMs * 0.9 + gap * 0.1 : gap
     const smooth = this.frameMs > 0 && this.frameMs <= SEGMENT.medianMaxFrameMs
-    const a: JudgeInput = smooth
-      ? { ...raw, elbow: median(this.elbowBuf, raw.elbow), depth: median(this.depthBuf, raw.depth) }
-      : { ...raw }
+    const elbowMed = median(this.elbowBuf, raw.elbow), depthMed = median(this.depthBuf, raw.depth)
+    const a: JudgeInput = smooth ? { ...raw, elbow: elbowMed, depth: depthMed } : { ...raw }
     const sh = raw.shoulderY ?? NaN
     const th = this.thresholds
     const rep = this.rep
