@@ -94,15 +94,38 @@ kbd {
 .banner--warn { background: var(--cream); }
 
 /* ---- logo (ui/components/Logo.tsx) ------------------------------------------
-   Cartoon letters: purple / white fill, thick ink outline, a hard offset
-   shadow, each letter tipped a little and bobbing; the referee lights glow in turn. */
+   A sports crest in the sketchbook style: a cream sticker card with a hard ink
+   shadow, "PUMP" in purple cartoon letters over a dumbbell, a gold "COURT"
+   ribbon (the trophy gold) and the three referee lights on top, glowing in turn.
+   Sizes are in em of .logo's font size, so the whole crest scales together. */
 
 .logo {
-  margin: 0; display: flex; align-items: center; justify-content: center; gap: 0.32em;
-  font-size: clamp(3.2rem, 4.2vw + 1.6rem, 6.4rem); line-height: 1; letter-spacing: 0.01em;
+  margin: 0; display: flex; justify-content: center;
+  font-size: clamp(3.2rem, 4.2vw + 1.6rem, 6.4rem); line-height: 1;
   transform: rotate(-2deg); user-select: none;
 }
-.logo__words { display: inline-flex; align-items: baseline; gap: 0.3em; flex-wrap: wrap; justify-content: center; }
+.logo__crest { position: relative; isolation: isolate; display: inline-flex; flex-direction: column; align-items: center; padding: 0.36em 0.85em 0; }
+.logo__card { position: absolute; z-index: -2; left: 0; right: 0; top: 0; bottom: 0.3em; width: 100%; height: calc(100% - 0.3em); overflow: visible; }
+.logo__card-shadow { fill: var(--ink); }
+.logo__card-face { fill: var(--card); stroke: var(--ink); stroke-width: 4; vector-effect: non-scaling-stroke; }
+.logo__card-line { fill: none; stroke: var(--purple); stroke-width: 2; stroke-dasharray: 8 7; opacity: 0.55; vector-effect: non-scaling-stroke; }
+
+/* The three referee lights: white lamps with an ink rim, sitting on the card's top edge. */
+.logo__lights { position: absolute; top: -0.2em; left: 50%; display: inline-flex; gap: 0.16em; font-size: 0.62em; transform: translateX(-50%) rotate(3deg); }
+.logo__lights i {
+  width: 0.46em; height: 0.46em; border-radius: 50%; display: block; background: #fff;
+  border: 0.07em solid var(--ink); box-shadow: 0.04em 0.06em 0 var(--ink);
+  animation: logo-lamp 2.4s ease-in-out infinite;
+}
+.logo__lights i:nth-child(2) { animation-delay: 0.4s; }
+.logo__lights i:nth-child(3) { animation-delay: 0.8s; }
+@keyframes logo-lamp {
+  0%, 60%, 100% { box-shadow: 0.04em 0.06em 0 var(--ink); transform: scale(1); }
+  20% { box-shadow: 0.04em 0.06em 0 var(--ink), 0 0 0.35em 0.12em rgba(255, 255, 255, 0.95), 0 0 0.6em 0.2em var(--purple-light); transform: scale(1.12); }
+}
+
+/* PUMP, with a dumbbell behind it poking out both sides. */
+.logo__main { position: relative; display: inline-flex; padding-top: 0.04em; }
 .logo__word { display: inline-flex; position: relative; }
 .logo__l {
   display: inline-block; position: relative;
@@ -114,8 +137,8 @@ kbd {
   animation-delay: calc(var(--i) * -0.16s);
 }
 .logo__l:nth-child(even) { --tilt: 4deg; }
-.logo__word--pump .logo__l { color: #fff; }
-.logo__word--court .logo__l { color: var(--purple); }
+.logo__word--pump { font-size: 1.12em; letter-spacing: 0.03em; }
+.logo__word--pump .logo__l { color: var(--purple); }
 .logo__l:hover { animation: logo-pop 420ms ease; }
 @keyframes logo-bob {
   0%, 100% { transform: rotate(var(--tilt)) translateY(0); }
@@ -126,25 +149,33 @@ kbd {
   45% { transform: rotate(calc(var(--tilt) * -2)) translateY(-0.18em) scale(1.18); }
   100% { transform: rotate(var(--tilt)) scale(1); }
 }
+.logo__bell { position: absolute; z-index: -1; left: -0.5em; right: -0.5em; top: 54%; height: 0; transform: rotate(-3deg); }
+.logo__bell i { position: absolute; display: block; border: 0.04em solid var(--ink); box-sizing: border-box; }
+.logo__bar { left: 0.1em; right: 0.1em; top: -0.06em; height: 0.12em; background: #8a8172; border-radius: 0.06em; }
+.logo__plate { top: 0; transform: translateY(-50%); background: #4a443c; border-radius: 0.06em; box-shadow: 0.03em 0.04em 0 var(--ink); }
+.logo__plate--l, .logo__plate--r { width: 0.17em; height: 0.72em; }
+.logo__plate--l2, .logo__plate--r2 { width: 0.12em; height: 0.48em; background: #6b6357; }
+.logo__plate--l { left: 0.14em; }
+.logo__plate--l2 { left: 0.02em; }
+.logo__plate--r { right: 0.14em; }
+.logo__plate--r2 { right: 0.02em; }
 .logo__spark {
-  position: absolute; right: -0.55em; top: -0.25em; font-size: 0.42em; color: var(--cream);
+  position: absolute; right: -0.62em; top: -0.12em; font-size: 0.42em; color: var(--gold-light);
   -webkit-text-stroke: 0.06em var(--ink); paint-order: stroke fill;
   animation: logo-twinkle 1.8s ease-in-out infinite;
 }
 @keyframes logo-twinkle { 0%, 100% { transform: scale(0.7) rotate(0); opacity: 0.6; } 50% { transform: scale(1.15) rotate(25deg); opacity: 1; } }
-/* The three referee lights: white lamps with an ink rim, glowing one after another. */
-.logo__lights { display: inline-flex; gap: 0.16em; transform: rotate(2deg); }
-.logo__lights i {
-  width: 0.46em; height: 0.46em; border-radius: 50%; display: block; background: #fff;
-  border: 0.06em solid var(--ink); box-shadow: 0.04em 0.06em 0 var(--ink);
-  animation: logo-lamp 2.4s ease-in-out infinite;
-}
-.logo__lights i:nth-child(2) { animation-delay: 0.4s; }
-.logo__lights i:nth-child(3) { animation-delay: 0.8s; }
-@keyframes logo-lamp {
-  0%, 60%, 100% { box-shadow: 0.04em 0.06em 0 var(--ink); transform: scale(1); }
-  20% { box-shadow: 0.04em 0.06em 0 var(--ink), 0 0 0.35em 0.12em rgba(255, 255, 255, 0.95), 0 0 0.6em 0.2em var(--purple-light); transform: scale(1.12); }
-}
+
+/* COURT on a gold ribbon across the bottom of the card, wider than the card. */
+.logo__ribbon { position: relative; isolation: isolate; display: flex; justify-content: center; margin: 0.06em -1.15em 0; padding: 0.1em 1.25em 0.2em; transform: rotate(1deg); }
+.logo__ribbon svg { position: absolute; z-index: -1; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.logo__ribbon path { vector-effect: non-scaling-stroke; }
+.logo__ribbon-front { fill: #f2c53d; }
+.logo__ribbon-back { fill: var(--gold); }
+.logo__ribbon-fold { fill: #7a5a12; }
+.logo__word--court { font-size: 0.5em; letter-spacing: 0.16em; margin-right: -0.16em; }
+.logo__word--court .logo__l { color: #fff; --tilt: -2deg; text-shadow: 0.05em 0.07em 0 var(--ink); }
+.logo__word--court .logo__l:nth-child(even) { --tilt: 2deg; }
 
 /* ---- title ------------------------------------------------------------------ */
 
@@ -576,7 +607,7 @@ kbd {
 /* ---- crowd ------------------------------------------------------------------ */
 
 .crowd { height: 100%; padding: 3vh 4vw; display: flex; flex-direction: column; gap: 2.5vh; }
-.logo--crowd { font-size: 9vh; }
+.logo--crowd { font-size: 6vh; } /* the crest is ~2.3em tall */
 .crowd__body { flex: 1; min-height: 0; display: grid; grid-template-columns: auto 1fr; gap: 4vw; align-items: center; }
 .crowd__board { background: var(--card); border: 3px solid var(--ink); border-radius: var(--r); padding: 1.2rem 1.6rem; align-self: stretch; overflow: hidden; }
 .crowd__tabs { display: flex; gap: 0.8rem; margin-bottom: 0.6rem; }

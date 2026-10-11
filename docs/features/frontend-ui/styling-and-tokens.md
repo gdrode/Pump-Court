@@ -79,12 +79,10 @@ The Round screen and the Camera screen each show one `CameraView`. The Camera sc
 
 ## Logo
 
-`ui/components/Logo.tsx` draws "Pump Court" on the home screen (centered, above both columns) and the crowd screen (`variant="crowd"`, 9vh). Styles are under `/* ---- logo` in `styles.css`:
-- **Letters**: each letter is its own span.
-  - "Pump" is white and "Court" is `--purple`.
-  - Every letter gets a thick ink outline (`-webkit-text-stroke` with `paint-order: stroke fill`) and a hard ink offset shadow.
-  - Letters tip ±4° in turn (`--tilt`) and bob gently (`logo-bob`, staggered by the letter index `--i`).
-  - A letter pops when hovered.
-- **Lights**: the three referee lights are white lamps with an ink rim. They glow one after another (`logo-lamp`), with a white and `--purple-light` glow.
-- **Sparkle**: a small ✦ in `--cream` twinkles above "Court".
-- **Size**: `clamp(3.2rem, 4.2vw + 1.6rem, 6.4rem)`. Under 640 px it wraps to two lines. Reduced motion stops all the animations.
+`ui/components/Logo.tsx` draws the game crest on the home screen (centered, above both columns) and the crowd screen (`variant="crowd"`, 6vh). Styles are under `/* ---- logo` in `styles.css`; every size is in em of `.logo`'s font size, so the crest scales as one piece. The whole crest is tipped −2°.
+- **Card**: a hand-drawn sticker card (`.logo__card`, SVG, `#rough-sm`): `--card` fill, ink outline, a hard ink offset shadow and a dashed purple inner line.
+- **Lights**: the three referee lights sit on the card's top edge, white lamps with an ink rim, glowing one after another (`logo-lamp`).
+- **PUMP**: big `--purple` letters with a thick ink outline (`-webkit-text-stroke`, `paint-order: stroke fill`) and a hard ink shadow. Letters tip ±4° (`--tilt`), bob (`logo-bob`, staggered by `--i`) and pop on hover. A dumbbell (`.logo__bell`: bar + two plates each side, plain CSS) sits behind the word and pokes out both sides.
+- **Sparkle**: a ✦ in `--gold-light` twinkles at the top right of PUMP.
+- **COURT**: white letter-spaced letters on a gold ribbon (`.logo__ribbon`, SVG with notched tails, the trophy gold) across the bottom of the card, wider than the card.
+- **Size**: `clamp(3.2rem, 4.2vw + 1.6rem, 6.4rem)` (smaller under 640 px). Reduced motion stops all the animations.
