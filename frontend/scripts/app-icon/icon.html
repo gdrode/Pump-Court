@@ -1,0 +1,76 @@
+<!doctype html>
+<!--
+  The app icon: a square version of the logo crest (ui/components/Logo.tsx).
+  Render: see render.sh next to this file. It writes backend/icons/icon-source.png
+  (1024×1024) and runs `cargo tauri icon` to make every size.
+  The font is loaded from node_modules, so render from this folder.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: 'Patrick Hand'; src: url('../../node_modules/@fontsource/patrick-hand/files/patrick-hand-latin-400-normal.woff2') format('woff2'); }
+  :root { --ink: #241f1a; --card: #fffaf0; --purple: #6b3fd4; --purple-light: #e4dbf8; --gold: #c9971c; --gold-light: #f8e39a; }
+  html, body { margin: 0; width: 1024px; height: 1024px; background: transparent; overflow: hidden; }
+  .stage { position: relative; width: 1024px; height: 1024px; font-family: 'Patrick Hand', cursive; line-height: 1; }
+  .tile { position: absolute; left: 112px; top: 100px; width: 800px; height: 800px; transform: rotate(-3deg); }
+  .tile svg.card { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .lights { position: absolute; top: -46px; left: 50%; transform: translateX(-50%) rotate(3deg); display: flex; gap: 22px; }
+  .lights i { width: 92px; height: 92px; border-radius: 50%; background: #fff; border: 12px solid var(--ink); box-shadow: 7px 10px 0 var(--ink), 0 0 0 0 #fff; box-sizing: border-box; }
+  .lights i:nth-child(2) { box-shadow: 7px 10px 0 var(--ink), 0 0 40px 14px rgba(255,255,255,.95), 0 0 70px 24px var(--purple-light); }
+  .main { position: absolute; left: 0; right: 0; top: 190px; display: flex; justify-content: center; }
+  .word { display: inline-flex; position: relative; isolation: isolate; }
+  .l { display: inline-block; font-size: 300px; color: var(--purple); -webkit-text-stroke: 24px var(--ink); paint-order: stroke fill; text-shadow: 16px 22px 0 var(--ink); transform: rotate(-4deg); }
+  .l:nth-child(even) { transform: rotate(4deg) translateY(-8px); }
+  .bell { position: absolute; z-index: -1; left: -112px; right: -112px; top: 160px; height: 0; transform: rotate(-3deg); }
+  .bell i { position: absolute; display: block; border: 11px solid var(--ink); box-sizing: border-box; border-radius: 16px; }
+  .bar { left: 30px; right: 30px; top: -20px; height: 40px; background: #8a8172; }
+  .p { top: 0; transform: translateY(-50%); background: #4a443c; box-shadow: 8px 10px 0 var(--ink); }
+  .p1, .p3 { width: 54px; height: 220px; }
+  .p2, .p4 { width: 40px; height: 150px; background: #6b6357; }
+  .p1 { left: 44px; } .p2 { left: 6px; } .p3 { right: 44px; } .p4 { right: 6px; }
+  .ribbon { position: absolute; left: -76px; right: -76px; top: 560px; height: 190px; transform: rotate(2deg); display: flex; justify-content: center; align-items: center; }
+  .ribbon svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .court { position: relative; font-size: 150px; letter-spacing: 18px; margin-right: -18px; color: #fff; -webkit-text-stroke: 16px var(--ink); paint-order: stroke fill; text-shadow: 8px 11px 0 var(--ink); top: -14px; }
+  .spark { position: absolute; right: 70px; top: 120px; font-size: 120px; color: var(--gold-light); -webkit-text-stroke: 10px var(--ink); paint-order: stroke fill; transform: rotate(20deg); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="rough" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="2" seed="7" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="9" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+  </svg>
+  <div class="tile">
+    <svg class="card" viewBox="0 0 800 800">
+      <g filter="url(#rough)">
+        <path d="M60 20 Q400 0 740 18 Q790 22 786 80 Q800 400 784 730 Q780 782 730 784 Q400 800 66 786 Q16 784 16 730 Q2 400 14 76 Q16 22 60 20 Z" fill="#241f1a" transform="translate(22 28)" />
+        <path d="M60 20 Q400 0 740 18 Q790 22 786 80 Q800 400 784 730 Q780 782 730 784 Q400 800 66 786 Q16 784 16 730 Q2 400 14 76 Q16 22 60 20 Z" fill="#fffaf0" stroke="#241f1a" stroke-width="14" stroke-linejoin="round" />
+        <path d="M80 66 Q400 52 722 64 Q740 400 730 734 Q400 746 74 738 Q60 400 80 66 Z" fill="none" stroke="#6b3fd4" stroke-width="7" stroke-dasharray="26 22" opacity="0.55" />
+      </g>
+    </svg>
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="main">
+      <div class="word">
+        <div class="bell"><i class="bar"></i><i class="p p1"></i><i class="p p2"></i><i class="p p3"></i><i class="p p4"></i></div>
+        <span class="l">P</span><span class="l">U</span><span class="l">M</span><span class="l">P</span>
+      </div>
+    </div>
+    <div class="spark">✦</div>
+    <div class="ribbon">
+      <svg viewBox="0 0 952 190" preserveAspectRatio="none">
+        <g filter="url(#rough)" stroke="#241f1a" stroke-width="12" stroke-linejoin="round">
+          <path d="M0 60 L150 60 L150 184 L0 184 L52 122 Z" fill="#c9971c" />
+          <path d="M952 60 L802 60 L802 184 L900 184 L952 184 L900 122 Z" fill="#c9971c" />
+          <path d="M100 160 L150 184 L150 160 Z M852 160 L802 184 L802 160 Z" fill="#7a5a12" />
+          <path d="M100 14 Q476 -16 852 14 L852 160 Q476 130 100 160 Z" fill="#f2c53d" />
+        </g>
+      </svg>
+      <span class="court">COURT</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

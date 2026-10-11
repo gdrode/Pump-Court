@@ -86,3 +86,9 @@ The Round screen and the Camera screen each show one `CameraView`. The Camera sc
 - **Sparkle**: a ✦ in `--gold-light` twinkles at the top right of PUMP.
 - **COURT**: white letter-spaced letters on a gold ribbon (`.logo__ribbon`, SVG with notched tails, the trophy gold) across the bottom of the card, wider than the card.
 - **Size**: `clamp(3.2rem, 4.2vw + 1.6rem, 6.4rem)` (smaller under 640 px). Reduced motion stops all the animations.
+
+### App icon
+The window / Dock / taskbar icon is a square version of the crest: the card as the whole tile, the referee lights on top, PUMP over the dumbbell, the gold COURT ribbon poking out both sides.
+- Source: `frontend/scripts/app-icon/icon.html` (plain HTML + CSS, same colours and font as the logo).
+- `frontend/scripts/app-icon/render.sh` renders it with headless Chrome to `backend/icons/icon-source.png` (1024×1024, transparent), runs `cargo tauri icon` to make `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.png`, `icon.icns`, `icon.ico` (the files `tauri.conf.json` lists), and deletes the mobile / Store sizes it also makes.
+- Change the logo? Edit `icon.html` to match, run `render.sh`, rebuild the app.
