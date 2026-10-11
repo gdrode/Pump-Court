@@ -34,7 +34,7 @@ export function Crowd() {
     });
     return (
       <div className="crowd crowd--live">
-        <StreakFx streak={r.streak} active={running} />
+        <StreakFx streak={r.streak} active={running} sound={false} />
         <div className="crowd__head">
           <span className="eyebrow">{r.modeLabel} · now on the mat</span>
           <h1>{r.player}</h1>

@@ -69,7 +69,7 @@ The code has three layers:
 | Players | `ui/screens/Players.tsx` | Name entry: one name, or two for a Duel. Solo at the active event: **role** chips (required if the event has roles; ↑ ↓) and an optional **team** box (only if the event has a team leaderboard for the mode) |
 | Events | `ui/screens/Events.tsx` | List: **No event** + every event, click (or ↑ ↓) to make one active; Edit, Delete (twice). Form: name, mode switches (Sprint / Marathon / Max), roles (type + Enter), team leaderboards (pick a mode + **Create team leaderboard**). See [Events](../leaderboard/events.md) |
 | Round | `ui/screens/Round.tsx` | Camera on the left (with **⟳ Rotate** until the clock runs). Side panel: get-ready checklist with a camera picker and **+ Add camera** (`ui/components/CameraPicker.tsx`), then the clock, score vs record (or "To beat" in a Duel), lights and dragon. 3-2-1 / GO overlay. |
-| Streak effects | `ui/components/StreakFx.tsx`, `StreakBadge.tsx` | On the Round screen and the live crowd screen (full screen), and on each Duel camera (`contained`). A glow around the edge, heavier per tier (1.2x purple → 1.3x orange → 1.4x red → 1.5x throbbing red/gold). Each tier flashes its words (`STREAK_WORDS` in `config/modes.ts`) with the multiplier; **BRUTAL STREAK** (1.5x) adds a mini explosion and shaking text. A break shows "lol..." and the glow drops away in 0.25 s. The badge under the score reads "🔥 1.3x · 12 in a row". Reduced motion: no explosion, no shaking. Clicks pass through. |
+| Streak effects | `ui/components/StreakFx.tsx`, `StreakBadge.tsx` | On the Round screen and the live crowd screen (full screen), and on each Duel camera (`contained`). A glow around the edge, heavier per tier (1.2x purple → 1.3x orange → 1.4x red → 1.5x throbbing red/gold). Each tier flashes its words (`STREAK_WORDS` in `config/modes.ts`) with the multiplier; **BRUTAL STREAK** (1.5x) also shakes its text. A break shows "lol..." (sound `lol`) and the glow drops away in 0.25 s. **BRUTAL**: a 12-frame pixel mushroom cloud (`public/fx/explosion-brutal.png`, explosion-1-d from "explosion pack 1", CC0) about the size of the screen (`min(100vw, 125vh)`, `image-rendering: pixelated`, 1.5 s), a flash, and sound `boom`. The badge under the score reads "1.3x · 12 in a row". Reduced motion: no explosion, no flash, no shaking. Clicks pass through. |
 | Duel round | `ui/screens/DuelRound.tsx` | Split screen for a two-camera Duel, cut in half top to bottom: player 1 on top, player 2 below. Each half: camera on the left (with **⟳ Rotate** until the clock runs), and on the right the score, lights and, before the clock, a camera picker with **+ Add camera** (`CameraPicker`). One clock in the top bar. The 3-2-1 covers the whole split screen, faded, and the layout never moves between phases (the note above and the "Take turns" button below keep their space). |
 | Results | `ui/screens/Results.tsx` | **Points** (big, one decimal when needed), why the round ended, whether it is posted (opt-in: "📱 Ana can post this from their phone", "✓ Posted"…), push-ups, attempts, perfect, rank once posted, best streak, red lights per referee. Enter posts (unless the player said no on the phone), Esc discards. |
 | Duel result | `ui/screens/DuelResult.tsx` | Both players in order, the winner or a tie, each score's post status, **P** posts the scores still waiting, rematch |
@@ -95,9 +95,11 @@ See [Crowd Display Sync](crowd-display-sync.md).
 
 ## 4. Sounds
 
-- `ui/sounds.ts` plays `chime.mp3`, `buzzer.mp3` and `norep.mp3` from `frontend/public/sounds/` if they exist.
+- `ui/sounds.ts` plays `chime.mp3`, `buzzer.mp3`, `norep.mp3` and `lol.mp3` (streak lost) from `frontend/public/sounds/` if they exist.
+- `boom.wav` (8-bit explosion for BRUTAL STREAK) is in the repo. It was generated for this project (stepped NES-style noise + a falling square thump), so there is no licence to worry about.
+- Streak sounds play from `StreakFx` on the operator window only (`sound={false}` on the crowd screen, so the two windows don't double up). Without `lol.mp3`, a short "sad trombone" tone plays.
 - Otherwise (and always for `beep`, `go` and `final`) a Web Audio tone plays. `norep` has no tone, since the buzzer already covers it.
-- Until the mp3s are added, the console shows three harmless "file not found" messages at start-up.
+- Until the mp3s are added, the console shows four harmless "file not found" messages at start-up.
 
 ## Gear menu (`NavMenu`)
 

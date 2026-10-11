@@ -102,4 +102,4 @@ The get-ready checklist on the round screen has one row per posture state, in or
 ## 4. Sounds (`frontend/src/ui/sounds.ts`)
 
 `play(id)` plays an mp3 from `frontend/public/sounds/` if it exists, else a Web Audio tone. The round screen calls it:
-- `chime`: valid push-up. `buzzer` + `norep`: no-rep. `beep`: each countdown number and each of the last five seconds. `go`: the clock starts. `final`: round over.
+- `chime`: valid push-up. `buzzer` + `norep`: no-rep. `beep`: each countdown number and each of the last five seconds. `go`: the clock starts. `final`: round over. `boom`: BRUTAL STREAK (1.5x). `lol`: a streak with a multiplier breaks (both from `StreakFx`).
