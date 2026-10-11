@@ -42,3 +42,7 @@ dist/
 # Pose tracker files copied by frontend/scripts/setup-assets.mjs
 frontend/public/wasm/
 frontend/public/models/
+
+# Toby Fox's music is copyrighted (fine to use, not to redistribute): copy it
+# onto the event laptop by hand. See frontend/public/music/README.md.
+frontend/public/music/toby/

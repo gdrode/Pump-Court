@@ -101,10 +101,27 @@ See [Crowd Display Sync](crowd-display-sync.md).
 - Otherwise (and always for `beep`, `go` and `final`) a Web Audio tone plays. `norep` has no tone, since the buzzer already covers it.
 - Until the mp3s are added, the console shows four harmless "file not found" messages at start-up.
 
+## 4b. Music (`ui/music.ts`, `config/music.ts`, files in `frontend/public/music/`)
+
+| Scene | When | Tracks |
+| :--- | :--- | :--- |
+| Menu | every screen except a round | `MENU_TRACKS`, shuffled, one after another: Toby Fox *Field of Hopes and Dreams* (Deltarune), Eric Skiff *Chibi Ninja* (CC BY 4.0), Kevin MacLeod *Pixel Peeker Polka - faster* (CC BY 4.0) |
+| Game | `round` and `duelRound` screens | `GAME_TRACKS`, one at random, looped: Toby Fox *Rude Buster*, Juhani Junkala *Level 3* (CC0) |
+| Streak | from the first tier (1.2x) until the streak breaks; in a Duel, while either player has one | `STREAK_TRACK`: Toby Fox *MEGALOVANIA*, faster each tier (`STREAK_MUSIC_RATE` 1 → 1.12, same pitch). The game track fades out underneath and pauses. |
+
+- `App.tsx` calls `useMusicScene("menu" | "game")`; `StreakFx` calls `useStreakMusic(tier, sound)`.
+- **Streak break**: the streak track cuts in `STREAK_CUT_MS` (150 ms), "lol..." plays, and the game track resumes where it was after `STREAK_RESUME_MS` (1.2 s).
+- **Only one track is ever heard.** A switch fades the old track out fully (`MUSIC_FADE_OUT_MS`, 0.4 s), then fades the next one in (`MUSIC_FADE_IN_MS`, 0.8 s). The menu playlist never repeats a track back to back. A missing file is skipped (with none, silence). If the webview blocks sound until a click or key, music starts on the first one.
+- In dev, a hot reload of `ui/music.ts` pauses the old player's tracks (`import.meta.hot.dispose`), so edits never stack songs.
+- **Volume**: open the gear menu; a small **Music** card sits above it: speaker button mutes, slider 0–100 % (step 5). 0 % = silent, 100 % = full volume; the slider is squared (`volume²`) so it feels even across its range. Default `MUSIC_VOLUME_DEFAULT` = 35 %. Remembered on this computer (`localStorage` `pump-court:music`). Music only; sound effects are unchanged.
+- **Credits**: `MUSIC_CREDIT_LINE` at the bottom right of the home screen (CC BY needs it), and every track in the Music item's tooltip.
+- **Toby Fox's files go in `public/music/toby/`, which is in `.gitignore`**: he lets people use his music, but it isn't openly licensed, so it is copied onto the event laptop by hand and never pushed. The file list is in `frontend/public/music/README.md`.
+- The crowd window plays no music.
+
 ## Gear menu (`NavMenu`)
 
 - `ui/components/NavMenu.tsx`: a small ⚙ button fixed in the bottom-left corner, in the sketch-card style; the menu slides out to the right. `.app--nav` keeps a strip free at the bottom so it never covers a screen's buttons.
-- Hover (or click / keyboard focus) slides it open to the left: **Leaderboard**, **Camera settings**, **Crowd screen**, then the **Fixed camera** switch (`useFixedCamera`). Clicking a link closes the menu; the switch keeps it open so its state shows.
+- Hover (or click / keyboard focus) slides it open to the left: **Leaderboard**, **Camera settings**, **Crowd screen**, then the **Fixed camera** switch (`useFixedCamera`) (the **Music** card with mute + volume, see 4b, pops up above the open menu). Clicking a link closes the menu; the switch and the slider keep it open so their state shows.
 - `App.tsx` shows it on every screen except `round`, `results`, `duelRound` and `duelResult`, and adds `app--nav` so the Camera screen leaves room at the top.
 - The home screen no longer has a key-hint footer or the number badges on the mode cards. `L`, `S`, `W`, `F` still work on home, and the menu shows those keys there.
 - Styles: the "gear menu" section at the end of `theme/styles.css` (`.nav`, `.nav__gear`, `.nav__items`, `.nav__item`).

@@ -914,3 +914,17 @@ kbd {
   .streak-fx__words, .streak-fx__text, .streak-fx__glow, .streak-badge { animation: none !important; }
   .streak-fx__nuke, .streak-fx__flash { display: none; }
 }
+
+/* ---- Music volume (gear menu) and credits (ui/music.ts, config/music.ts) ---- */
+/* A small card above the gear menu while it's open; the menu itself keeps its one row. */
+.nav__music {
+  position: absolute; left: 0; bottom: 100%; padding-bottom: 0.4rem; /* the gap is part of the hover area */
+  opacity: 0; pointer-events: none; transform: translateY(0.3rem); transition: opacity 160ms ease, transform 160ms ease;
+}
+.nav:hover .nav__music, .nav:focus-within .nav__music, .nav.is-open .nav__music { opacity: 1; pointer-events: auto; transform: none; }
+.music-vol { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.8rem; background: var(--card); font-size: 1.05rem; white-space: nowrap; }
+.music-vol__mute { display: inline-flex; align-items: center; gap: 0.3rem; border: 0; background: none; font: inherit; color: inherit; padding: 0; cursor: pointer; }
+.music-vol.is-muted { color: var(--ink-soft); }
+.music-vol__slider { width: 6.5rem; accent-color: var(--purple); cursor: pointer; }
+.music-vol__pct { min-width: 2.4rem; font-size: 0.85rem; color: var(--ink-soft); text-align: right; }
+.music-credits { position: fixed; z-index: 1; right: 0.9rem; bottom: 0.5rem; margin: 0; max-width: 60vw; font-size: 0.75rem; color: var(--ink-soft); opacity: 0.75; text-align: right; pointer-events: none; }

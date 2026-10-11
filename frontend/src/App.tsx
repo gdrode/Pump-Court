@@ -17,6 +17,7 @@ import { Players } from "./ui/screens/Players";
 import { Results } from "./ui/screens/Results";
 import { Round } from "./ui/screens/Round";
 import { Settings } from "./ui/screens/Settings";
+import { useMusicScene } from "./ui/music";
 
 export default function App() {
   // The second window ("crowd") loads the same app.
@@ -35,6 +36,7 @@ function Operator() {
   const flow = useGameFlow();
   const { cameraError } = useTracker();
   const { state } = flow;
+  useMusicScene(state.screen === "round" || state.screen === "duelRound" ? "game" : "menu");
 
   let screen: React.ReactNode = null;
   switch (state.screen) {

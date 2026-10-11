@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useStreakFx } from "../../logic/useStreakFx";
+import { useStreakMusic } from "../music";
 import { play } from "../sounds";
 
 /**
@@ -7,8 +8,9 @@ import { play } from "../sounds";
  * `contained`): a glow around the edge that gets heavier per tier, the tier's
  * words, at 1.5x (BRUTAL) a big pixel explosion (public/fx/explosion-brutal.png,
  * CC0) with shaking text and an 8-bit boom, and "lol..." with its sound when
- * the streak breaks, as the glow sinks away. Clicks pass through. `sound`:
- * off on the crowd screen, so only the operator laptop plays it.
+ * the streak breaks, as the glow sinks away. Clicks pass through. `sound`
+ * (sounds and the streak music): off on the crowd screen, so only the
+ * operator laptop plays them.
  */
 export function StreakFx({
   streak,
@@ -23,6 +25,7 @@ export function StreakFx({
 }) {
   const { tier, words } = useStreakFx(streak, active);
   const brutal = words?.kind === "up" && words.tier === 4;
+  useStreakMusic(tier, sound);
 
   useEffect(() => {
     if (!words || !sound) return;
