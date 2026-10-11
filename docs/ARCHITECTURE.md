@@ -54,7 +54,7 @@ Pump-Court is a Tauri 2 desktop app. The work is split in two:
 - **Runs in the operator window**: `frontend/src/logic/tracker/TrackerProvider.tsx` owns the one `<video>`, the rotated-picture `<canvas>`, the overlay `<canvas>` and the detection loop. The crowd window never runs the tracker.
 - **Rotation**: a phone on its side sends a sideways picture. The phone reports the turn it needs, or the operator presses **⟳ Rotate**; the tracker then turns the picture on the frame canvas and tracks that. See [Phone on its side](features/phone-camera/README.md#5-phone-on-its-side-rotation).
 - **Fixed rules**: `REFEREE_RULES = DIFFICULTY.normal` in `frontend/src/config/modes.ts` (lockout 155°, torso 155°, knee 150°, depth = shoulders drop at least 30% of the player's straight-arm top height, depth fallback 95°). The posture check also needs straight legs (knee ≥ 150°) before the countdown. There is no thresholds editor.
-- **Three lights**: Depth, Torso, Lockout. 2 or 3 white = a valid push-up (counted); 3 = perfect.
+- **Three lights**: Depth, Torso, Lockout. 2 or 3 white with Depth among them, and back up = a valid push-up (counted); 3 = perfect. Anything else that was a real attempt is a no-rep (buzzer).
 - See [Pose Tracking](features/pose-tracking/README.md) and [Referee Engine](features/referee-engine/README.md).
 
 ### 2.2 The engine thread (`backend/src/engine.rs`, `backend/src/game/`)

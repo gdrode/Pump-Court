@@ -84,7 +84,7 @@ pub struct SessionSnapshot {
 ```rust
 pub struct RepVerdict {
     pub attempt: u32,          // 1 for the first attempt of the round
-    pub counted: bool,         // 2 or 3 white lights
+    pub counted: bool,         // Depth + 1 more white light, and back up
     pub perfect: bool,         // 3 white lights
     pub lights: Lights,        // { depth, torso, lockout }: true = white
     pub faults: Vec<String>,

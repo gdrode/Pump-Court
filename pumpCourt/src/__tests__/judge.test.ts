@@ -69,10 +69,10 @@ describe('RepJudge: lights', () => {
     expect(r.faults).toEqual([])
   })
 
-  it('a shallow rep fails depth only: 2 lights, counts, not perfect', () => {
+  it('a shallow rep is a no-rep even with the other 2 lights white (depth is required)', () => {
     const [r] = judge(frames([{ bottom: 110, depth: 0.72 }]))
     expect(r.lights).toEqual({ depth: false, torso: true, lockout: true })
-    expect(r.counted).toBe(true)
+    expect(r.counted).toBe(false)
     expect(r.perfect).toBe(false)
     expect(r.faults[0]).toMatch(/Not deep enough/)
   })
@@ -197,14 +197,14 @@ describe('difficulty', () => {
 
 describe('summarise', () => {
   it('counts attempts, good, perfect and accuracy', () => {
-    const rs = judge(frames([{}, {}, { bottom: 110, depth: 0.72 }, { bottom: 115, depth: 0.72, hip: 140 }]))
+    const rs = judge(frames([{}, {}, { hip: 140 }, { bottom: 115, depth: 0.72, hip: 140 }]))
     const s = summarise(rs)
     expect(s.attempted).toBe(4)
     expect(s.counted).toBe(3)
     expect(s.perfect).toBe(2)
     expect(s.failed).toBe(1)
     expect(s.accuracy).toBeCloseTo(0.75)
-    expect(s.lightRates.depth).toBeCloseTo(0.5)
+    expect(s.lightRates.depth).toBeCloseTo(0.75)
   })
 
   it('no attempts gives null accuracy', () => {

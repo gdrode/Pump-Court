@@ -60,7 +60,7 @@ Each player's stage shows the state: *Get down into the push-up position*, *Knee
 | Torso: knees | hip–knee–ankle | ≥ 140° | ≥ 150° | ≥ 160° |
 | Lockout | elbow on the way up reaches the threshold, **or** the shoulders get back within 0.05 arm lengths of the player's straight-arm top height | ≥ 145° | ≥ 155° | ≥ 165° |
 
-2 or 3 white lights = counted; 3 = perfect.
+2 or 3 white lights with Depth among them, and back up = counted; 3 = perfect. Otherwise a no-rep (2026-10-11: before, a shallow rep with Torso and Lockout white counted).
 
 Depth history (2026-10-10, live testing): absolute heights in arm lengths (0.30 → 0.45 → 0.60) were first too strict, then let quarter reps pass, because a player's top height depends on where the hands are placed and how the camera sees the arm. Depth is now **relative to the player's own straight-arm top height** (the highest shoulder height between reps over the last 30 s). Guide: quarter rep ≈ 10–25% drop, conventional push-up (elbows ~90°) ≈ 40–50%. Without visible hands, depth falls back to the elbow angle (Easy 100°, Normal 95°, Hard 90°).
 
@@ -74,7 +74,7 @@ Full details: [Rep Segmentation](rep-segmentation.md). In short:
 - Start: drive 20 below its highest value in the last 4 s, and the player is ready. Coming up: drive 20 above its lowest point.
 - End: **judged immediately on lockout** (elbow threshold, or shoulders back at the top height) once at least 60% back up; or a new descent of 45; or 1.5 s without getting higher once 60% back up. Lower than that, the judge keeps waiting: a slow grind still counts when it locks out.
 - **A push-up is two parts: down, then back up** (`minAscent` 0.6). Collapsing flat to the floor at failure is no rep, no lights. In the prototype's game, staying stuck ends that player's round (failure window).
-- An attempt needs the shoulders to drop **≥ 25% of their top height within the rep** (`minAttemptDrop`; quarter reps and adjustments get no lights and no count) and ≥ 0.12 s. Without height: ≥ 45° of elbow range and the shoulder visibly moving.
+- An attempt needs the shoulders to drop **≥ 15% of their top height within the rep** (`minAttemptDrop`; smaller adjustments get no lights; a shallow rep is a no-rep) and ≥ 0.12 s. Without height: ≥ 45° of elbow range and the shoulder visibly moving.
 - **Lockout by height** (added 2026-10-10): straight arms often read only 155–165° side-on, so the 165° Hard elbow threshold missed real lockouts. Getting back within 0.05 arm lengths of the straight-arm top height (≈ elbows ≥ 157°) counts as locked out. Coming back only to ~145° (≈ 0.08 short) still fails.
 - Out of position for 0.6 s mid-rep drops the rep. During posture's 0.6 s grace period no height is reported, so sitting up can't be read as "back at the top".
 - 3-frame median on elbow/depth at ≥ 20 fps; lockout trusts a brief raw peak when a neighbouring frame is within 20° (elbow) or 0.1 arm lengths (height).

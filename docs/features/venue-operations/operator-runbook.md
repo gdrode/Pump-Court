@@ -60,7 +60,8 @@ The chosen system camera is remembered for next time. Phones must be paired agai
 [ COUNTDOWN ]  3 … 2 … 1 … GO  (beeps)
   ▼
 [ LIVE ROUND ]
-  │ Three lights on every rep: Depth, Torso, Lockout. 2 or 3 white = it counts; 3 = perfect.
+  │ Three lights on every rep: Depth, Torso, Lockout. Depth white + one more = it counts (chime); 3 = perfect.
+  │ Any other real push-up attempt (shallow, or not back up) is a no-rep: red light + buzzer.
   │ Red lights list the reason, e.g. "Not deep enough: shoulders dropped 22% of their height (needs 30%)".
   │ Depth = shoulders drop at least 30% of the player's own straight-arm height.
   │ A rep is judged as soon as the arms lock out again; collapsing to the floor is not a rep.

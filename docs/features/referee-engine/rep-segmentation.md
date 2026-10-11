@@ -67,7 +67,9 @@ All the tuning numbers are in one object, `SEGMENT`, at the top of `judge.ts`.
 | `stallMs` | 1500 ms | No new high this long on the way up ends the rep (no lockout), once ≥ `minAscent` back up |
 | `maxGapMs` | 1500 ms | Losing the player this long mid-rep discards the rep |
 | `minRangeDeg` | 45 | Elbow drive only: smaller movements are not attempts; also the new descent that ends a rep in `turning` |
-| `minAttemptDrop` | 0.25 | Height drive: the shoulders must drop at least 25% of the top height within the rep to be an attempt |
+| `minAttemptDrop` | 0.15 | Height drive: the shoulders must drop at least 15% of the top height within the rep to be an attempt (judged, no-rep if shallow). 0.12 gave a phantom rep from tracking noise while holding still |
+| `minAttemptAscent` | 0.3 | An attempt must push back up at least 30% of its descent; 30–60% = no-rep "didn't come back up" |
+| `minStartHeight` | 0.5 | Height drive: a rep must start in the top half of the player's height (seeing the player again near the bottom is not a push-up) |
 | `minShoulderDrop` | 0.03 | Elbow drive only: the shoulder must drop this much of the frame height |
 | `minAscent` | 0.6 | The shoulders (else the elbow) must come back up 60% of the way they went down before the rep is judged |
 | `lockoutHeightTol` | 0.05 | Shoulders within this many arm lengths of the top height count as locked out |
@@ -90,10 +92,13 @@ When a rep ends, `score()` first checks it was a real attempt. If not, it return
 
 With shoulder height known:
 1. **Long enough**: at least `minRepMs` (120 ms).
-2. **A real descent**: the shoulders dropped at least `minAttemptDrop` (25%) of the top height, measured from where this rep started. Quarter reps and adjustments at the top (shifting, settling) get no lights and no count.
-3. **Back up again**: at least `minAscent` (60%) of the way. A push-up is two parts, down then up. Collapsing flat to the floor at failure is a descent with no ascent: no rep, no lights.
+2. **A real descent**: the shoulders dropped at least `minAttemptDrop` (15%) of the top height, measured from where this rep started. Smaller moves (shifting, settling at the top) get no lights. A real but shallow rep (15–30%) **is** judged: Depth red, no-rep, buzzer.
+3. **Started high enough**: from at least `minStartHeight` (50%) of the top height.
+4. **Some way back up**: at least `minAttemptAscent` (30%). Collapsing flat to the floor at failure is a descent with no ascent: no rep, no lights. 30–60% back up then down again = a no-rep ("Didn't come back up", Lockout red).
 
-Elbow only (no height): at least 120 ms, at least `minRangeDeg` (45°) of elbow range, the shoulder visibly moved (`minShoulderDrop`, 3% of the frame; a glitching elbow point alone doesn't move it), and 60% back up.
+Then `counted` = Depth white **and** at least `minAscent` (60%) back up **and** 2+ white lights. So with Depth white, one of Torso / Lockout may be red and the rep still counts; with Depth red it never does.
+
+Elbow only (no height): at least 120 ms, at least `minRangeDeg` (45°) of elbow range, the shoulder visibly moved (`minShoulderDrop`, 3% of the frame; a glitching elbow point alone doesn't move it), and 30% back up (60% to count).
 
 Other guards:
 - **In position only.** If the frame says `ready: false`, no rep starts. A rep in progress is dropped after `notReadyMs` (600 ms) out of position (the player sat up or walked off). During posture's 0.6 s grace period the player still counts as ready, but no height is reported, so sitting up can't be read as "back at the top".
@@ -107,6 +112,6 @@ Other guards:
 
 After the checks, the three lights are computed as described in the [Referee Overview](README.md#3-the-three-lights). `RepResult.rep` numbers attempts from 1; the Rust backend numbers them again per round (`RepVerdict.attempt`).
 
-`finish()` scores a rep that was on its way up (phase `up` or `turning`) and drops one still going down. The app does not use it: a push-up still in progress at the buzzer does not count.
+`finish()` scores a rep that was at least 60% back up (phase `up` or `turning`) and drops one still going down or lower. The app does not use it: a push-up still in progress at the buzzer does not count.
 
 The behaviour is covered by `pumpCourt/src/__tests__/judge.test.ts` and `judge.adversarial.test.ts` (fast reps, glitches, dips, flared elbows, collapses, sitting up, knee push-ups and more).

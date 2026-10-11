@@ -15,7 +15,7 @@ export interface Lights {
 
 /** A rep the tracker judged, sent with `reportRep`. */
 export interface RepReport {
-  /** 2 or 3 white lights. */
+  /** Depth white plus one more white light, and back up (see pumpCourt/src/judge.ts). */
   counted: boolean;
   /** 3 white lights. */
   perfect: boolean;

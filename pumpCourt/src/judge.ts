@@ -5,7 +5,9 @@
 //   depth   - chest to the floor (shoulder close to the hands' height)
 //   torso   - body held straight: no sag or pike at the abdomen, knees straight
 //   lockout - arms fully straight at the top
-// 2 or 3 white lights = the rep counts. 3 = a perfect rep.
+// A rep counts with 2 or 3 white lights, but Depth must be one of them and the
+// player must have come back up: a shallow rep or a bounce at the bottom is a
+// no-rep (red light + buzzer), never silently ignored. 3 white = a perfect rep.
 
 export type Light = 'depth' | 'torso' | 'lockout'
 export const LIGHTS: Light[] = ['depth', 'torso', 'lockout']
@@ -58,7 +60,7 @@ export interface RepResult {
   endT: number
   lights: Record<Light, boolean>
   whiteCount: number
-  /** At least 2 of 3 white lights. */
+  /** Depth white, back up at least `minAscent`, and at least 2 of 3 white lights. */
   counted: boolean
   /** All 3 white lights. */
   perfect: boolean
@@ -115,10 +117,11 @@ export const SEGMENT = {
   minDepthDrop: 0.25,
   /**
    * With shoulder height known: a movement is an attempt only if the shoulders
-   * drop at least this share of the player's top height. Quarter reps and
-   * adjustments at the top (shifting, settling) are ignored: no lights at all.
+   * drop at least this share of the player's top height. Smaller moves
+   * (shifting, settling at the top) are ignored: no lights at all. A real but
+   * shallow rep (this up to `depthDrop`) is a no-rep: Depth red, buzzer.
    */
-  minAttemptDrop: 0.25,
+  minAttemptDrop: 0.15,
   /** Without depth, the shoulder must drop this much of the frame height instead. */
   minShoulderDrop: 0.03,
   /** A real lockout peak has a neighbouring frame within this many degrees; a spike doesn't. */
@@ -134,6 +137,18 @@ export const SEGMENT = {
    * to the floor at failure is a descent with no ascent: not a rep.
    */
   minAscent: 0.6,
+  /**
+   * An attempt must push back up at least this share of its descent. Between
+   * this and `minAscent` it is a no-rep ("didn't come back up", Lockout red);
+   * below it (collapsing flat at failure) it is not an attempt at all.
+   */
+  minAttemptAscent: 0.3,
+  /**
+   * With shoulder height known: a rep must start at least this share of the
+   * way up the player's top height. Seeing the player again near the bottom
+   * (after losing them) is not the start of a push-up.
+   */
+  minStartHeight: 0.5,
   /**
    * Lockout by height: shoulders back within this many arm lengths of the
    * player's straight-arm top height count as locked out, whatever the elbow
@@ -372,9 +387,10 @@ export class RepJudge {
     }
   }
 
-  /** Call when judging stops. Scores a rep that was on its way up; drops one still going down. */
+  /** Call when judging stops. Scores a rep that was most of the way back up; drops one still going down or lower. */
   finish(t = this.lastT): RepResult | null {
-    const r = this.phase === 'up' || this.phase === 'turning' ? this.score(this.rep, t) : null
+    const up = this.phase === 'up' || this.phase === 'turning'
+    const r = up && ascent(this.rep) >= SEGMENT.minAscent ? this.score(this.rep, t) : null
     this.reset()
     return r
   }
@@ -416,12 +432,13 @@ export class RepJudge {
       // Height known: a real descent (not a quarter rep or an adjustment), and back up again.
       // The descent must be seen in this rep (from where it started), not just measured against the top.
       const seen = Number.isFinite(rep.topDepth) ? (rep.topDepth - bottom) / topH : drop
-      isAttempt = t - rep.startT >= SEGMENT.minRepMs && seen >= SEGMENT.minAttemptDrop && ascent(rep) >= SEGMENT.minAscent
+      const fromHighEnough = !Number.isFinite(rep.topDepth) || rep.topDepth >= topH * SEGMENT.minStartHeight
+      isAttempt = t - rep.startT >= SEGMENT.minRepMs && seen >= SEGMENT.minAttemptDrop && fromHighEnough && ascent(rep) >= SEGMENT.minAttemptAscent
     } else {
       // Elbow only: enough bend, the shoulders really moved (not an elbow-point glitch), and back up again.
       const shoulderDrop = rep.maxShoulder - rep.topShoulder
       const bodyMoved = !Number.isFinite(shoulderDrop) || shoulderDrop >= SEGMENT.minShoulderDrop
-      isAttempt = t - rep.startT >= SEGMENT.minRepMs && rep.topRef - rep.minDrive >= SEGMENT.minRangeDeg && bodyMoved && ascent(rep) >= SEGMENT.minAscent
+      isAttempt = t - rep.startT >= SEGMENT.minRepMs && rep.topRef - rep.minDrive >= SEGMENT.minRangeDeg && bodyMoved && ascent(rep) >= SEGMENT.minAttemptAscent
     }
     if (!isAttempt) return null
 
@@ -430,10 +447,13 @@ export class RepJudge {
     const knee = robustLow(rep.knees)
     const top = lockout(rep)
     const kneesOk = !Number.isFinite(knee) || knee >= th.knee
+    /** Pushed most of the way back up (a bounce at the bottom didn't). */
+    const up = ascent(rep)
+    const cameUp = up >= SEGMENT.minAscent
     const lights = {
       depth: Number.isFinite(drop) ? drop >= th.depthDrop : rep.minElbow <= th.depthElbowFallback,
       torso: Number.isFinite(hip) && hip >= th.torsoHip && kneesOk,
-      lockout: this.lockedOut(rep),
+      lockout: cameUp && this.lockedOut(rep),
     }
     const faults: string[] = []
     if (!lights.depth) {
@@ -451,15 +471,21 @@ export class RepJudge {
       }
       if (!kneesOk) faults.push(`Knees bent: ${Math.round(knee)}° (needs ${th.knee}°)`)
     }
-    if (!lights.lockout) faults.push(`No lockout: didn't get back to the top (elbows ${Number.isFinite(top) ? Math.round(top) : '—'}°, needs ${th.lockoutElbow}°)`)
+    if (!lights.lockout) {
+      faults.push(cameUp
+        ? `No lockout: didn't get back to the top (elbows ${Number.isFinite(top) ? Math.round(top) : '—'}°, needs ${th.lockoutElbow}°)`
+        : `Didn't come back up: pushed up only ${Math.round(up * 100)}% of the way (needs ${Math.round(SEGMENT.minAscent * 100)}%)`)
+    }
     const whiteCount = LIGHTS.filter((l) => lights[l]).length
+    // Range of motion is required: Depth white and back up. Then 2 of 3 lights.
+    const counted = lights.depth && cameUp && whiteCount >= 2
     return {
       rep: ++this.repCount,
       startT: rep.startT,
       endT: t,
       lights,
       whiteCount,
-      counted: whiteCount >= 2,
+      counted,
       perfect: whiteCount === 3,
       measured: { depth: haveDepth ? bottom : NaN, depthDrop: drop, bottomElbow: rep.minElbow, hip, knee, lockout: top },
       faults,

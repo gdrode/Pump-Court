@@ -57,8 +57,8 @@ export function Settings({ onBack }: { onBack: () => void }) {
           <dd>{posture ? POSTURE_MESSAGE[posture.state] : "—"}</dd>
         </dl>
         <p className="muted">
-          Put the camera side-on to the mat, about knee height, with the whole body in view. Rules are fixed: 2 of 3 white lights
-          (Depth, Torso, Lockout) = a push-up.
+          Put the camera side-on to the mat, about knee height, with the whole body in view. Rules are fixed: a push-up counts with 2 of 3 white
+          lights (Depth, Torso, Lockout), and Depth must be one of them.
         </p>
         <KeyHints hints={[["Esc", "Back", onBack]]} />
       </aside>

@@ -152,35 +152,51 @@ describe('holds and pace', () => {
 // ---------- partial reps ----------
 
 describe('partial reps / bouncing', () => {
-  it('rapid half reps (165 <-> 130) with realistic depth are not attempts at all', () => {
+  it('rapid half reps (165 <-> 125, shoulders drop ~20%) are each a no-rep: Depth red, buzzer', () => {
     const tr = new Track(165, { depth: 'forearm' }).hold(500)
-    for (let i = 0; i < 8; i++) tr.to(250, 130).to(250, 165)
-    expect(run(tr.hold(1000).frames)).toHaveLength(0)
+    for (let i = 0; i < 8; i++) tr.to(250, 125).to(250, 165)
+    const rs = run(tr.hold(1000).frames)
+    expect(rs).toHaveLength(8)
+    expect(rs.every((r) => lightsOf(r) === '011' && !r.counted)).toBe(true)
   })
 
-  it('KNOWN: the same 165 <-> 130 bounce still COUNTS (011) if depth reads <= 0.75 (pessimistic linear depth model)', () => {
-    // Elbow range 35° < 45°, but min depth 0.69 <= minRangeDepth 0.75 makes it an attempt, and 2 of 3 lights count.
+  it('the same 165 <-> 130 bounce with the pessimistic linear depth model: 8 no-reps, none counted', () => {
     const tr = new Track(165).hold(500)
     for (let i = 0; i < 8; i++) tr.to(250, 130).to(250, 165)
     const rs = run(tr.hold(1000).frames)
     expect(rs).toHaveLength(8)
-    expect(rs.every((r) => lightsOf(r) === '011' && r.counted)).toBe(true)
+    expect(rs.every((r) => lightsOf(r) === '011' && !r.counted)).toBe(true)
   })
 
-  it('KNOWN: a 50° half rep (165 <-> 115) counts with only the depth light red (depth is not mandatory)', () => {
+  it('a 50° half rep (165 <-> 115) is a no-rep with only the depth light red (depth is required)', () => {
     const tr = new Track(165, { depth: 'forearm' }).hold(500)
     for (let i = 0; i < 4; i++) tr.to(300, 115).to(300, 165)
     const rs = run(tr.hold(1000).frames)
     expect(rs.map(lightsOf)).toEqual(['011', '011', '011', '011'])
-    expect(rs.every((r) => r.counted)).toBe(true)
+    expect(rs.some((r) => r.counted)).toBe(false)
   })
 
-  it('a 25° nod (168 -> 143 -> 168) is not an attempt on normal', () => {
-    expect(run(new Track().hold(500).to(400, 143).to(400, 168).hold(1000).frames)).toHaveLength(0)
+  it('a 25° bend (168 -> 143 -> 168, shoulders drop ~20%) is a no-rep on normal', () => {
+    const rs = run(new Track().hold(500).to(400, 143).to(400, 168).hold(1000).frames)
+    expect(rs.map(lightsOf)).toEqual(['011'])
+    expect(rs[0].counted).toBe(false)
   })
 
-  it('a 25° nod at full lockout is not an attempt on hard', () => {
-    expect(run(new Track(175).hold(500).to(400, 150).to(400, 175).hold(1000).frames, 'hard')).toHaveLength(0)
+  it('a 25° bend at full lockout is a no-rep on hard', () => {
+    const rs = run(new Track(175).hold(500).to(400, 150).to(400, 175).hold(1000).frames, 'hard')
+    expect(rs.every((r) => !r.counted)).toBe(true)
+  })
+
+  it('a small bend (168 -> 150, shoulders drop ~13%) is not an attempt: no lights', () => {
+    expect(run(new Track().hold(500).to(400, 150).to(400, 168).hold(1000).frames)).toHaveLength(0)
+  })
+
+  it('a bounce at the bottom that only comes ~45% back up, then goes down again, is a no-rep (did not come back up)', () => {
+    const rs = run(new Track().hold(500).to(500, 70).to(300, 115).to(400, 70).to(500, 168).hold(1000).frames)
+    expect(rs.length).toBeGreaterThanOrEqual(1)
+    expect(rs[0].counted).toBe(false)
+    expect(rs[0].lights.lockout).toBe(false)
+    expect(rs[0].faults.join(' ')).toMatch(/come back up/)
   })
 
   it('a dip of under 20° is not a rep', () => {
@@ -708,8 +724,10 @@ describe('median smoothing at >= 20 fps', () => {
 // ---------- turn chaining ----------
 
 describe("reps chained by a 'turn'", () => {
-  it('a small 28° dip that turns into a real rep: one perfect rep, the dip itself is dropped', () => {
-    expect(run(new Track().hold(500).to(300, 140).to(300, 160).to(500, 70).to(500, 168).hold(1000).frames).map(lightsOf)).toEqual(['111'])
+  it('a 28° dip (shoulders drop ~23%) and back up, then a real rep: a no-rep for the dip, then one perfect rep', () => {
+    const rs = run(new Track().hold(500).to(300, 140).to(300, 160).to(500, 70).to(500, 168).hold(1000).frames)
+    expect(rs.map(lightsOf)).toEqual(['011', '111'])
+    expect(rs.map((r) => r.counted)).toEqual([false, true])
   })
 
   it('a failed-lockout rep (top 135) chained into a full rep: both scored', () => {

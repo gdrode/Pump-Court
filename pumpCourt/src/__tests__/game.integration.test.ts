@@ -130,9 +130,11 @@ describe('quarter reps and adjustments', () => {
     return plank({ elbow: 170 - 40 * u * share * 4, shoulderY: 0.46 + 0.24 * share * u })
   }
 
-  it('quarter reps (shoulders drop ~20%) never count and never light up', () => {
+  it('quarter reps (shoulders drop ~20%) are no-reps: Depth red, never counted', () => {
     const { g } = play('sprint', [dips(0.2, 15)], 40_000)
-    expect(g.players[0].results).toHaveLength(0)
+    const rs = g.players[0].results
+    expect(rs.length).toBeGreaterThan(0)
+    expect(rs.every((r) => !r.counted && !r.lights.depth)).toBe(true)
   })
 
   it('small adjustments at the top (10%) are ignored', () => {

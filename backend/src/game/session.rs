@@ -41,7 +41,7 @@ pub struct Lights {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RepReport {
-    /// At least 2 of 3 white lights: the push-up counts.
+    /// The push-up counts: Depth white plus one more (the referee in judge.ts decides).
     pub counted: bool,
     /// All 3 white lights.
     pub perfect: bool,
@@ -120,7 +120,7 @@ pub struct RoundResult {
     /// The score, to one decimal: 1 per 2-light rep, 2 per 3-light rep, more
     /// on a streak (see [`rep_points_tenths`]).
     pub points: f64,
-    /// Valid push-ups (2 or 3 white lights).
+    /// Valid push-ups (counted: Depth plus one more white light).
     pub reps: u32,
     pub attempts: u32,
     pub perfect: u32,

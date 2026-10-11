@@ -2,7 +2,7 @@
 
 A push-up contest judged by software. A side-on camera (laptop webcam or a phone) tracks your body, three referee lights call each push-up, and valid push-ups go on a public leaderboard.
 
-Get into position side-on to the camera. Three referee lights (Depth, Torso, Lockout) judge every push-up. 2 of 3 white lights = it counts; 3 white = perfect. Failed lights show the reason, such as “depth” or “lockout”. Score = points: 3 white = 2 points, 2 white = 1 point. 5 perfect in a row start a streak: 1.2x, then 1.3x, 1.4x, up to 1.5x (2.5 points per perfect rep); any other rep breaks it. Scores go on a leaderboard (name, mode, points), and the crowd screen shows the all-time top 10.
+Get into position side-on to the camera. Three referee lights (Depth, Torso, Lockout) judge every push-up. A push-up counts with 2 of 3 white lights, Depth included (a shallow rep is always a no-rep, with the buzzer); 3 white = perfect. Failed lights show the reason, such as “depth” or “lockout”. Score = points: 3 white = 2 points, a counted rep with 2 white = 1 point, a no-rep = 0. 5 perfect in a row start a streak: 1.2x, then 1.3x, 1.4x, up to 1.5x (2.5 points per perfect rep); any other rep breaks it. Scores go on a leaderboard (name, mode, points), and the crowd screen shows the all-time top 10.
 
 All video is processed live on the game laptop. Nothing is recorded or uploaded.
 

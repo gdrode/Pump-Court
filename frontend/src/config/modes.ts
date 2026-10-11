@@ -6,7 +6,8 @@ import type { RoundMode } from "../api/types";
 
 /**
  * The competition rules: the tracker's "normal" referee, fixed for everyone.
- * 2 or 3 white lights = a valid push-up; 3 = perfect. See
+ * Depth white plus one more white light = a valid push-up; 3 = perfect;
+ * anything else (shallow, not back up) is a no-rep. See
  * docs/features/referee-engine/README.md.
  */
 export const REFEREE_RULES = DIFFICULTY.normal;

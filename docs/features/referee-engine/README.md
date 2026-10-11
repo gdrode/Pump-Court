@@ -11,9 +11,10 @@
 
 The referee watches the body angles frame by frame, splits the motion into reps, and gives each rep **three lights**. It is the teammate's plain-TypeScript `RepJudge` in `pumpCourt/src/judge.ts`, run in the operator window. Rust does not judge anything; it only counts the reps it is told about.
 
-- **2 or 3 white lights** = a valid push-up. It counts.
+- **2 or 3 white lights, Depth one of them, and the player came back up** = a valid push-up. It counts (chime).
 - **3 white lights** = a perfect push-up.
-- **0 or 1 white light** = a no-rep. Each red light comes with a reason.
+- **Anything else is a no-rep** (buzzer): 0 or 1 white light, a red Depth light (a shallow rep never counts, even with Torso and Lockout white), or a rep that only pushed partway back up before going down again. Each red light comes with a reason.
+- Every real attempt gets one of the two: there is no "silent" push-up. Only movements smaller than 15% of the player's height (shifting at the top), and collapsing flat at failure, get no lights (see [Rep Segmentation §5](rep-segmentation.md#5-what-makes-an-attempt-anti-cheat-and-anti-glitch)).
 
 ```text
  PoseAngles (pose.ts) + Posture (posture.ts)
@@ -32,7 +33,7 @@ The referee watches the body angles frame by frame, splits the motion into reps,
  of top       knees ≥ 150° back at the top
    └────────────┼────────────┘
                 ▼
- counted = 2+ white, perfect = 3 white, faults = reasons
+ counted = Depth + 1 more white and back up, perfect = 3 white, else no-rep
                 │ backend.reportRep(...)
                 ▼
  Rust Session: counts it while the clock runs, emits "rep"
@@ -83,6 +84,7 @@ Easy and Hard are used only by the standalone `pumpCourt` app (which now always 
 - Why by height: straight arms often read only 155–165° side-on, less with flared elbows. The shoulders can only get back to the top with the arms straight.
 - A single-frame spike is ignored; a brief real peak on a fast rep is kept (see [Rep Segmentation](rep-segmentation.md)).
 - Fault text: "No lockout: didn't get back to the top (elbows 141°, needs 155°)".
+- A rep that pushes only partway back up (less than 60%, `SEGMENT.minAscent`) and goes down again also gets a red Lockout, with "Didn't come back up: pushed up only 45% of the way (needs 60%)", and never counts.
 
 ---
 
@@ -105,7 +107,7 @@ interface RepResult {
   rep: number; startT: number; endT: number;
   lights: Record<Light, boolean>;
   whiteCount: number;
-  counted: boolean;             // whiteCount >= 2
+  counted: boolean;             // lights.depth && came back up && whiteCount >= 2
   perfect: boolean;             // whiteCount === 3
   measured: { depth; depthDrop; bottomElbow; hip; knee; lockout };  // depthDrop = share of top height
   faults: string[];
@@ -121,7 +123,7 @@ interface RepResult {
 pub struct Lights { pub depth: bool, pub torso: bool, pub lockout: bool }
 
 pub struct RepReport {
-    pub counted: bool,        // at least 2 of 3 white lights
+    pub counted: bool,        // Depth + 1 more white, and back up
     pub perfect: bool,        // all 3 white
     pub lights: Lights,
     pub faults: Vec<String>,  // why each red light was given
