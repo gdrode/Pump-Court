@@ -36,7 +36,13 @@ function Operator() {
   const flow = useGameFlow();
   const { cameraError } = useTracker();
   const { state } = flow;
-  useMusicScene(state.screen === "round" || state.screen === "duelRound" ? "game" : "menu");
+  useMusicScene(
+    state.screen === "round" || state.screen === "duelRound"
+      ? "game"
+      : state.screen === "results" || state.screen === "duelResult"
+        ? "ending"
+        : "menu",
+  );
 
   let screen: React.ReactNode = null;
   switch (state.screen) {

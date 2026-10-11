@@ -73,7 +73,7 @@ The code has three layers:
 | Duel round | `ui/screens/DuelRound.tsx` | Split screen for a two-camera Duel, cut in half top to bottom: player 1 on top, player 2 below. Each half: camera on the left (with **⟳ Rotate** until the clock runs), and on the right the score, lights and, before the clock, a camera picker with **+ Add camera** (`CameraPicker`). One clock in the top bar. The 3-2-1 covers the whole split screen, faded, and the layout never moves between phases (the note above and the "Take turns" button below keep their space). |
 | Results | `ui/screens/Results.tsx` | **Points** (big, one decimal when needed), why the round ended, whether it is posted (opt-in: "📱 Ana can post this from their phone", "✓ Posted"…), push-ups, attempts, perfect, rank once posted, best streak, red lights per referee. Enter posts (unless the player said no on the phone), Esc discards. |
 | Duel result | `ui/screens/DuelResult.tsx` | Both players in order, the winner or a tie, each score's post status, **P** posts the scores still waiting, rematch |
-| Leaderboard | `ui/screens/Leaderboard.tsx` | Global: five tabs (All time, Sprint, Marathon, Max, Duel). With an active event, a **Global / event** switch (E): the event's mode tabs with **Everyone / role** chips (R), and its **Team** tabs (`TeamTable`). Select + delete, backup |
+| Leaderboard | `ui/screens/Leaderboard.tsx` | Global: four tabs (All time, Sprint, Marathon, Max; no Duel board), and **Reset global leaderboard** (two clicks; see [Scoring & Ranking §4b](../leaderboard/scoring-and-ranking.md)). With an active event, a **Global / event** switch (E): the event's mode tabs with **Everyone / role** chips (R), and its **Team** tabs (`TeamTable`). Select + delete, backup |
 | Crowd | `ui/screens/Crowd.tsx` | Second window: live round, or the all-time board; during an event, the event's boards in turn (every 5 s, same cycle as the home screen) |
 | Camera | `ui/screens/Settings.tsx` | Camera picture with **⟳ Rotate**, camera list, **Add camera**, tracking status, the player's posture (file and flow state are still called "settings") |
 
@@ -98,6 +98,7 @@ See [Crowd Display Sync](crowd-display-sync.md).
 - `ui/sounds.ts` plays `chime.mp3`, `buzzer.mp3`, `norep.mp3` and `lol.mp3` (streak lost) from `frontend/public/sounds/` if they exist.
 - `boom.wav` (8-bit explosion for BRUTAL STREAK) is in the repo. It was generated for this project (stepped NES-style noise + a falling square thump), so there is no licence to worry about.
 - Streak sounds play from `StreakFx` on the operator window only (`sound={false}` on the crowd screen, so the two windows don't double up). Without `lol.mp3`, a short "sad trombone" tone plays.
+- `trombone.m4a`: a sad trombone when a round scores **0** (Results screen), or when anyone in a Duel scores 0 (Duel result). From Wikimedia Commons, "Sad Trombone.wav" by Sad Tromboner, CC BY 4.0, converted to AAC; credited on the home screen (`SOUND_CREDIT_LINE`).
 - Otherwise (and always for `beep`, `go` and `final`) a Web Audio tone plays. `norep` has no tone, since the buzzer already covers it.
 - Until the mp3s are added, the console shows four harmless "file not found" messages at start-up.
 
@@ -107,9 +108,10 @@ See [Crowd Display Sync](crowd-display-sync.md).
 | :--- | :--- | :--- |
 | Menu | every screen except a round | `MENU_TRACKS`, shuffled, one after another: Toby Fox *Field of Hopes and Dreams* (Deltarune), Eric Skiff *Chibi Ninja* (CC BY 4.0), Kevin MacLeod *Pixel Peeker Polka - faster* (CC BY 4.0) |
 | Game | `round` and `duelRound` screens | `GAME_TRACKS`, one at random, looped: Toby Fox *Rude Buster*, Juhani Junkala *Level 3* (CC0) |
+| Ending | `results` and `duelResult` screens | `ENDING_TRACKS`, one at random, looped: Juhani Junkala *Ending* (CC0), Eric Skiff *We're all under the stars* (CC BY 4.0) |
 | Streak | from the first tier (1.2x) until the streak breaks; in a Duel, while either player has one | `STREAK_TRACK`: Toby Fox *MEGALOVANIA*, faster each tier (`STREAK_MUSIC_RATE` 1 → 1.12, same pitch). The game track fades out underneath and pauses. |
 
-- `App.tsx` calls `useMusicScene("menu" | "game")`; `StreakFx` calls `useStreakMusic(tier, sound)`.
+- `App.tsx` calls `useMusicScene("menu" | "game" | "ending")`; `StreakFx` calls `useStreakMusic(tier, sound)`.
 - **Streak break**: the streak track cuts in `STREAK_CUT_MS` (150 ms), "lol..." plays, and the game track resumes where it was after `STREAK_RESUME_MS` (1.2 s).
 - **Only one track is ever heard.** A switch fades the old track out fully (`MUSIC_FADE_OUT_MS`, 0.4 s), then fades the next one in (`MUSIC_FADE_IN_MS`, 0.8 s). The menu playlist never repeats a track back to back. A missing file is skipped (with none, silence). If the webview blocks sound until a click or key, music starts on the first one.
 - In dev, a hot reload of `ui/music.ts` pauses the old player's tracks (`import.meta.hot.dispose`), so edits never stack songs.

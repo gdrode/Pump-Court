@@ -41,6 +41,15 @@ impl RoundMode {
         }
     }
 
+    /// The board a round of this mode is saved to. Duels have no board of their
+    /// own: a Duel turn plays like Sprint, so it goes on the Sprint board.
+    pub fn board_mode(self) -> RoundMode {
+        match self {
+            RoundMode::Duel => RoundMode::Sprint,
+            other => other,
+        }
+    }
+
     /// Length of the clock, or `None` for Max (no time limit).
     pub fn duration_ms(self) -> Option<i64> {
         match self {

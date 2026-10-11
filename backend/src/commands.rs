@@ -97,6 +97,15 @@ pub fn delete_run(state: State<AppState>, run_id: i64) -> CmdResult<()> {
     state.db.lock().unwrap().delete_run(run_id).map_err(|e| e.to_string())
 }
 
+/// Resets the global boards (rounds stay stored; event boards are untouched).
+/// Writes a backup first and returns its path. Tells every window ("leaderboard-reset").
+#[tauri::command]
+pub fn reset_global_leaderboard(app: AppHandle, state: State<AppState>) -> CmdResult<String> {
+    let path = state.db.lock().unwrap().reset_global()?;
+    let _ = app.emit("leaderboard-reset", ());
+    Ok(path.display().to_string())
+}
+
 #[tauri::command]
 pub fn export_backup(state: State<AppState>) -> CmdResult<String> {
     state.db.lock().unwrap().export_backup().map(|p| p.display().to_string())

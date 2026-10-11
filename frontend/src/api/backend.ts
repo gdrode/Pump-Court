@@ -43,6 +43,8 @@ export const backend = {
   getPlayerCount: () => invoke<number>("get_player_count"),
   deleteRun: (runId: number) => invoke<void>("delete_run", { runId }),
   exportBackup: () => invoke<string>("export_backup"),
+  /** Empties the global boards (rounds stay stored, event boards untouched). Writes a backup first; returns its path. */
+  resetGlobalLeaderboard: () => invoke<string>("reset_global_leaderboard"),
   openCrowdWindow: () => invoke<void>("open_crowd_window"),
 
   /** Events (backend/src/events.rs). Changes emit "event-changed". */
@@ -90,6 +92,8 @@ export const events = {
   onRoundPosted: (cb: (r: RoundResult) => void) => listen<RoundResult>("round-posted", (e) => cb(e.payload)),
   /** An event was created, changed, deleted or made active. */
   onEventChanged: (cb: (payload: null) => void) => listen<null>("event-changed", () => cb(null)),
+  /** The global boards were reset. */
+  onLeaderboardReset: (cb: (payload: null) => void) => listen<null>("leaderboard-reset", () => cb(null)),
 };
 
 /** True in the second, crowd-facing window (opened by `openCrowdWindow`). */

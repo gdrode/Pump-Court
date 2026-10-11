@@ -152,8 +152,9 @@ export function useDuelMatch(opts: DuelOptions) {
     }));
     // Each player's phone camera is let go and shows them their own stats
     // (Fixed camera: the cameras stay and both scores are posted at once).
-    startScorePost(results[0], t1.releasePhone);
-    startScorePost(results[1], t2.releasePhone);
+    // Duels are posted at once, each to the solo board of the mode (a Duel → Sprint).
+    startScorePost(results[0], t1.releasePhone, true);
+    startScorePost(results[1], t2.releasePhone, true);
     optsRef.current.onFinished(results);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finished, game]);

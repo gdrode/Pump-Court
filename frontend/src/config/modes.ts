@@ -58,8 +58,9 @@ export const GAME_MODES: GameModeInfo[] = [
 /**
  * What gets played for a home-screen pick. A Duel is played side by side on
  * two cameras (or as two turns on one camera, if the operator picks that).
- * Duel + Sprint keeps the backend's "duel" mode (its own leaderboard); Duel +
- * Marathon or Max is saved to that mode's board.
+ * Duel + Sprint plays the backend's "duel" mode (Sprint rules). Duels have no
+ * board: every player's score is posted at once to the solo board of the mode
+ * (a "duel" round → Sprint, see `board_mode` in backend/src/game/mode.rs).
  */
 export function menuMode(style: PlayStyle, mode: GameModeInfo): MenuModeInfo {
   if (style === "single") return { id: mode.id, key: mode.key, title: mode.title, blurb: mode.blurb, players: 1, note: mode.note };
@@ -87,7 +88,6 @@ export const BOARDS: { mode: RoundMode | null; title: string }[] = [
   { mode: "sprint", title: "Sprint" },
   { mode: "minute", title: "Marathon" },
   { mode: "max", title: "Max" },
-  { mode: "duel", title: "Duel" },
 ];
 
 /** Global operator shortcuts on the home screen. */

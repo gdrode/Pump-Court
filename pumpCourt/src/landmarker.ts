@@ -16,12 +16,12 @@ export interface LoadedLandmarker {
 
 const cache = new Map<string, Promise<LoadedLandmarker>>()
 
-async function make(variant: ModelVariant, delegate: Delegate) {
+async function make(variant: ModelVariant, delegate: Delegate, numPoses: number) {
   const vision = await FilesetResolver.forVisionTasks('/wasm')
   const landmarker = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: { modelAssetPath: `/models/pose_landmarker_${variant}.task`, delegate },
     runningMode: 'VIDEO',
-    numPoses: 1,
+    numPoses,
   })
   // A delegate can be created and still fail on the first frame, so run one
   // detection on a blank frame here, where a failure can still fall back.
@@ -36,27 +36,29 @@ async function make(variant: ModelVariant, delegate: Delegate) {
   return landmarker
 }
 
-async function create(variant: ModelVariant, cpuOnly: boolean): Promise<LoadedLandmarker> {
+async function create(variant: ModelVariant, cpuOnly: boolean, numPoses: number): Promise<LoadedLandmarker> {
   if (!cpuOnly) {
     try {
-      return { landmarker: await make(variant, 'GPU'), variant, delegate: 'GPU' }
+      return { landmarker: await make(variant, 'GPU', numPoses), variant, delegate: 'GPU' }
     } catch (err) {
       console.warn('GPU delegate failed, falling back to CPU', err)
     }
   }
-  return { landmarker: await make(variant, 'CPU'), variant, delegate: 'CPU' }
+  return { landmarker: await make(variant, 'CPU', numPoses), variant, delegate: 'CPU' }
 }
 
 /**
  * Returns the same landmarker for a variant every time, so it is never rebuilt
  * in the frame loop. `slot` gives each camera its own instance: VIDEO mode
  * tracks a body from frame to frame, so two streams must not share one.
+ * `numPoses`: how many people it looks for (the app uses several and picks
+ * one, see person.ts; the prototype uses 1).
  */
-export function getLandmarker(variant: ModelVariant, cpuOnly = false, slot = 0): Promise<LoadedLandmarker> {
-  const key = `${variant}/${cpuOnly ? 'cpu' : 'auto'}/${slot}`
+export function getLandmarker(variant: ModelVariant, cpuOnly = false, slot = 0, numPoses = 1): Promise<LoadedLandmarker> {
+  const key = `${variant}/${cpuOnly ? 'cpu' : 'auto'}/${slot}/${numPoses}`
   let p = cache.get(key)
   if (!p) {
-    p = create(variant, cpuOnly)
+    p = create(variant, cpuOnly, numPoses)
     p.catch(() => cache.delete(key))
     cache.set(key, p)
   }

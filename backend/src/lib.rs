@@ -61,6 +61,7 @@ pub fn run() {
             commands::get_player_count,
             commands::delete_run,
             commands::export_backup,
+            commands::reset_global_leaderboard,
             commands::list_events,
             commands::get_active_event,
             commands::save_event,

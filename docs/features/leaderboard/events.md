@@ -36,7 +36,7 @@ An event is a named contest (for example a hackathon) with its own leaderboards.
     - the event must exist;
     - the role must be one of its roles (matched ignoring case);
     - the team name follows the player-name rules (16 characters max).
-- **The score also goes on the global boards** (All time and the mode's board), as before.
+- **The score also goes on the global boards** (All time and the mode's board), as before. Resetting the global leaderboard doesn't touch event boards.
 - After posting, the operator lands on the event's board for that mode (or its team board), with the player highlighted.
 
 ---

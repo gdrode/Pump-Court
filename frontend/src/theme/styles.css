@@ -633,6 +633,12 @@ kbd {
 }
 .camera-view__rotate span, .camera-view__rotate button { padding: 0.3rem 0.7rem; background: var(--cream); font: inherit; font-size: 1rem; }
 .camera-view__rotate button { cursor: pointer; }
+/* Recalibrate: track the next player instead (crowded venue). Every camera view, every mode. */
+.camera-view__recal {
+  position: absolute; left: 1rem; bottom: 1rem; z-index: 3; cursor: pointer;
+  padding: 0.3rem 0.7rem; background: var(--cream); font: inherit; font-size: 1rem; color: var(--ink);
+}
+.camera-view__recal.is-on { background: var(--purple-light); }
 .camera-view__note {
   position: absolute; left: 1rem; right: 1rem; top: 1rem; z-index: 3;
   padding: 0.5rem 0.9rem; background: var(--cream); font-size: 1.15rem; text-align: center;
@@ -928,3 +934,7 @@ kbd {
 .music-vol__slider { width: 6.5rem; accent-color: var(--purple); cursor: pointer; }
 .music-vol__pct { min-width: 2.4rem; font-size: 0.85rem; color: var(--ink-soft); text-align: right; }
 .music-credits { position: fixed; z-index: 1; right: 0.9rem; bottom: 0.5rem; margin: 0; max-width: 60vw; font-size: 0.75rem; color: var(--ink-soft); opacity: 0.75; text-align: right; pointer-events: none; }
+
+/* Leaderboard: reset the global boards (two clicks). */
+.board-reset { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 1rem; margin: 0.4rem 0; font-size: 1rem; }
+.board-reset .error { margin: 0; }

@@ -7,6 +7,8 @@
 //
 // With "Fixed camera" on (logic/fixedCamera.ts) the score is posted at once,
 // without asking, and the phone (if any) keeps filming for the next player.
+// Duel rounds are always posted at once too (`autoPost`): they have no board of
+// their own, and each player's score goes on the solo board of that mode.
 //
 // When the round was filmed with a phone, the phone gets the stats and the two
 // buttons, and hears about every change. The phone is let go (its link closed)
@@ -130,11 +132,12 @@ const posts = new WeakMap<RoundResult, ScorePost>();
 /**
  * Starts the post for a round that just ended. Fixed camera: posted at once and
  * the camera stays. Otherwise the round's phone camera (if any) is let go with
- * `release()` and shows the player their stats.
+ * `release()` and shows the player their stats. `autoPost` (Duels): posted at
+ * once whatever the camera.
  */
-export function startScorePost(result: RoundResult, release: () => ReleasedPhone | null): ScorePost {
+export function startScorePost(result: RoundResult, release: () => ReleasedPhone | null, autoPost = false): ScorePost {
   const fixed = isFixedCamera();
-  const post = new ScorePost(result, fixed ? null : release(), fixed);
+  const post = new ScorePost(result, fixed ? null : release(), fixed || autoPost);
   posts.set(result, post);
   return post;
 }

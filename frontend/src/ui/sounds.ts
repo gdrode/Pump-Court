@@ -1,9 +1,10 @@
 /**
  * Sounds. Drop chime.mp3, buzzer.mp3, norep.mp3 (the ElevenLabs "No rep!") and
  * lol.mp3 (streak lost) into frontend/public/sounds/. Until then a synthesised
- * tone plays instead. boom.wav (8-bit explosion, BRUTAL STREAK) is in the repo.
+ * tone plays instead. boom.wav (8-bit explosion, BRUTAL STREAK) and trombone.m4a
+ * (a round that scored 0) are in the repo.
  */
-export type SoundId = "chime" | "buzzer" | "norep" | "beep" | "go" | "final" | "lol" | "boom";
+export type SoundId = "chime" | "buzzer" | "norep" | "beep" | "go" | "final" | "lol" | "boom" | "trombone";
 
 const files: Partial<Record<SoundId, string>> = {
   chime: "/sounds/chime.mp3",
@@ -11,6 +12,7 @@ const files: Partial<Record<SoundId, string>> = {
   norep: "/sounds/norep.mp3",
   lol: "/sounds/lol.mp3",
   boom: "/sounds/boom.wav",
+  trombone: "/sounds/trombone.m4a",
 };
 
 const cache = new Map<SoundId, HTMLAudioElement | null>();
@@ -61,10 +63,13 @@ function synth(id: SoundId) {
     if (id === "buzzer") tone(110, 0, 0.35, "sawtooth", 0.12);
     if (id === "beep") tone(660, 0, 0.15, "square", 0.08);
     if (id === "go") tone(990, 0, 0.4, "square", 0.1);
-    if (id === "lol") [392, 370, 349, 330].forEach((f, i) => tone(f, i * 0.28, i === 3 ? 0.8 : 0.26, "square", 0.07)); // sad trombone
+    if (id === "lol" || id === "trombone") [392, 370, 349, 330].forEach((f, i) => tone(f, i * 0.28, i === 3 ? 0.8 : 0.26, "square", 0.07)); // sad trombone
     if (id === "boom") tone(60, 0, 0.8, "sawtooth", 0.2);
     if (id === "final") { tone(220, 0, 0.9, "sawtooth", 0.12); tone(165, 0, 0.9, "sawtooth", 0.1); }
   } catch {
     /* audio blocked until a key press; ignore */
   }
 }
+
+/** Sound effects that need a credit (CC BY), shown with the music credits. */
+export const SOUND_CREDIT_LINE = "Sad trombone: Sad Tromboner, Wikimedia Commons (CC BY 4.0)";

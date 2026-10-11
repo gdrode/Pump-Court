@@ -1,4 +1,5 @@
 import { fmtPoints } from "@tracker/game";
+import { useEffect } from "react";
 import type { RoundResult } from "../../api/types";
 import { duelOutcome } from "../../logic/results";
 import { useScorePosts, type ScorePost } from "../../logic/scorePost";
@@ -6,6 +7,7 @@ import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
 import { host } from "../host";
+import { play } from "../sounds";
 
 interface Props {
   results: RoundResult[];
@@ -17,12 +19,16 @@ const ORDINAL = ["1st", "2nd"];
 
 /**
  * Who won the Duel: most points; perfect push-ups break a tie. Posting is
- * opt-in: each player can post from their phone, or the operator posts the
- * scores still waiting (P).
+ * automatic: both scores go straight to the solo board of the mode (P retries
+ * one that failed to save).
  */
 export function DuelResult({ results, onRematch, onDone }: Props) {
   const { ranked, winner, decidedOnPerfect } = duelOutcome(results);
   const posts = useScorePosts(results);
+  // Someone scored zero: a sad trombone, once.
+  useEffect(() => {
+    if (results.some((r) => r.points === 0)) play("trombone");
+  }, [results]);
   const postOf = (r: RoundResult) => posts[results.indexOf(r)];
   const waiting = posts.filter((p) => p.status === "pending" || p.status === "failed");
   const postAll = () => waiting.forEach((p) => void p.post("host"));

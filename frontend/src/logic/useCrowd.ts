@@ -43,6 +43,8 @@ export function useCrowd() {
   }, [posted]);
 
   // Scores reach the board only when posted (operator or the player's phone).
+  // The operator reset the global boards.
+  useBackendEvent(events.onLeaderboardReset, refresh);
   useBackendEvent(events.onRoundPosted, (r) => {
     refresh();
     setPosted(r);

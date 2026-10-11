@@ -7,6 +7,7 @@ import { Dragon } from "../components/Dragon";
 import { EventBoardCycle } from "../components/EventBoardCycle";
 import { Logo } from "../components/Logo";
 import { MUSIC_CREDIT_LINE } from "../music";
+import { SOUND_CREDIT_LINE } from "../sounds";
 import { host } from "../host";
 
 interface Props {
@@ -101,7 +102,9 @@ export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCro
         {/* During an event: its boards in turn (every mode × Everyone and each role, then teams). */}
         {event && <EventBoardCycle event={event} rows={4} onOpen={onLeaderboard} />}
       </div>
-      <p className="music-credits">{MUSIC_CREDIT_LINE}</p>
+      <p className="music-credits">
+        {MUSIC_CREDIT_LINE} · {SOUND_CREDIT_LINE}
+      </p>
     </div>
   );
 }

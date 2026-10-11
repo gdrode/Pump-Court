@@ -34,10 +34,10 @@ createSideTracker().update(pose, width/height)  ─▶  PoseAngles | null
 | Model path | `/models/pose_landmarker_full.task` |
 | Wasm path | `/wasm` (`FilesetResolver.forVisionTasks('/wasm')`) |
 | Running mode | `VIDEO` |
-| `numPoses` | `1` |
+| `numPoses` | `PERSON.maxPeople` (3) in the app, so a crowd behind the player can be told apart (see [Person lock](README.md#7-several-people-in-view-person-lock-and-recalibrate)); `1` in the browser prototype (`useLane.ts`) |
 | Delegate | `GPU` first; `CPU` if the GPU can't be created |
 
-`getLandmarker(variant, cpuOnly)` caches one landmarker per variant and delegate, so it is never rebuilt inside the frame loop. While creating it, `make()` runs one detection on a blank 64×64 canvas: some GPUs create the delegate fine and then fail on the first frame, and this catches that while a CPU fallback is still possible.
+`getLandmarker(variant, cpuOnly, slot, numPoses)` caches one landmarker per variant, delegate, camera slot and `numPoses`, so it is never rebuilt inside the frame loop. While creating it, `make()` runs one detection on a blank 64×64 canvas: some GPUs create the delegate fine and then fail on the first frame, and this catches that while a CPU fallback is still possible.
 
 `TrackerProvider` adds one more fallback: if detection throws 10 frames in a row on the GPU, it switches to `cpuOnly`. On the CPU it shows the error instead. The Camera screen shows which delegate is in use and the poses per second.
 

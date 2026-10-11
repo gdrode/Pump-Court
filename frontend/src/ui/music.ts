@@ -5,6 +5,7 @@
 // on this computer.
 import { useEffect, useId, useSyncExternalStore } from "react";
 import {
+  ENDING_TRACKS,
   GAME_TRACKS,
   MENU_TRACKS,
   MUSIC_FADE_IN_MS,
@@ -17,7 +18,7 @@ import {
   type Track,
 } from "../config/music";
 
-export type MusicScene = "menu" | "game";
+export type MusicScene = "menu" | "game" | "ending";
 
 // ---- volume ----
 
@@ -164,10 +165,10 @@ let menuOrder: Track[] = [];
 let menuAt = 0;
 const shuffle = <T,>(xs: T[]) => xs.map((x) => [Math.random(), x] as const).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
 
-/** Opens the scene's next track as `base` (menu: the next in a shuffled order; game: one at random, looped). */
+/** Opens the scene's next track as `base` (menu: the next in a shuffled order; game and ending: one at random, looped). */
 function nextBase(tries = 6) {
   const menu = scene === "menu";
-  const live = (menu ? MENU_TRACKS : GAME_TRACKS).filter((t) => !missing.has(t.file));
+  const live = (menu ? MENU_TRACKS : scene === "ending" ? ENDING_TRACKS : GAME_TRACKS).filter((t) => !missing.has(t.file));
   base = null;
   if (live.length && tries > 0) {
     let track: Track;
@@ -238,7 +239,7 @@ w.__pumpCourtMusic = all;
 
 // ---- hooks ----
 
-/** The operator window's music: menu between rounds, a game track during one. */
+/** The operator window's music: menu between rounds, a game track during one, an ending track on the results. */
 export function useMusicScene(next: MusicScene) {
   useEffect(() => setScene(next), [next]);
 }
@@ -288,7 +289,7 @@ export function useMusicVolume() {
   };
 }
 
-const ALL = [...MENU_TRACKS, ...GAME_TRACKS, STREAK_TRACK];
+const ALL = [...MENU_TRACKS, ...GAME_TRACKS, ...ENDING_TRACKS, STREAK_TRACK];
 /** One line per track (title, artist, licence), for the credits tooltip. */
 export const MUSIC_CREDITS = ALL.map((t) => `${t.title} · ${t.artist} · ${t.license}`);
 /** "Music: Toby Fox · Eric Skiff: Chibi Ninja … (CC BY 4.0) · …" (CC BY needs the credit on screen). */

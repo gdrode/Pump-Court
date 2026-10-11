@@ -58,6 +58,24 @@ export const GAME_TRACKS: Track[] = [
   },
 ];
 
+/** The results screens (solo and Duel): one picked at random, looped. */
+export const ENDING_TRACKS: Track[] = [
+  {
+    file: "/music/ending.m4a",
+    title: "Ending (Retro Game Music Pack)",
+    artist: "Juhani Junkala",
+    license: "CC0",
+    url: "https://opengameart.org/content/5-chiptunes-action",
+  },
+  {
+    file: "/music/under-the-stars.mp3",
+    title: "We're all under the stars (Resistor Anthems), EricSkiff.com/music",
+    artist: "Eric Skiff",
+    license: "CC BY 4.0",
+    url: "https://ericskiff.com/music/",
+  },
+];
+
 /** From the first streak tier (1.2x) until the streak breaks. Replaces the game track, which resumes after. */
 export const STREAK_TRACK: Track = {
   file: "/music/toby/megalovania.mp3",

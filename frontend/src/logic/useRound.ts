@@ -12,6 +12,8 @@ export interface RoundOptions {
   player: string;
   /** A solo round at the active event: posted with the player's role and team. */
   tags?: EventTags;
+  /** A Duel turn: posted at once (to the solo board of the mode), not opt-in. */
+  autoPost?: boolean;
   /** The round ended. Not saved yet: see logic/scorePost.ts (started here). */
   onFinished: (result: RoundResult) => void;
   /** Hooks for sound or animation; all optional. */
@@ -98,7 +100,7 @@ export function useRound(opts: RoundOptions) {
     // their stats; with Fixed camera on, the camera stays and the score is posted at once.
     const { tags } = optsRef.current;
     const result = tags ? { ...r, ...tags } : r;
-    startScorePost(result, tracker.releasePhone);
+    startScorePost(result, tracker.releasePhone, optsRef.current.autoPost);
     optsRef.current.onFinished(result);
   });
 

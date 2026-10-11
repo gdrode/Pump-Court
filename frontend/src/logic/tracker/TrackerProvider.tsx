@@ -21,6 +21,7 @@
 import { listCameras, loadSavedCameraId, openCamera, saveCameraId, stopStream } from "@tracker/camera";
 import { drawOverlay } from "@tracker/draw";
 import { getLandmarker, MODEL, type LoadedLandmarker } from "@tracker/landmarker";
+import { createPersonLock, PERSON } from "@tracker/person";
 import { createSideTracker, type Landmark, type PoseAngles } from "@tracker/pose";
 import { createPostureTracker, type Posture } from "@tracker/posture";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -110,6 +111,12 @@ interface TrackerApi {
   rotate(): void;
   /** Back to the phone's own rotation (0 for other cameras). */
   rotateAuto(): void;
+  /**
+   * Crowded venue: stop tracking the current person and lock onto the next
+   * best one (closest to the camera, most like the push-up start on the
+   * floor). See pumpCourt/src/person.ts.
+   */
+  recalibrate(): void;
 }
 
 /** One context per camera slot (player 1, player 2). */
@@ -183,6 +190,8 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
   const [live, setLive] = useState<TrackerApi["live"]>({ posture: null, poseFps: 0 });
   const subscribers = useRef(new Set<(f: TrackerFrame) => void>());
   const postureRef = useRef(createPostureTracker());
+  /** Which of the people in view is the player (kept across rotations). */
+  const personRef = useRef(createPersonLock());
   const phoneCount = useRef(0);
   /** The operator's rotation per camera key; missing = automatic. */
   const [manualRotation, setManualRotation] = useState<Record<string, Rotation>>({});
@@ -200,7 +209,7 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
     if (!enabled) return;
     let cancelled = false;
     setModelError(null);
-    getLandmarker(MODEL, cpuOnly, slot).then(
+    getLandmarker(MODEL, cpuOnly, slot, PERSON.maxPeople).then(
       (m) => !cancelled && setModel(m),
       (err) => !cancelled && setModelError(`Pose tracking could not start: ${String(err)}`),
     );
@@ -295,7 +304,7 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
   useEffect(() => {
     if (!model || attached === 0) return;
     const ctx = canvas.getContext("2d")!;
-    const sides = createSideTracker();
+    let sides = createSideTracker();
     let raf = 0;
     let lastPresented = -1;
     let lastVideoTime = -1;
@@ -376,7 +385,14 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
       lastTs = t;
       let pose: Landmark[] | undefined;
       try {
-        pose = model.landmarker.detectForVideo(input, t).landmarks[0];
+        // Several people may be in view: keep following the player (person.ts).
+        const picked = personRef.current.pick(model.landmarker.detectForVideo(input, t).landmarks, w / h, t);
+        pose = picked.pose;
+        if (picked.switched) {
+          // Someone new: their side and floor line are their own.
+          sides = createSideTracker();
+          postureRef.current.reset();
+        }
       } catch (err) {
         if (++failures < 10) return;
         cancelAnimationFrame(raf);
@@ -530,6 +546,7 @@ export function TrackerProvider({ children, slot = 0 }: { children: ReactNode; s
     rotationAuto: manual === undefined,
     rotate: () => setManual(((rotation + 90) % 360) as Rotation),
     rotateAuto: () => setManual(undefined),
+    recalibrate: useCallback(() => personRef.current.recalibrate(), []),
   };
   const Ctx = TRACKERS[slot];
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

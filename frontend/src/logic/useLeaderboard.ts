@@ -38,6 +38,16 @@ export function useLeaderboard(initial: BoardRef = { kind: "global", mode: null 
       }
       reload();
     },
+    /** Empties the global boards (a backup is written first; event boards keep their scores). */
+    resetGlobal: async () => {
+      try {
+        const path = await backend.resetGlobalLeaderboard();
+        setMessage(`Global leaderboard reset. Every old round is in the backup: ${path}`);
+      } catch (e) {
+        setMessage(errorText(e));
+      }
+      reload();
+    },
     exportBackup: async () => {
       try {
         setMessage(`Backup written to ${await backend.exportBackup()}`);

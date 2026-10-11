@@ -52,6 +52,9 @@ The chosen system camera is remembered for next time. Phones must be paired agai
   │ ✓ Hold still at the top, arms straight
   │ All rows ticked → countdown starts by itself. Knee push-ups never count.
   │ Picture sideways? ⟳ Rotate (bottom right of the camera picture).
+  │ Skeleton on the wrong person (crowd behind)? ⌖ Recalibrate (bottom left of the picture):
+  │   tracks the next player instead, closest to the camera, lying in the start position.
+  │   Also works mid-round and on each Duel camera.
   │ Wrong camera, or the player brought their phone? Camera list + "+ Add camera" under the checklist.
   ▼
 [ COUNTDOWN ]  3 … 2 … 1 … GO  (beeps)

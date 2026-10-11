@@ -55,6 +55,7 @@ export function Round({ mode, player, turn, target, tags, onFinished, onAbort }:
     mode,
     player,
     tags,
+    autoPost: !!turn, // a Duel turn
     onRep: (rep) => {
       if (rep.counted) play("chime");
       else {

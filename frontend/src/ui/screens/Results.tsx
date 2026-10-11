@@ -1,4 +1,5 @@
 import { FINISH_TEXT, fmtPoints } from "@tracker/game";
+import { useEffect } from "react";
 import type { RoundResult } from "../../api/types";
 import { MODE_LABELS, REFEREE_LABELS, REFEREES } from "../../config/modes";
 import { useScorePosts, type ScorePost } from "../../logic/scorePost";
@@ -6,6 +7,7 @@ import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
 import { KeyHints } from "../components/KeyHints";
 import { host } from "../host";
+import { play } from "../sounds";
 
 interface Props {
   result: RoundResult;
@@ -24,6 +26,10 @@ interface Props {
 export function Results({ result, nextPlayer, onNext, onDiscard }: Props) {
   const [post] = useScorePosts([result]);
   const r = post.saved ?? result;
+  // Zero points: a sad trombone, once.
+  useEffect(() => {
+    if (result.points === 0) play("trombone");
+  }, [result]);
   const duel = nextPlayer !== undefined;
   const decided = post.status === "posted" || post.status === "declined";
   const then = nextPlayer ? `${nextPlayer}'s turn` : duel ? "see who won" : null;

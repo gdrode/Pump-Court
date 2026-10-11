@@ -16,7 +16,8 @@ There is no mock athlete and no Rust pose code. A real camera is needed: the lap
 ```text
 camera / phone stream ─▶ one shared <video>
    ─▶ (turned onto the frame <canvas> when rotation ≠ 0)
-   ─▶ MediaPipe Pose Landmarker (landmarker.ts)       33 landmarks, 1 person
+   ─▶ MediaPipe Pose Landmarker (landmarker.ts)       33 landmarks, up to 3 people
+   ─▶ person lock (person.ts createPersonLock)         the player's landmarks (one person)
    ─▶ side tracker (pose.ts createSideTracker)         angles of the near side, or null
    ─▶ posture check (posture.ts)                       ready? floor line, height
    ─▶ subscribers: useRound (the referee), the Camera screen
@@ -102,3 +103,21 @@ A phone propped on its side with rotation lock on sends a sideways picture, and 
 - Losing the position for more than `POSTURE.graceMs` (600 ms) ends "ready".
 - The referee drops a rep in progress after `SEGMENT.maxGapMs` (1.5 s) without the player, or `SEGMENT.notReadyMs` (600 ms) out of position.
 - Rounds are not voided. The clock keeps running; the player simply scores nothing while not tracked.
+
+---
+
+## 7. Several people in view: person lock and Recalibrate
+
+A crowded venue puts people behind and beside the player. MediaPipe looks for up to `PERSON.maxPeople` (3) bodies per frame, and `pumpCourt/src/person.ts` decides which one is the player. It is pure and deterministic (tests: `person.test.ts`).
+
+- **`bodyOf(pose, aspect)`**: the box around the visible points (shoulders, elbows, wrists, hips, knees, ankles, visibility ≥ 0.3) → centre and size (its diagonal). Bigger = closer to the camera.
+- **`startScore(pose, aspect)`**: how much a body looks like "the next player, ready to start": `visibility × (2·size + 1.5·level + 0.5·hands below shoulders + 0.5·low in the picture)`. `level` is 1 for a body lying flat (shoulder to ankle horizontal) and 0 standing up.
+- **`createPersonLock().pick(poses, aspect, t)`**:
+  - With nobody locked: takes the best `startScore`.
+  - Then follows the same person from frame to frame: the body whose centre moved less than `matchDistance` (0.6 body sizes) and whose size changed less than `matchScale` (1.8×). Someone better placed walking in is ignored.
+  - If the player is unseen for `lostMs` (1.5 s), it takes whoever is best placed.
+  - Returns `switched: true` when the person changes; `TrackerProvider` then starts a fresh side tracker and resets the posture check (their floor line is their own).
+- **Recalibrate** (`recalibrate()`, the **⌖ Recalibrate** button at the bottom left of every camera picture: get-ready, during the round, Duel cameras, Camera screen): on the next frame, drop the current person and lock onto the best `startScore` among the **others**. If nobody else is in view, it keeps the current person; with nobody at all, it takes whoever appears next.
+- Mid-round, a switch also resets "ready": the new person has the usual 2 s to be in position before the round fails ("out of position").
+- `numPoses > 1` can cost pose rate on a slow laptop. If the Camera screen shows the poses/s dropping well below 30, lower `PERSON.maxPeople` to 2.
+

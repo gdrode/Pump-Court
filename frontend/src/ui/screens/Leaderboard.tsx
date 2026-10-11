@@ -27,6 +27,8 @@ export function Leaderboard({ initial, highlight, onBack }: Props) {
   const { list, active } = useEvents();
   const [sel, setSel] = useState<number | undefined>(undefined);
   const [confirm, setConfirm] = useState(false);
+  /** Reset the global boards: the first click asks, the second does it. */
+  const [resetting, setResetting] = useState(false);
   const b = board.board;
   const event = b.kind === "global" ? null : (list.find((e) => e.id === b.eventId) ?? null);
   const tabs = event ? eventTabs(event) : GLOBAL_TABS;
@@ -38,7 +40,13 @@ export function Leaderboard({ initial, highlight, onBack }: Props) {
   useEffect(() => {
     setSel(undefined);
     setConfirm(false);
+    setResetting(false);
   }, [b]);
+  const reset = async () => {
+    if (!resetting) return setResetting(true);
+    setResetting(false);
+    await board.resetGlobal();
+  };
 
   const pick = (i: number) => tabs[i] && board.setBoard(tabs[i]);
   const move = (d: number) => pick((Math.max(tab, 0) + d + tabs.length) % tabs.length);
@@ -150,6 +158,18 @@ export function Leaderboard({ initial, highlight, onBack }: Props) {
         </p>
       )}
       {board.message && <p className="message">{board.message}</p>}
+      {b.kind === "global" && (
+        <div className="board-reset">
+          <button type="button" className={`linkish ${resetting ? "is-bad" : ""}`} onClick={() => void reset()}>
+            {resetting ? "Sure? Reset the global leaderboard" : "Reset global leaderboard"}
+          </button>
+          {resetting && (
+            <span className="error">
+              Every global board starts empty. A backup of all rounds is saved first, and event boards keep their scores. Click again to reset.
+            </span>
+          )}
+        </div>
+      )}
       <KeyHints hints={hints} />
     </div>
   );

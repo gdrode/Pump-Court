@@ -16,9 +16,9 @@ The score in every mode is **points**: 2 per perfect rep (3 white lights), 1 per
 | **1** | `sprint` – Sprint | 30 s | time is up, or the player fails | Sprint |
 | **2** | `minute` – Marathon | 60 s | time is up, or the player fails | Marathon |
 | **3** | `max` – Max | counts up, no limit | the player fails (section 2) | Max |
-| **4** | `duel` – Duel | 30 s, both at once (or one turn each) | time is up, or both have failed | Duel |
+| **4** | `duel` – Duel | 30 s, both at once (or one turn each) | time is up, or both have failed | Sprint (no Duel board; posted automatically) |
 
-`RoundMode::duration_ms()` gives the clock length: `Some(30 000)` (Sprint, Duel), `Some(60 000)` (Marathon), `None` (Max: no time limit). The value stored in the database is `RoundMode::as_str()`: `"sprint"`, `"minute"`, `"max"`, `"duel"`.
+`RoundMode::duration_ms()` gives the clock length: `Some(30 000)` (Sprint, Duel), `Some(60 000)` (Marathon), `None` (Max: no time limit). The value stored in the database is `RoundMode::board_mode().as_str()`: `"sprint"`, `"minute"` or `"max"` (a `duel` round is stored as `"sprint"`).
 
 Every round starts with the ready check and a 3-second countdown (see [Game Engine](README.md)).
 
@@ -59,7 +59,7 @@ Same rules for Singleplayer (the Rust `Session`) and the side-by-side Duel (`pum
 - **Split screen (two cameras)**: `ui/screens/DuelRound.tsx`, rules in `logic/useDuelMatch.ts`.
   - The screen is cut in half **top to bottom**: player 1 on top (camera slot 0), player 2 below (slot 1). Each half has the player's camera on the left and a panel on the right with their score, three lights and, before the clock, a camera picker with **+ Add camera** (pair a phone).
   - One clock for both, in the top bar. The 3-2-1 starts when both players hold the push-up position and then **always runs to GO**: it never stops if someone wobbles (once running, 2 s out of position is a fail). The countdown covers the whole split screen, faded, so both players stay visible; the screen layout never moves.
-  - Each player can fail on their own. When both are done, the Duel result shows; each player can post from their phone, and **P** posts the scores still waiting (posting is opt-in).
+  - Each player can fail on their own. When both are done, the Duel result shows; both scores are **posted automatically** to the solo board of the mode (P retries one that failed).
   - **Only one camera? Take turns instead** switches to the turn-based flow below.
 - **Taking turns (one camera)**: each player has a turn of the picked mode (Sprint = `RoundMode::Duel`, 30 s). The frontend runs the two turns; Rust sees two separate rounds.
 - Turn flow:
@@ -78,7 +78,7 @@ Same rules for Singleplayer (the Rust `Session`) and the side-by-side Duel (`pum
 - **Frontend** (`frontend/src/config/modes.ts`):
   - `PLAY_STYLES`: the home screen's top bar, **Singleplayer** or **Duel**.
   - `GAME_MODES`: Sprint / Marathon / Max with key, title, one short blurb (the same for Singleplayer and Duel), optional note. Marathon was called "Minute" until 2026-10-10: its id and database name stay `minute`, so old scores keep their board.
-  - `menuMode(style, mode)`: turns a pick into the `MenuModeInfo` that is played. Singleplayer = 1 player. Duel = 2 players, side by side on two cameras (or taking turns): **Duel + Sprint** is saved as the backend's `duel` mode (its own Duel board); **Duel + Marathon** and **Duel + Max** are saved to that mode's board.
+  - `menuMode(style, mode)`: turns a pick into the `MenuModeInfo` that is played. Singleplayer = 1 player. Duel = 2 players, side by side on two cameras (or taking turns): **Duel + Sprint** plays the backend's `duel` mode (Sprint rules). There is **no Duel board**: every Duel score is posted automatically to the solo board of the mode (Duel + Sprint → Sprint, Duel + Marathon → Marathon, Duel + Max → Max).
   - `MODE_LABELS`: names on boards and results.
   - `BOARDS`: leaderboard tabs — All time (`mode: null`), Sprint, Marathon, Max, Duel.
 

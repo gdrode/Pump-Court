@@ -43,7 +43,7 @@ pub struct LeaderboardRow {
     pub rank: u32,
     pub run_id: i64,
     pub name: String,
-    /// "sprint", "minute", "max" or "duel".
+    /// "sprint", "minute" or "max" (Duel rounds are saved as Sprint).
     pub mode: String,
     /// The score the board ranks by.
     /// To one decimal (streaks give 2.2–2.5 per perfect rep).
@@ -165,6 +165,8 @@ impl Leaderboard {
         conn.execute_batch(CREATE_RUNS)?;
         conn.execute_batch("CREATE INDEX IF NOT EXISTS runs_by_mode ON runs(mode, reps DESC);")?;
         add_points(&conn)?;
+        // Duels have no board any more: their rounds belong on the Sprint board.
+        conn.execute_batch("UPDATE runs SET mode = 'sprint' WHERE mode = 'duel';")?;
         crate::events::init(&conn)?;
         Ok(Self { conn, backup_dir: dir.join("backups") })
     }
@@ -181,7 +183,8 @@ impl Leaderboard {
         self.save_tagged_run(name, mode, f64::from(points), points, None, None, None)
     }
 
-    /// Saves a finished round played at an event, with the player's role and team.
+    /// Saves a finished round (at an event: with the player's role and team).
+    /// Stored under its board's mode (a Duel turn → Sprint).
     pub fn save_tagged_run(
         &self,
         name: &str,
@@ -194,25 +197,53 @@ impl Leaderboard {
     ) -> rusqlite::Result<i64> {
         self.conn.execute(
             "INSERT INTO runs (name, mode, points, reps, event_id, role, team) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![name, mode.as_str(), points, reps, event_id, role, team],
+            params![name, mode.board_mode().as_str(), points, reps, event_id, role, team],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
 
+    /// Global boards show only rounds after this run id (the last reset; 0 = never reset).
+    pub fn global_since(&self) -> i64 {
+        self.conn
+            .query_row("SELECT value FROM settings WHERE key = 'global_since'", [], |r| r.get::<_, String>(0))
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0)
+    }
+
+    /// Resets the global boards: they start empty and fill with rounds posted
+    /// from now on. Nothing is deleted (event boards keep their scores), and a
+    /// backup of every round is written first. Returns the backup's path.
+    pub fn reset_global(&self) -> Result<PathBuf, String> {
+        let backup = self.export_backup()?;
+        self.conn
+            .execute(
+                "INSERT INTO settings (key, value) VALUES ('global_since', (SELECT CAST(COALESCE(MAX(id), 0) AS TEXT) FROM runs))
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(backup)
+    }
+
     /// Each player's best round, ranked by points. `None` = every mode
-    /// (the all-time board). A tie goes to whoever posted first.
+    /// (the all-time board). A tie goes to whoever posted first. Only rounds
+    /// since the last reset ([`Self::reset_global`]).
     pub fn top(&self, mode: Option<RoundMode>, limit: u32) -> rusqlite::Result<Vec<LeaderboardRow>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, mode, points, reps FROM (
                  SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY points DESC, id ASC) AS best
                  FROM runs
-                 WHERE ?1 IS NULL OR mode = ?1
+                 WHERE (?1 IS NULL OR mode = ?1) AND id > ?3
              )
              WHERE best = 1
              ORDER BY points DESC, id ASC
              LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![mode.map(RoundMode::as_str), limit], LeaderboardRow::from_row)?;
+        let rows = stmt.query_map(
+            params![mode.map(|m| m.board_mode().as_str()), limit, self.global_since()],
+            LeaderboardRow::from_row,
+        )?;
         let mut out = rows.collect::<rusqlite::Result<Vec<_>>>()?;
         for (i, row) in out.iter_mut().enumerate() {
             row.rank = i as u32 + 1;
@@ -231,9 +262,9 @@ impl Leaderboard {
         Ok(())
     }
 
-    /// How many different people have competed.
+    /// How many different people have competed (since the last reset).
     pub fn player_count(&self) -> rusqlite::Result<u32> {
-        self.conn.query_row("SELECT COUNT(DISTINCT lower(name)) FROM runs", [], |r| r.get(0))
+        self.conn.query_row("SELECT COUNT(DISTINCT lower(name)) FROM runs WHERE id > ?1", [self.global_since()], |r| r.get(0))
     }
 
     /// The stored round with this id, if any.
@@ -319,7 +350,7 @@ pub fn save_finished(db: &Leaderboard, round: FinishedRound) -> Result<RoundResu
     let id = db
         .save_tagged_run(&player, round.mode, points, round.reps, round.event_id, role.as_deref(), team.as_deref())
         .map_err(|e| e.to_string())?;
-    let rank = db.rank_of(Some(round.mode), &player).ok().flatten();
+    let rank = db.rank_of(Some(round.mode.board_mode()), &player).ok().flatten();
     Ok(RoundResult {
         mode: round.mode,
         player,
@@ -372,7 +403,7 @@ mod tests {
         db.save_run("Cy", RoundMode::Duel, 18).unwrap();
         let all = db.top(None, 10).unwrap();
         let got: Vec<_> = all.iter().map(|r| (r.name.as_str(), r.mode.as_str(), r.reps)).collect();
-        assert_eq!(got, [("Ana", "max", 55), ("Ben", "minute", 40), ("Cy", "duel", 18)]);
+        assert_eq!(got, [("Ana", "max", 55), ("Ben", "minute", 40), ("Cy", "sprint", 18)], "a Duel turn is saved as Sprint");
         assert_eq!(db.top(Some(RoundMode::Minute), 10).unwrap().len(), 1);
     }
 
@@ -458,5 +489,33 @@ mod tests {
         assert_eq!(b.points, 26.0, "25 valid push-ups, 1 of them perfect");
         assert_eq!(db.rank_of(Some(RoundMode::Minute), "Ana").unwrap(), Some(2));
         assert!(save_finished(&db, round("", 5)).is_err(), "names are checked like any round");
+    }
+
+    #[test]
+    fn reset_global_empties_the_global_boards_but_keeps_everything() {
+        let db = Leaderboard::temporary();
+        db.save_run("Ana", RoundMode::Sprint, 20).unwrap();
+        db.save_run("Ben", RoundMode::Max, 30).unwrap();
+        let backup = db.reset_global().unwrap();
+        assert!(backup.exists(), "a backup is written first");
+        assert!(db.top(None, 10).unwrap().is_empty());
+        assert_eq!(db.player_count().unwrap(), 0);
+        let kept: u32 = db.conn.query_row("SELECT COUNT(*) FROM runs", [], |r| r.get(0)).unwrap();
+        assert_eq!(kept, 2, "nothing is deleted");
+        db.save_run("Cy", RoundMode::Sprint, 5).unwrap();
+        let names: Vec<_> = db.top(Some(RoundMode::Sprint), 10).unwrap().into_iter().map(|r| r.name).collect();
+        assert_eq!(names, ["Cy"]);
+        assert_eq!(db.rank_of(Some(RoundMode::Sprint), "Cy").unwrap(), Some(1));
+    }
+
+    #[test]
+    fn duel_turns_go_on_the_sprint_board() {
+        let db = Leaderboard::temporary();
+        db.conn.execute("INSERT INTO runs (name, mode, reps, points) VALUES ('Old', 'duel', 9, 9)", []).unwrap();
+        drop(db.conn.execute_batch("UPDATE runs SET mode = 'sprint' WHERE mode = 'duel';"));
+        db.save_run("Ana", RoundMode::Duel, 12).unwrap();
+        let got: Vec<_> = db.top(Some(RoundMode::Sprint), 10).unwrap().into_iter().map(|r| (r.name, r.mode)).collect();
+        assert_eq!(got, [("Ana".to_string(), "sprint".to_string()), ("Old".to_string(), "sprint".to_string())]);
+        assert_eq!(db.rank_of(Some(RoundMode::Duel), "Ana").unwrap(), Some(1), "asking for Duel reads the Sprint board");
     }
 }

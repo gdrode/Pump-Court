@@ -53,9 +53,10 @@ The board stores `points` (REAL) and `reps` (valid push-ups) and ranks by **poin
 | **Sprint** | `"sprint"` | each player's best Sprint round |
 | **Marathon** | `"minute"` | each player's best Marathon round |
 | **Max** | `"max"` | each player's best Max round |
-| **Duel** | `"duel"` | each player's best Duel turn |
 
-The crowd screen always shows the **All time** board (top 10). The operator's Leaderboard screen has all five tabs (keys **1**–**5**, or ←/→).
+**No Duel board.** A Duel has nothing to do with the leaderboard ranking itself, but each player's score is still saved, **automatically** (no opt-in), to the solo board of the mode: Duel · Sprint → **Sprint**, Duel · Marathon → **Marathon**, Duel · Max → **Max**. `RoundMode::board_mode()` (`backend/src/game/mode.rs`) maps the backend's `duel` mode to `sprint` in `save_tagged_run` and `top`/`rank_of`; old `duel` rows are moved to `sprint` when the database opens.
+
+The crowd screen always shows the **All time** board (top 10). The operator's Leaderboard screen has all four tabs (keys **1**–**4**, or ←/→).
 
 ---
 
@@ -98,6 +99,15 @@ round ends ─▶ "round-finished" (runId, rank = null) ─▶ ScorePost (fronte
 - **Fixed camera** (switch in the bottom-left gear menu, key **F** on home, remembered on this computer; `frontend/src/logic/fixedCamera.ts`): for a venue camera that stays in place. When on, every score is posted **at once, without asking**, and the camera (phone or not) is not let go after the round. Off is the default (the player's own phone, opt-in posting).
 
 ---
+
+## 4b. Reset the global leaderboard
+
+On the Leaderboard screen, on the **Global** boards: **Reset global leaderboard** at the bottom (click, then click "Sure?" again).
+
+- `reset_global_leaderboard` (`Leaderboard::reset_global`) first writes a backup of every round (same as **B**), then stores the newest run id as `global_since` in the `settings` table.
+- From then on the global boards (`top`, `rank_of`) and the player count only use rounds with a **higher id**: they start empty and fill with new rounds.
+- **Nothing is deleted.** Event boards (and team boards) keep their scores. Old rounds are in the backup file and still in the database.
+- Emits `leaderboard-reset`; the crowd screen reloads at once.
 
 ## 5. Duel winner (not the board)
 

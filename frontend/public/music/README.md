@@ -9,6 +9,8 @@ Files the game looks for (`frontend/src/config/music.ts`). A missing file is ski
 | `pixel-peeker-polka-faster.mp3` | Menu | Kevin MacLeod: Pixel Peeker Polka - faster | CC BY 4.0. [incompetech.com](https://incompetech.com/music/royalty-free/music.html) |
 | `toby/rude-buster.mp3` | Round (random, looped) | Toby Fox: Rude Buster (Deltarune) | © Toby Fox. [Bandcamp](https://tobyfox.bandcamp.com/album/deltarune-chapter-1-ost) |
 | `level-3.m4a` (AAC, converted from the pack's .wav) | Round | Juhani Junkala: Level 3 (Retro Game Music Pack) | CC0. [OpenGameArt](https://opengameart.org/content/5-chiptunes-action) |
+| `ending.m4a` (AAC, converted from the pack's .wav) | Results screens (random, looped) | Juhani Junkala: Ending (Retro Game Music Pack) | CC0. [OpenGameArt](https://opengameart.org/content/5-chiptunes-action) |
+| `under-the-stars.mp3` | Results screens | Eric Skiff: We're all under the stars (Resistor Anthems) | CC BY 4.0. [ericskiff.com/music](https://ericskiff.com/music/) |
 | `toby/megalovania.mp3` | Streak (1.2x until it breaks; faster each tier) | Toby Fox: MEGALOVANIA (Undertale) | © Toby Fox. [Bandcamp](https://tobyfox.bandcamp.com/album/undertale-soundtrack) |
 
 - **`toby/` is in `.gitignore`.** Toby Fox lets people use his music, but it isn't openly licensed, so it is copied onto the event laptop by hand and never pushed to the public repo.
