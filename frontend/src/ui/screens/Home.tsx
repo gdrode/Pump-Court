@@ -3,9 +3,13 @@ import { GAME_MODES, HOME_KEYS, menuMode, PLAY_STYLES, type MenuModeInfo, type P
 import { setFixedCamera, isFixedCamera } from "../../logic/fixedCamera";
 import { useActiveEvent, type BoardRef } from "../../logic/useEvents";
 import { useKeys } from "../../logic/useKeys";
+import { useTopThree } from "../../logic/useTopThree";
+import { ArenaFloor, ArenaMat } from "../components/Arena";
 import { Dragon } from "../components/Dragon";
+import { DragonCameo } from "../components/DragonCameo";
 import { EventBoardCycle } from "../components/EventBoardCycle";
 import { Logo } from "../components/Logo";
+import { TrophyShelf } from "../components/TrophyShelf";
 import { MUSIC_CREDIT_LINE } from "../music";
 import { SOUND_CREDIT_LINE } from "../sounds";
 import { host } from "../host";
@@ -32,6 +36,7 @@ interface Props {
 export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCrowd }: Props) {
   const [style, setStyle] = useState<PlayStyle | null>(null);
   const event = useActiveEvent();
+  const top = useTopThree();
   const toggleFixed = () => setFixedCamera(!isFixedCamera());
 
   const pickMode = (i: number) => {
@@ -56,9 +61,15 @@ export function Home({ visit, onPick, onEvents, onLeaderboard, onSettings, onCro
     <div className="home">
       <header className="home__head">
         <Logo />
-        <Dragon action="curl" size="lg" bubble="top" says={says} />
+        {/* The dragon stands on its mat on the court floor. */}
+        <div className="home__stage">
+          <ArenaMat />
+          <Dragon action="curl" size="lg" bubble="top" says={says} />
+        </div>
       </header>
-
+      <ArenaFloor />
+      <TrophyShelf rows={top} />
+      <DragonCameo pose="lift" place="home" />
 
       <div className="home__menu">
         <div className="play-style" role="radiogroup" aria-label="Who's playing">

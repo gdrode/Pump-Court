@@ -2,6 +2,10 @@ import { fmtPoints } from "@tracker/game";
 import type { LeaderboardRow, TeamRow } from "../../api/types";
 import { MODE_LABELS } from "../../config/modes";
 
+/** Ranks 1–3 get the podium colours: gold, silver, bronze. */
+const PODIUM = ["", "is-gold", "is-silver", "is-bronze"];
+const podiumClass = (rank: number) => (rank >= 1 && rank <= 3 ? `is-podium ${PODIUM[rank]}` : "");
+
 interface Props {
   rows: LeaderboardRow[];
   limit?: number;
@@ -33,10 +37,12 @@ export function LeaderboardTable({ rows, limit = 10, showMode = false, highlight
             className={[
               highlight && r.name.toLowerCase() === highlight.toLowerCase() ? "is-highlight" : "",
               selected === i ? "is-selected" : "",
-              r.rank === 1 ? "is-first" : "",
+              podiumClass(r.rank),
             ].join(" ")}
           >
-            <td className="num">{r.rank}</td>
+            <td className="num">
+              <span className="board__rank">{r.rank}</span>
+            </td>
             <td className="board__name">{r.name}</td>
             {showMode && <td className="board__mode">{MODE_LABELS[r.mode] ?? r.mode}</td>}
             <td className="num board__reps">{fmtPoints(r.points)}</td>
@@ -62,8 +68,10 @@ export function TeamTable({ rows, limit = 10, big }: { rows: TeamRow[]; limit?: 
       </thead>
       <tbody>
         {rows.slice(0, limit).map((r) => (
-          <tr key={r.team} className={r.rank === 1 ? "is-first" : ""}>
-            <td className="num">{r.rank}</td>
+          <tr key={r.team} className={podiumClass(r.rank)}>
+            <td className="num">
+              <span className="board__rank">{r.rank}</span>
+            </td>
             <td className="board__name">{r.team}</td>
             <td className="num board__mode">{r.members}</td>
             <td className="num board__reps">{fmtPoints(r.points)}</td>

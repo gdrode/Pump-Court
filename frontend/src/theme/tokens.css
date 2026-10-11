@@ -18,6 +18,13 @@
   --cream: #f6e6ab;
   --red: #d2452e;
   --red-light: #f6d3c8;
+  /* Podium: leaderboard ranks 1–3 and the trophy shelf */
+  --gold: #c9971c;
+  --gold-light: #f8e39a;
+  --silver: #8e959c;
+  --silver-light: #e3e6e9;
+  --bronze: #b06a35;
+  --bronze-light: #f0d2b6;
   --font: 'Patrick Hand', 'Comic Neue', 'Chalkboard SE', 'Comic Sans MS', cursive;
   --r: 14px 22px 12px 20px / 20px 12px 22px 14px; /* uneven corners read as hand-drawn */
 

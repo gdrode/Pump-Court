@@ -4,6 +4,7 @@ import { BOARDS, MODE_LABELS } from "../../config/modes";
 import { eventTabs, sameTab, useEvents, type BoardRef } from "../../logic/useEvents";
 import { useKeys } from "../../logic/useKeys";
 import { useLeaderboard } from "../../logic/useLeaderboard";
+import { DragonCameo } from "../components/DragonCameo";
 import { KeyHints, type Hint } from "../components/KeyHints";
 import { LeaderboardTable, TeamTable } from "../components/LeaderboardTable";
 
@@ -110,6 +111,7 @@ export function Leaderboard({ initial, highlight, onBack }: Props) {
 
   return (
     <div className="panel sketch leaderboard">
+      <DragonCameo pose="sleep" place="board" />
       {(active || event) && (
         <div className="seg board-source" role="tablist" aria-label="Which boards">
           <button role="tab" aria-selected={!event} className={`seg__btn sketch ${!event ? "is-on" : ""}`} onClick={() => event && switchSource()}>

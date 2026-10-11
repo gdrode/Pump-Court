@@ -294,7 +294,9 @@ kbd {
 .home__head { display: contents; }
 .home .logo { grid-column: 1 / -1; grid-row: 1; align-self: end; justify-self: center; }
 /* The dragon scales with the window, so split screen isn't half empty. */
-.home .host { grid-column: 1; grid-row: 2; align-self: center; --h: clamp(140px, min(28vw, 34vh), 290px); }
+.home { position: relative; z-index: 0; } /* own layer, so the floor (z-index -1) stays behind the menu */
+.home__stage { grid-column: 1; grid-row: 2; align-self: center; justify-self: center; position: relative; }
+.home .host { --h: clamp(140px, min(28vw, 34vh), 290px); position: relative; }
 .home .host--lg .host__bubble { font-size: clamp(1.2rem, 1.1vw + 0.7rem, 1.7rem); }
 .home__menu {
   grid-column: 2; grid-row: 2; align-self: center; display: flex; flex-direction: column; gap: clamp(0.8rem, 2.2vh, 1.4rem);
@@ -525,10 +527,22 @@ kbd {
 .board__name { font-size: 1.6rem !important; }
 .board__reps { font-size: 1.9rem !important; }
 .board__time { color: var(--ink-soft); font-size: 1.1rem !important; }
-.board tr.is-first td { background: var(--cream); }
-.board tr.is-first td.num:first-child { color: var(--ink); }
+/* Podium rows: 1st gold, 2nd silver, 3rd bronze. The rank becomes a medal. */
+.board tr.is-gold { --medal: var(--gold); --medal-bg: var(--gold-light); }
+.board tr.is-silver { --medal: var(--silver); --medal-bg: var(--silver-light); }
+.board tr.is-bronze { --medal: var(--bronze); --medal-bg: var(--bronze-light); }
+.board tr.is-podium td { background: var(--medal-bg); border-bottom-color: var(--medal); }
+.board tr.is-podium td:first-child { box-shadow: inset 6px 0 0 var(--medal); }
+.board tr.is-podium td.num:first-child { color: var(--ink); }
+.board tr.is-podium .board__rank {
+  display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; margin-left: -0.2em; font-size: 0.85em; line-height: 1;
+  border-radius: 50%; background: var(--medal); color: #fff; border: 2px solid var(--ink); box-shadow: 1px 2px 0 var(--ink);
+}
+.board tr.is-gold .board__reps { color: #8a6410; }
 .board tr.is-highlight td { background: var(--purple-light); }
 .board tr.is-highlight .board__name::after { content: '  ← you'; color: var(--purple); font-size: 1.2rem; }
+/* The player who just posted keeps the podium colour if they made the top 3. */
+.board tr.is-podium.is-highlight td { background: var(--medal-bg); }
 .board tr.is-selected td { background: var(--red-light); }
 .board__empty { color: var(--ink-soft); font-size: 1.5rem; padding: 1.5rem 0; }
 .board--big td { padding: 0.6rem 1rem; font-size: 2rem; }
@@ -938,3 +952,67 @@ kbd {
 /* Leaderboard: reset the global boards (two clicks). */
 .board-reset { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 1rem; margin: 0.4rem 0; font-size: 1rem; }
 .board-reset .error { margin: 0; }
+
+/* ---- arena, trophies, cameos (home decoration) ------------------------------ */
+
+/* Court floor along the bottom of the screen, behind everything. */
+.arena-floor { position: fixed; z-index: -1; left: 0; right: 0; bottom: 0; width: 100%; height: clamp(60px, 13vh, 130px); pointer-events: none; }
+.arena-floor__wood { fill: #e8d9b4; }
+.arena-floor__boards { stroke: #d4c193; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.arena-floor__boards path { vector-effect: non-scaling-stroke; }
+.arena-floor__circle, .arena-floor__line { fill: none; stroke: var(--purple); stroke-width: 3; opacity: 0.45; vector-effect: non-scaling-stroke; }
+.arena-floor__edge { stroke-width: 3; vector-effect: non-scaling-stroke; }
+
+/* The mat under the dragon's feet (the dragon's own feet sit ~5% above its bottom). */
+.arena-mat {
+  position: absolute; z-index: -1; left: 50%; bottom: calc(var(--h, 270px) * -0.12);
+  width: calc(var(--h, 270px) * 1.35); transform: translateX(-50%); pointer-events: none;
+}
+.home__stage { --h: clamp(140px, min(28vw, 34vh), 290px); }
+
+/* Trophy shelf: the top 3 of all time, top-right of the home screen. */
+.trophy-shelf { position: absolute; top: 0.4rem; right: 0; margin: 0; width: clamp(190px, 20vw, 270px); display: flex; flex-direction: column; align-items: stretch; pointer-events: none; transform: rotate(1.2deg); }
+.trophy-shelf__title { text-align: center; font-size: 1rem; color: var(--ink-soft); margin-bottom: 0.1rem; }
+.trophy-shelf__row { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 0.3rem; padding: 0 0.4rem; }
+.trophy { display: flex; flex-direction: column; align-items: center; min-width: 0; line-height: 1.05; }
+.trophy__cup { width: 70%; }
+.trophy--1 .trophy__cup { width: 88%; }
+.trophy__name { font-size: 0.95rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trophy__pts { font-size: 0.75rem; color: var(--ink-soft); }
+.trophy--1 .trophy__name { color: #8a6410; font-size: 1.05rem; }
+.trophy-shelf__plank { width: 100%; height: 1.4rem; margin-top: -0.1rem; }
+.trophy--1 .trophy__cup { animation: trophy-shine 3.2s ease-in-out infinite; }
+@keyframes trophy-shine { 0%, 80%, 100% { filter: none; } 88% { filter: drop-shadow(0 0 6px var(--gold-light)) brightness(1.15); } }
+@media (max-width: 900px), (max-height: 560px) { .trophy-shelf { display: none; } }
+
+/* Dragon cameos: a small dragon peeking in over an edge. */
+.cameo { pointer-events: none; width: clamp(80px, 9vw, 120px); }
+.cameo svg { display: block; width: 100%; overflow: visible; }
+/* Home: from the right edge of the screen, head pointing in, lifting. */
+.cameo--home { position: fixed; z-index: -1; top: 58%; right: calc(clamp(80px, 9vw, 120px) / -2); transform: rotate(-90deg) translateY(4px); transform-origin: 50% 100%; }
+/* Leaderboard: asleep on top of the panel, top-right. */
+.leaderboard { position: relative; }
+.cameo--board { position: absolute; bottom: calc(100% - 6px); right: 2.2rem; width: clamp(70px, 7vw, 96px); }
+/* Results: up from the bottom-left of the screen, cheering. */
+.cameo--results { position: fixed; bottom: -4px; left: 2rem; }
+@media (max-width: 900px) { .cameo--home { display: none; } }
+
+.cameo--lift .cameo__lift { animation: cameo-lift 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 30% 100%; }
+@keyframes cameo-lift { 0%, 100% { transform: translateY(14px); } 50% { transform: translateY(-4px); } }
+.cameo--sleep .cameo__head { animation: cameo-breathe 3s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes cameo-breathe { 0%, 100% { transform: rotate(-4deg) scaleY(1); } 50% { transform: rotate(-4deg) scaleY(1.04); } }
+.cameo__zzz .z { animation: cameo-z 3s ease-in-out infinite; opacity: 0; }
+.cameo__zzz .z--2 { animation-delay: 0.6s; }
+.cameo__zzz .z--3 { animation-delay: 1.2s; }
+@keyframes cameo-z { 0% { opacity: 0; transform: translate(0, 6px); } 30%, 70% { opacity: 1; } 100% { opacity: 0; transform: translate(6px, -8px); } }
+.cameo--cheer { animation: cameo-pop 600ms cubic-bezier(.3, 1.6, .5, 1) both; }
+.cameo--cheer .cameo__body { animation: cameo-bounce 0.7s ease-in-out infinite alternate; }
+.cameo--cheer .cameo__sparks { animation: cameo-twinkle 0.9s steps(2) infinite; }
+@keyframes cameo-pop { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes cameo-bounce { from { transform: translateY(4px); } to { transform: translateY(-5px); } }
+@keyframes cameo-twinkle { 50% { opacity: 0.2; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cameo, .cameo *, .trophy__cup { animation: none !important; }
+  .cameo__zzz .z { opacity: 1; }
+}

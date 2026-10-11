@@ -5,6 +5,7 @@ import { MODE_LABELS, REFEREE_LABELS, REFEREES } from "../../config/modes";
 import { useScorePosts, type ScorePost } from "../../logic/scorePost";
 import { useKeys } from "../../logic/useKeys";
 import { Dragon } from "../components/Dragon";
+import { DragonCameo } from "../components/DragonCameo";
 import { KeyHints } from "../components/KeyHints";
 import { host } from "../host";
 import { play } from "../sounds";
@@ -123,6 +124,7 @@ export function Results({ result, nextPlayer, onNext, onDiscard }: Props) {
           ]}
         />
       </div>
+      {r.points > 0 && <DragonCameo pose="cheer" place="results" />}
     </div>
   );
 }

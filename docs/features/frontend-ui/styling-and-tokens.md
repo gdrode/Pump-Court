@@ -25,6 +25,12 @@ All colors, the font and the corner shape are CSS custom properties in `frontend
   --cream: #f6e6ab;        /* hover / highlight */
   --red: #d2452e;          /* no-reps */
   --red-light: #f6d3c8;
+  --gold: #c9971c;         /* podium: 1st (leaderboard row, medal, trophy) */
+  --gold-light: #f8e39a;
+  --silver: #8e959c;       /* podium: 2nd */
+  --silver-light: #e3e6e9;
+  --bronze: #b06a35;       /* podium: 3rd */
+  --bronze-light: #f0d2b6;
   --font: 'Patrick Hand', 'Comic Neue', 'Chalkboard SE', 'Comic Sans MS', cursive;
   --r: 14px 22px 12px 20px / 20px 12px 22px 14px;  /* uneven, hand-drawn corners */
   --video-bg: #2b2620;     /* behind the camera picture */
@@ -46,6 +52,15 @@ All colors, the font and the corner shape are CSS custom properties in `frontend
   - The `beat` prop replays a one-shot move, e.g. on every rep.
 - **Dragon lines**: all text the dragon says is in `ui/host.ts`.
 - **Dragon reactions**: `ui/hostMood.ts` picks the move and line during a round: no-rep → sad (and names the red light), just passed the best → hype, last five seconds → hurry, valid rep → cheer (hype when ahead), no rep for 2.5 s → hurry. The round screen and the crowd window share it.
+- **Podium rows**: `LeaderboardTable` and `TeamTable` give ranks 1–3 the classes `is-podium is-gold` / `is-silver` / `is-bronze`: the row is tinted (`--gold-light` …), has a coloured left edge, and the rank sits in a medal disc (`.board__rank`). Applies everywhere the tables are used: Leaderboard screen, crowd board, event board cycle. The "← you" row keeps its podium colour.
+- **Home decoration** (all `aria-hidden`, no clicks):
+  - **Court floor** (`ArenaFloor` in `ui/components/Arena.tsx`): wooden boards in perspective, centre circle and lines along the bottom of the screen (fixed, behind the menu: `.home` is its own layer, the floor is `z-index: -1`).
+  - **Mat** (`ArenaMat`): a purple exercise mat under the home dragon's feet (`.home__stage`).
+  - **Trophy shelf** (`ui/components/TrophyShelf.tsx`): top-right, "Hall of fame", gold / silver / bronze trophies in podium order (2nd, 1st, 3rd) with the all-time top 3 names and points, "???" while a place is empty. Data from `useTopThree()` (`logic/useTopThree.ts`: `get_leaderboard(null, 3)`, reloads on `round-posted` and `leaderboard-reset`). Hidden below 900 px wide or 560 px tall.
+- **Dragon cameos** (`ui/components/DragonCameo.tsx`, `pose` + `place`): a small dragon head and paws peeking over an edge.
+  - Home: `lift` (pumping a dumbbell), from the right edge of the screen (hidden below 900 px).
+  - Leaderboard: `sleep` (eyes shut, breathing, floating "z z Z"), resting on top of the panel.
+  - Results: `cheer` (paws up, sparkles, bounce), up from the bottom-left; not shown on a 0-point round.
 - **Reduced motion**: with the OS "reduce motion" setting on, all animations and transitions are off.
 
 ---
